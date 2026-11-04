@@ -183,3 +183,53 @@ func MustParse(s string) *Puzzle {
 	}
 	return p
 }
+
+// UnitKind distinguishes the three kinds of units that each hold exactly one star.
+type UnitKind uint8
+
+const (
+	Row UnitKind = iota
+	Col
+	Region
+)
+
+func (k UnitKind) String() string {
+	return [...]string{"row", "col", "region"}[k]
+}
+
+// Unit is a row, column or region together with its cells.
+type Unit struct {
+	Kind  UnitKind
+	Index int
+	Cells []Pos
+}
+
+func (u Unit) String() string {
+	if u.Kind == Region {
+		return fmt.Sprintf("region %c", alphabet[u.Index])
+	}
+	return fmt.Sprintf("%v %d", u.Kind, u.Index)
+}
+
+// Units returns all 3N units: rows, then columns, then regions.
+func (p *Puzzle) Units() []Unit {
+	units := make([]Unit, 0, 3*p.N)
+	for r := range p.N {
+		u := Unit{Kind: Row, Index: r}
+		for c := range p.N {
+			u.Cells = append(u.Cells, Pos{r, c})
+		}
+		units = append(units, u)
+	}
+	for c := range p.N {
+		u := Unit{Kind: Col, Index: c}
+		for r := range p.N {
+			u.Cells = append(u.Cells, Pos{r, c})
+		}
+		units = append(units, u)
+	}
+	for reg, cells := range p.RegionCells() {
+		units = append(units, Unit{Kind: Region, Index: reg, Cells: cells})
+	}
+	return units
+}

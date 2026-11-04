@@ -1,0 +1,89 @@
+package observers
+
+import (
+	"testing"
+
+	"starbattle/internal/puzzle"
+)
+
+// 5x5 layout used by the observer tests.
+var p5 = puzzle.MustParse(`
+DBBBB
+DDBCC
+DDBAA
+EDDAA
+EAAAA
+`)
+
+func TestUnitFinish(t *testing.T) {
+	units := p5.Units() // rows 0-4, cols 5-9, regions 10-14
+	row2, col4 := units[2], units[5+4]
+	regionE := units[10+p5.Region(4, 0)]
+
+	tests := []struct {
+		name          string
+		unit          puzzle.Unit
+		before, after string
+	}{
+		{"row with one free cell", row2, `
+			.....
+			.....
+			XX.XX
+			.....
+			.....`, `
+			.....
+			.....
+			XXMXX
+			.....
+			.....`},
+		{"row with two free cells", row2, `
+			.....
+			.....
+			X..XX
+			.....
+			.....`, `
+			.....
+			.....
+			X..XX
+			.....
+			.....`},
+		{"row already has star", row2, `
+			.....
+			.....
+			XXMXX
+			.....
+			.....`, `
+			.....
+			.....
+			XXMXX
+			.....
+			.....`},
+		{"column", col4, `
+			....X
+			....X
+			....X
+			.....
+			....X`, `
+			....X
+			....X
+			....X
+			....M
+			....X`},
+		{"region E", regionE, `
+			.....
+			.....
+			.....
+			X....
+			.....`, `
+			.....
+			.....
+			.....
+			X....
+			M....`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expectDeduce(t, p5, UnitFinish{Unit: tt.unit}, tt.before, tt.after)
+		})
+	}
+}

@@ -228,3 +228,65 @@ func (s *State) String() string {
 	}
 	return b.String()
 }
+
+// Parse builds a state from N lines of 'M' (star), 'X' (cross) and '.' (free),
+// the same format String produces. Intended for tests. Blank lines and spaces are ignored.
+func Parse(p *puzzle.Puzzle, text string) (*State, error) {
+	s := New(p)
+	r := 0
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.ReplaceAll(strings.TrimSpace(line), " ", "")
+		if line == "" {
+			continue
+		}
+		if r >= p.N || len(line) != p.N {
+			return nil, fmt.Errorf("line %d: want %d rows of %d cells", r, p.N, p.N)
+		}
+		for c, ch := range line {
+			switch ch {
+			case 'M', 'm', '*':
+				s.cells[r*p.N+c] = Star
+			case 'X', 'x':
+				s.cells[r*p.N+c] = Cross
+			case '.':
+			default:
+				return nil, fmt.Errorf("line %d: unexpected %q", r, ch)
+			}
+		}
+		r++
+	}
+	if r != p.N {
+		return nil, fmt.Errorf("got %d rows, want %d", r, p.N)
+	}
+	return s, nil
+}
+
+// MustParse is Parse that panics on error.
+func MustParse(p *puzzle.Puzzle, text string) *State {
+	s, err := Parse(p, text)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+// Free returns the free cells among cells.
+func (s *State) Free(cells []puzzle.Pos) []puzzle.Pos {
+	var out []puzzle.Pos
+	for _, q := range cells {
+		if s.At(q.Row, q.Col) == Free {
+			out = append(out, q)
+		}
+	}
+	return out
+}
+
+// HasStar reports whether any of cells holds a star.
+func (s *State) HasStar(cells []puzzle.Pos) bool {
+	for _, q := range cells {
+		if s.At(q.Row, q.Col) == Star {
+			return true
+		}
+	}
+	return false
+}

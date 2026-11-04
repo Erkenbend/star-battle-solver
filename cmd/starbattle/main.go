@@ -2,6 +2,7 @@
 //
 //	starbattle generate -n 8 [-seed 42] [-show]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
+//	starbattle solve [-step] [-nocolor] [p.txt]
 package main
 
 import (
@@ -17,6 +18,8 @@ import (
 	"starbattle/internal/generator"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/render"
+	"starbattle/internal/solver"
+	"starbattle/internal/solver/observers"
 )
 
 func main() {
@@ -29,6 +32,8 @@ func main() {
 		err = cmdGenerate(os.Args[2:])
 	case "show":
 		err = cmdShow(os.Args[2:])
+	case "solve":
+		err = cmdSolve(os.Args[2:])
 	default:
 		usage()
 	}
@@ -41,7 +46,8 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   starbattle generate -n N [-seed S] [-show]
-  starbattle show [-solution] [-nocolor] [file]`)
+  starbattle show [-solution] [-nocolor] [file]
+  starbattle solve [-step] [-nocolor] [file]`)
 	os.Exit(2)
 }
 
@@ -77,16 +83,7 @@ func cmdShow(args []string) error {
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
 	fs.Parse(args)
 
-	var in io.Reader = os.Stdin
-	if fs.NArg() > 0 {
-		f, err := os.Open(fs.Arg(0))
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		in = f
-	}
-	p, err := puzzle.Parse(in)
+	p, err := readPuzzle(fs)
 	if err != nil {
 		return err
 	}
@@ -106,5 +103,55 @@ func cmdShow(args []string) error {
 			fmt.Print(render.State(board.FromSolution(p, sols[0]), o))
 		}
 	}
+	return nil
+}
+
+func readPuzzle(fs *flag.FlagSet) (*puzzle.Puzzle, error) {
+	var in io.Reader = os.Stdin
+	if fs.NArg() > 0 {
+		f, err := os.Open(fs.Arg(0))
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		in = f
+	}
+	return puzzle.Parse(in)
+}
+
+func cmdSolve(args []string) error {
+	fs := flag.NewFlagSet("solve", flag.ExitOnError)
+	step := fs.Bool("step", false, "render the board after every observer step")
+	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
+	fs.Parse(args)
+
+	p, err := readPuzzle(fs)
+	if err != nil {
+		return err
+	}
+	o := render.Options{NoColor: *noColor}
+	fmt.Print(render.Puzzle(p, o))
+
+	res := solver.RunSync(board.New(p), observers.All(p))
+
+	if *step {
+		replay := board.New(p)
+		for i, st := range res.Trace {
+			hl := map[puzzle.Pos]bool{}
+			for _, m := range st.Marks {
+				replay.Set(m.Pos.Row, m.Pos.Col, m.Kind) // conflicting last step: keep what fits
+				hl[m.Pos] = true
+			}
+			fmt.Printf("\nstep %d: %s (%d cells)\n", i+1, st.Source, len(st.Marks))
+			fmt.Print(render.State(replay, render.Options{NoColor: *noColor, Highlight: hl}))
+		}
+	}
+
+	fmt.Printf("\nresult: %v after %d steps", res.Status, len(res.Trace))
+	if res.Err != nil {
+		fmt.Printf(" (%v)", res.Err)
+	}
+	fmt.Println()
+	fmt.Print(render.State(res.State, o))
 	return nil
 }
