@@ -1,0 +1,10 @@
+# generator.Generate(n=9, rand.NewPCG(74, 9)); rules alone get stuck with 26 free cells
+FFAAEEEEH
+FAAAEEHHH
+FAAAAEDDH
+FAADADDDD
+FADDADDDD
+GDDDDDDDC
+GBIIDDCCC
+GBBIIIIIC
+BBBBIICCC

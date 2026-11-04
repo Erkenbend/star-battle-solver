@@ -69,7 +69,7 @@ func (s *State) Set(r, c int, v Cell) (bool, error) {
 	case cur == v:
 		return false, nil
 	case cur != Free:
-		return false, fmt.Errorf("conflict at (%d,%d): is %v, got %v", r, c, cur, v)
+		return false, fmt.Errorf("Konflikt bei (%d,%d): ist %v, soll %v werden", r, c, cur, v)
 	case v == Free:
 		return false, fmt.Errorf("cannot reset (%d,%d) to free", r, c)
 	}
@@ -155,22 +155,22 @@ func (s *State) Contradiction() error {
 	check := func(kind string, us []unitCounts, name func(int) string) error {
 		for i, u := range us {
 			if u.stars > 1 {
-				return fmt.Errorf("%s %s has %d stars", kind, name(i), u.stars)
+				return fmt.Errorf("%s %s hätte %d Sterne", kind, name(i), u.stars)
 			}
 			if u.stars == 0 && u.free == 0 {
-				return fmt.Errorf("%s %s has no star and no free cell", kind, name(i))
+				return fmt.Errorf("%s %s hätte keinen Stern und kein freies Feld mehr", kind, name(i))
 			}
 		}
 		return nil
 	}
 	num := func(i int) string { return fmt.Sprint(i) }
-	if err := check("row", rows, num); err != nil {
+	if err := check("Zeile", rows, num); err != nil {
 		return err
 	}
-	if err := check("column", cols, num); err != nil {
+	if err := check("Spalte", cols, num); err != nil {
 		return err
 	}
-	if err := check("region", regs, func(i int) string { return string(puzzle.RegionLetter(i)) }); err != nil {
+	if err := check("Farbe", regs, func(i int) string { return string(puzzle.RegionLetter(i)) }); err != nil {
 		return err
 	}
 	n := s.P.N
@@ -183,7 +183,7 @@ func (s *State) Contradiction() error {
 			for _, d := range [4]puzzle.Pos{{Row: 0, Col: 1}, {Row: 1, Col: -1}, {Row: 1, Col: 0}, {Row: 1, Col: 1}} {
 				rr, cc := r+d.Row, c+d.Col
 				if s.P.In(rr, cc) && s.At(rr, cc) == Star {
-					return fmt.Errorf("stars at (%d,%d) and (%d,%d) touch", r, c, rr, cc)
+					return fmt.Errorf("die Sterne auf (%d,%d) und (%d,%d) würden sich berühren", r, c, rr, cc)
 				}
 			}
 		}

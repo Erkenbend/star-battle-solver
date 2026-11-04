@@ -2,7 +2,7 @@
 //
 //	starbattle generate -n 8 [-seed 42] [-show]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
-//	starbattle solve [-runner concurrent|sync] [-step] [-verbose] [-nocolor] [p.txt]
+//	starbattle solve [-runner concurrent|sync] [-search full|lookahead|none] [-step] [-verbose] [-nocolor] [p.txt]
 package main
 
 import (
@@ -48,7 +48,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   starbattle generate -n N [-seed S] [-show]
   starbattle show [-solution] [-nocolor] [file]
-  starbattle solve [-runner concurrent|sync] [-step] [-verbose] [-nocolor] [file]`)
+  starbattle solve [-runner concurrent|sync] [-search full|lookahead|none] [-step] [-verbose] [-nocolor] [file]`)
 	os.Exit(2)
 }
 
@@ -64,7 +64,7 @@ func cmdGenerate(args []string) error {
 	if s == 0 {
 		s = uint64(time.Now().UnixNano())
 	}
-	rng := rand.New(rand.NewPCG(s, s>>1|1))
+	rng := rand.New(rand.NewPCG(s, uint64(*n))) // same seeding as the tests and testdata/hard
 	p, sol, err := generator.Generate(*n, rng, generator.Options{})
 	if err != nil {
 		return err
@@ -125,6 +125,7 @@ func cmdSolve(args []string) error {
 	step := fs.Bool("step", false, "render the board after every deduction")
 	verbose := fs.Bool("verbose", false, "explain every deduction in words")
 	runner := fs.String("runner", "concurrent", "concurrent (one goroutine per observer) or sync")
+	search := fs.String("search", "full", "when the rules get stuck: full (lookahead + backtracking), lookahead, or none")
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
 	fs.Parse(args)
 
@@ -135,15 +136,24 @@ func cmdSolve(args []string) error {
 	o := render.Options{NoColor: *noColor}
 	fmt.Print(render.Puzzle(p, o))
 
-	run := solver.RunConcurrent
+	opts := solver.Options{Run: solver.RunConcurrent}
 	switch *runner {
 	case "concurrent":
 	case "sync":
-		run = solver.RunSync
+		opts.Run = solver.RunSync
 	default:
 		return fmt.Errorf("unknown runner %q", *runner)
 	}
-	res := run(board.New(p), observers.All(p))
+	switch *search {
+	case "full":
+		opts.Lookahead, opts.Backtrack = true, true
+	case "lookahead":
+		opts.Lookahead = true
+	case "none":
+	default:
+		return fmt.Errorf("unknown search %q", *search)
+	}
+	res := solver.Solve(board.New(p), observers.All(p), opts)
 
 	if *step || *verbose {
 		replay := board.New(p)
@@ -171,6 +181,10 @@ func cmdSolve(args []string) error {
 	if res.Err != nil {
 		fmt.Printf(" (%v)", res.Err)
 	}
+	if st := res.Stats; st != (solver.Stats{}) {
+		fmt.Printf("\nsearch: %d lookahead crosses, %d guesses (%d refuted), max depth %d",
+			st.Lookahead, st.Guesses, st.Refuted, st.MaxDepth)
+	}
 	fmt.Println()
 	fmt.Print(render.State(res.State, o))
 	return nil
@@ -194,6 +208,9 @@ func describeMarks(marks []solver.Mark) string {
 			out += fmt.Sprintf(", dazu %d × X in Zeile, Spalte, Farbe und Nachbarschaft", len(crosses))
 		}
 		return out
+	}
+	if len(crosses) == 0 {
+		return ""
 	}
 	return "X: " + strings.Join(crosses, " ")
 }

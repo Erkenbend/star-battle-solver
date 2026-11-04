@@ -58,7 +58,7 @@ type Observer interface {
 func Apply(s *board.State, m Mark) ([]Mark, error) {
 	changed, err := s.Set(m.Pos.Row, m.Pos.Col, m.Kind)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", m, err)
+		return nil, fmt.Errorf("%w (%s)", err, m.Source)
 	}
 	if !changed {
 		return nil, nil
@@ -68,7 +68,7 @@ func Apply(s *board.State, m Mark) ([]Mark, error) {
 		for _, q := range board.Implied(s.P, m.Pos.Row, m.Pos.Col) {
 			ch, err := s.Set(q.Row, q.Col, board.Cross)
 			if err != nil {
-				return delta, fmt.Errorf("%v: %w", m, err)
+				return delta, fmt.Errorf("%w (%s)", err, m.Source)
 			}
 			if ch {
 				delta = append(delta, Cross(q, m.Source).Why(m.Reason))
@@ -82,7 +82,7 @@ func Apply(s *board.State, m Mark) ([]Mark, error) {
 type Status uint8
 
 const (
-	Stuck         Status = iota // fixpoint reached, puzzle not solved: needs stronger rules or guessing
+	Stuck         Status = iota // fixpoint reached, puzzle not solved: needs stronger rules or search
 	Solved                      // every unit has its star
 	Contradiction               // the observers derived an impossible state (bug in a rule, or a wrong guess)
 )
@@ -118,6 +118,7 @@ type Result struct {
 	Status Status
 	Err    error  // reason for Contradiction
 	Trace  []Step // in order of application; useful for step-by-step rendering
+	Stats  Stats  // search effort (only set by Solve)
 }
 
 // finish classifies the final state.
