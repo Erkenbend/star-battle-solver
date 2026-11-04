@@ -1,6 +1,7 @@
 package observers
 
 import (
+	"errors"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -116,5 +117,30 @@ func TestLookaheadOnlyIsSound(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestLookaheadExplains: every lookahead step carries its reasoning chain, starting
+// with the assumed star and ending in a contradiction that names its cells.
+func TestLookaheadExplains(t *testing.T) {
+	p := puzzle.MustParse("CCAAA\nCCADA\nEDDDA\nEDEBB\nEEEEB\n") // testdata/hard/n05_s029.txt
+	res := solver.Solve(board.New(p), All(p), solver.Options{Lookahead: true})
+	found := 0
+	for _, st := range res.Trace {
+		if st.Source != solver.HypothesisSource {
+			continue
+		}
+		found++
+		h := st.Hypothesis
+		if h == nil || len(h.Steps) == 0 || h.Steps[0].Marks[0].Kind != board.Star {
+			t.Fatalf("step %q has no proper chain", st.Reason)
+		}
+		var ce *board.ContradictionError
+		if !errors.As(h.Contradiction, &ce) || len(ce.Cells) == 0 {
+			t.Fatalf("step %q: contradiction %v without cells", st.Reason, h.Contradiction)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no lookahead step")
 	}
 }

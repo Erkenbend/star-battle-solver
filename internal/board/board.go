@@ -69,7 +69,10 @@ func (s *State) Set(r, c int, v Cell) (bool, error) {
 	case cur == v:
 		return false, nil
 	case cur != Free:
-		return false, fmt.Errorf("Konflikt bei (%d,%d): ist %v, soll %v werden", r, c, cur, v)
+		return false, &ContradictionError{
+			Msg:   fmt.Sprintf("Konflikt bei (%d,%d): ist %v, soll %v werden", r, c, cur, v),
+			Cells: []puzzle.Pos{{Row: r, Col: c}},
+		}
 	case v == Free:
 		return false, fmt.Errorf("cannot reset (%d,%d) to free", r, c)
 	}
@@ -147,18 +150,35 @@ func (s *State) units() (rows, cols, regs []unitCounts) {
 	return
 }
 
-// Contradiction returns a non-nil error if the state can no longer lead to a valid
+// ContradictionError describes why a state is impossible and which cells show it.
+type ContradictionError struct {
+	Msg   string
+	Cells []puzzle.Pos
+}
+
+func (e *ContradictionError) Error() string { return e.Msg }
+
+// Contradiction returns a non-nil error (a *ContradictionError) if the state can no longer lead to a valid
 // solution: a unit with two stars, a unit with no star and no free cell, or two
 // touching stars.
 func (s *State) Contradiction() error {
 	rows, cols, regs := s.units()
+	units := s.P.Units() // rows, then columns, then regions
+	offset := map[string]int{"Zeile": 0, "Spalte": s.P.N, "Farbe": 2 * s.P.N}
 	check := func(kind string, us []unitCounts, name func(int) string) error {
 		for i, u := range us {
+			cells := units[offset[kind]+i].Cells
 			if u.stars > 1 {
-				return fmt.Errorf("%s %s hätte %d Sterne", kind, name(i), u.stars)
+				var stars []puzzle.Pos
+				for _, q := range cells {
+					if s.At(q.Row, q.Col) == Star {
+						stars = append(stars, q)
+					}
+				}
+				return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte %d Sterne", kind, name(i), u.stars), Cells: stars}
 			}
 			if u.stars == 0 && u.free == 0 {
-				return fmt.Errorf("%s %s hätte keinen Stern und kein freies Feld mehr", kind, name(i))
+				return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte keinen Stern und kein freies Feld mehr", kind, name(i)), Cells: cells}
 			}
 		}
 		return nil
@@ -183,7 +203,10 @@ func (s *State) Contradiction() error {
 			for _, d := range [4]puzzle.Pos{{Row: 0, Col: 1}, {Row: 1, Col: -1}, {Row: 1, Col: 0}, {Row: 1, Col: 1}} {
 				rr, cc := r+d.Row, c+d.Col
 				if s.P.In(rr, cc) && s.At(rr, cc) == Star {
-					return fmt.Errorf("die Sterne auf (%d,%d) und (%d,%d) würden sich berühren", r, c, rr, cc)
+					return &ContradictionError{
+						Msg:   fmt.Sprintf("die Sterne auf (%d,%d) und (%d,%d) würden sich berühren", r, c, rr, cc),
+						Cells: []puzzle.Pos{{Row: r, Col: c}, {Row: rr, Col: cc}},
+					}
 				}
 			}
 		}

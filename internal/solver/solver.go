@@ -97,6 +97,15 @@ type Step struct {
 	Source string
 	Reason string
 	Marks  []Mark
+	// Hypothesis is set for a cross proven by refuting a star: it holds the
+	// steps that followed from assuming the star, ending in a contradiction.
+	Hypothesis *Hypothesis
+}
+
+// Hypothesis is the chain of reasoning behind a refuted assumption.
+type Hypothesis struct {
+	Steps         []Step // the assumed star itself first, then the rules' deductions
+	Contradiction error  // usually a *board.ContradictionError
 }
 
 // record adds the cells changed by applying m to the trace, extending the last

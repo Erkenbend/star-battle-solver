@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"slices"
 	"sync"
-	"sync/atomic"
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
@@ -18,9 +17,10 @@ type Runner func(start *board.State, observers []Observer) Result
 type Options struct {
 	// Run drives the observers to a fixpoint (default RunSync).
 	Run Runner
-	// Lookahead: when stuck, try a star on free cells (in parallel) and run the
-	// rules alone. The first cell where that leads to a contradiction becomes a
-	// cross, then the rules run again (like a human would continue).
+	// Lookahead: when stuck, try a star on every free cell (in parallel) and run
+	// the rules alone. Of the cells where that leads to a contradiction, the one
+	// with the shortest chain becomes a cross, then the rules run again (like a
+	// human would continue).
 	Lookahead bool
 	// Backtrack: when lookahead finds nothing, guess a star and solve recursively.
 	// If the guess fails, its cell is a cross. With Backtrack, Solve never ends Stuck.
@@ -50,7 +50,7 @@ const HypothesisSource = "Hypothesis"
 //
 //	loop:
 //	  run the rules to a fixpoint           → solved / contradiction: done
-//	  lookahead: star on c contradicts?     → first such c = X, loop
+//	  lookahead: star on c contradicts?     → c with shortest chain = X, loop
 //	  guess: star on c, Solve recursively   → solved: done
 //	                                         → contradiction: c = X, loop
 //
@@ -85,12 +85,9 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 		s = res.State
 
 		if o.Lookahead {
-			if r, ok := lookahead(s, observers, run); ok {
-				why := fmt.Sprintf("Annahme: Stern auf (%d,%d). Dann %v → X", r.pos.Row, r.pos.Col, r.err)
-				m := Cross(r.pos, HypothesisSource).Why(why)
-				delta, err := Apply(s, m)
-				trace = record(trace, m, delta)
-				if err != nil {
+			if r, ok := lookahead(s, observers); ok {
+				var err error
+				if trace, err = refute(s, trace, r.pos, r.hyp); err != nil {
 					return done(finish(s, nil, err))
 				}
 				stats.Lookahead++
@@ -126,14 +123,11 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 		}
 		// The guess failed: pos cannot hold a star.
 		stats.Refuted++
-		why = fmt.Sprintf("Annahme: Stern auf (%d,%d). Weiteres Raten führt immer zu einem Widerspruch → X", pos.Row, pos.Col)
-		if sub.Stats.Guesses == 0 {
-			why = fmt.Sprintf("Annahme: Stern auf (%d,%d). Dann %v → X", pos.Row, pos.Col, sub.Err)
+		var hyp *Hypothesis
+		if sub.Stats.Guesses == 0 { // short chain of rules only: worth showing
+			hyp = &Hypothesis{Steps: append([]Step{assumedStep(s.P, pos, delta)}, sub.Trace...), Contradiction: sub.Err}
 		}
-		m := Cross(pos, HypothesisSource).Why(why)
-		delta, err = Apply(s, m)
-		trace = record(trace, m, delta)
-		if err != nil {
+		if trace, err = refute(s, trace, pos, hyp); err != nil {
 			return done(finish(s, nil, err))
 		}
 	}
@@ -141,17 +135,44 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 
 type refutation struct {
 	pos puzzle.Pos
-	err error
+	hyp *Hypothesis
 }
 
-// lookahead tries a star on free cells and returns the first one (in candidate
-// order, see candidates) where the rules alone then find a contradiction.
-// Trials run in parallel; once a refutation is known, later candidates are skipped.
-func lookahead(s *board.State, observers []Observer, run Runner) (refutation, bool) {
+// refute crosses pos because a star there was shown impossible, and records the
+// step with its reasoning chain (hyp may be nil for deep backtracking).
+func refute(s *board.State, trace []Step, pos puzzle.Pos, hyp *Hypothesis) ([]Step, error) {
+	why := fmt.Sprintf("Annahme: Stern auf (%d,%d) führt zu einem Widerspruch → X", pos.Row, pos.Col)
+	if hyp == nil {
+		why = fmt.Sprintf("Annahme: Stern auf (%d,%d) führt nach weiterem Raten immer zu einem Widerspruch → X", pos.Row, pos.Col)
+	}
+	m := Cross(pos, HypothesisSource).Why(why)
+	delta, err := Apply(s, m)
+	if len(delta) > 0 {
+		trace = append(trace, Step{Source: m.Source, Reason: why, Marks: delta, Hypothesis: hyp})
+	}
+	return trace, err
+}
+
+// assumedStep is the first step of a hypothesis chain: the star and its crosses.
+func assumedStep(p *puzzle.Puzzle, pos puzzle.Pos, delta []Mark) Step {
+	why := fmt.Sprintf("Angenommen, auf (%d,%d) ist ein Stern → X in Zeile %d, Spalte %d, Farbe %c und Nachbarschaft",
+		pos.Row, pos.Col, pos.Row, pos.Col, puzzle.RegionLetter(p.Region(pos.Row, pos.Col)))
+	for i := range delta {
+		delta[i].Reason = why
+	}
+	return Step{Source: HypothesisSource, Reason: why, Marks: delta}
+}
+
+// lookahead tries a star on every free cell in parallel and returns the
+// refutation that is easiest to follow: the shortest chain of steps to a
+// contradiction (see simpler). We optimize for understandability, not speed.
+//
+// Each trial runs with RunSync: the trials already run in parallel, and the
+// concurrent runner's step order (hence chain length) varies between runs,
+// which would make the chosen explanation non-deterministic.
+func lookahead(s *board.State, observers []Observer) (refutation, bool) {
 	cells := candidates(s)
-	errs := make([]error, len(cells))
-	var first atomic.Int64 // lowest refuted index so far
-	first.Store(int64(len(cells)))
+	hyps := make([]*Hypothesis, len(cells))
 	jobs := make(chan int)
 	var wg sync.WaitGroup
 	for range runtime.GOMAXPROCS(0) {
@@ -159,38 +180,54 @@ func lookahead(s *board.State, observers []Observer, run Runner) (refutation, bo
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				if int64(i) > first.Load() {
-					continue // an earlier candidate is already refuted
-				}
 				trial := s.Clone()
-				_, err := Apply(trial, Star(cells[i], HypothesisSource))
+				delta, err := Apply(trial, Star(cells[i], HypothesisSource))
+				steps := []Step{assumedStep(s.P, cells[i], delta)}
 				if err == nil {
-					if res := run(trial, observers); res.Status == Contradiction {
+					if res := RunSync(trial, observers); res.Status == Contradiction {
 						err = res.Err
+						steps = append(steps, res.Trace...)
 					}
 				}
 				if err != nil {
-					errs[i] = err
-					for cur := first.Load(); int64(i) < cur && !first.CompareAndSwap(cur, int64(i)); cur = first.Load() {
-					}
+					hyps[i] = &Hypothesis{Steps: steps, Contradiction: err}
 				}
 			}
 		}()
 	}
 	for i := range cells {
-		if int64(i) > first.Load() {
-			break
-		}
 		jobs <- i
 	}
 	close(jobs)
 	wg.Wait()
 
-	// Every index below first was fully tried, so the result is deterministic.
-	if i := first.Load(); i < int64(len(cells)) {
-		return refutation{cells[i], errs[i]}, true
+	best := -1
+	for i, h := range hyps {
+		if h != nil && (best < 0 || simpler(h, hyps[best])) {
+			best = i // strict comparison: ties keep the earlier candidate
+		}
 	}
-	return refutation{}, false
+	if best < 0 {
+		return refutation{}, false
+	}
+	return refutation{cells[best], hyps[best]}, true
+}
+
+// simpler reports whether chain a is easier to follow than b: fewer steps,
+// then fewer changed cells.
+func simpler(a, b *Hypothesis) bool {
+	if len(a.Steps) != len(b.Steps) {
+		return len(a.Steps) < len(b.Steps)
+	}
+	return a.cells() < b.cells()
+}
+
+func (h *Hypothesis) cells() int {
+	n := 0
+	for _, st := range h.Steps {
+		n += len(st.Marks)
+	}
+	return n
 }
 
 // candidates orders the free cells the way a human would try them: cells in the

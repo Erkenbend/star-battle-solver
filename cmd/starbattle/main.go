@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -156,25 +157,7 @@ func cmdSolve(args []string) error {
 	res := solver.Solve(board.New(p), observers.All(p), opts)
 
 	if *step || *verbose {
-		replay := board.New(p)
-		for i, st := range res.Trace {
-			hl := map[puzzle.Pos]bool{}
-			for _, m := range st.Marks {
-				replay.Set(m.Pos.Row, m.Pos.Col, m.Kind) // conflicting last step: keep what fits
-				hl[m.Pos] = true
-			}
-			if *verbose && st.Reason != "" {
-				fmt.Printf("\n%d. %s\n", i+1, st.Reason)
-				if !*step { // with -step the board highlights the cells instead
-					fmt.Printf("    %s\n", describeMarks(st.Marks))
-				}
-			} else {
-				fmt.Printf("\nstep %d: %s (%d cells)\n", i+1, st.Source, len(st.Marks))
-			}
-			if *step {
-				fmt.Print(render.State(replay, render.Options{NoColor: *noColor, Highlight: hl}))
-			}
-		}
+		printSteps(board.New(p), res.Trace, "", "", *step, *verbose, *noColor)
 	}
 
 	fmt.Printf("\nresult: %v after %d steps", res.Status, len(res.Trace))
@@ -190,27 +173,69 @@ func cmdSolve(args []string) error {
 	return nil
 }
 
-// describeMarks lists the cells of one step: the stars (their implied crosses are
-// only counted), or else all crosses.
+// describeMarks lists the crosses of one step. Steps that place a star name it
+// in their reason already, so they get no extra line.
 func describeMarks(marks []solver.Mark) string {
-	var stars, crosses []string
+	var crosses []string
 	for _, m := range marks {
-		pos := fmt.Sprintf("(%d,%d)", m.Pos.Row, m.Pos.Col)
 		if m.Kind == board.Star {
-			stars = append(stars, pos)
-		} else {
-			crosses = append(crosses, pos)
+			return ""
 		}
-	}
-	if len(stars) > 0 {
-		out := "★ " + strings.Join(stars, " ")
-		if len(crosses) > 0 {
-			out += fmt.Sprintf(", dazu %d × X in Zeile, Spalte, Farbe und Nachbarschaft", len(crosses))
-		}
-		return out
+		crosses = append(crosses, fmt.Sprintf("(%d,%d)", m.Pos.Row, m.Pos.Col))
 	}
 	if len(crosses) == 0 {
 		return ""
 	}
 	return "X: " + strings.Join(crosses, " ")
+}
+
+// printSteps replays trace on replay and prints each step; hypothesis chains are
+// printed nested (numbered 8.1, 8.2, ...) on a scratch copy of the board.
+func printSteps(replay *board.State, trace []solver.Step, prefix, indent string, step, verbose, noColor bool) {
+	for i, st := range trace {
+		num := fmt.Sprintf("%s%d", prefix, i+1)
+		// The chain explains this step, so print it before applying the step.
+		before := replay.Clone()
+		hl := map[puzzle.Pos]bool{}
+		for _, m := range st.Marks {
+			replay.Set(m.Pos.Row, m.Pos.Col, m.Kind) // conflicting last step: keep what fits
+			hl[m.Pos] = true
+		}
+		if verbose && st.Reason != "" {
+			fmt.Printf("%s\n%s%s. %s\n", strings.TrimRight(indent, " "), indent, num, st.Reason)
+			if !step {
+				if d := describeMarks(st.Marks); d != "" && st.Hypothesis == nil {
+					fmt.Printf("%s    %s\n", indent, d)
+				}
+			}
+		} else {
+			fmt.Printf("%s\n%sstep %s: %s (%d cells)\n", strings.TrimRight(indent, " "), indent, num, st.Source, len(st.Marks))
+		}
+		if h := st.Hypothesis; h != nil && verbose {
+			trial := before
+			printSteps(trial, h.Steps, num+".", indent+"    │ ", step, verbose, noColor)
+			fmt.Printf("%s    │ ⇒ Widerspruch: %v\n", indent, h.Contradiction)
+			if step {
+				var ce *board.ContradictionError
+				conflict := map[puzzle.Pos]bool{}
+				if errors.As(h.Contradiction, &ce) {
+					for _, q := range ce.Cells {
+						conflict[q] = true
+					}
+				}
+				printBoard(render.State(trial, render.Options{NoColor: noColor, Conflict: conflict}), indent+"    │ ")
+			}
+			fmt.Printf("%s    ⇒ also ist (%d,%d) kein Stern\n", indent, st.Marks[0].Pos.Row, st.Marks[0].Pos.Col)
+		}
+		if step {
+			printBoard(render.State(replay, render.Options{NoColor: noColor, Highlight: hl}), indent)
+		}
+	}
+}
+
+func printBoard(b, indent string) {
+	for _, line := range strings.SplitAfter(strings.TrimRight(b, "\n"), "\n") {
+		fmt.Print(indent + line)
+	}
+	fmt.Println()
 }
