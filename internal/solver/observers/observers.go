@@ -1,5 +1,5 @@
 // Package observers contains the deduction rules. Each rule is an Observer for
-// one unit (or one set of units); All builds the full set for a puzzle.
+// one unit (or one family of unit subsets); All builds the full set for a puzzle.
 //
 // To add a rule: write a type implementing solver.Observer, add a table test
 // next to it (see unitfinish_test.go), and register it in All.
@@ -13,12 +13,21 @@ import (
 // All returns every observer instance for p.
 func All(p *puzzle.Puzzle) []solver.Observer {
 	var obs []solver.Observer
+	implied := newImpliedTable(p)
 	for _, u := range p.Units() {
 		obs = append(obs, UnitFinish{Unit: u})
-		// TODO: RowColor / ColColor     – line contains only one color → rest of that color X
-		// TODO: ColorInLine             – color lies in one line → rest of that line X
-		// TODO: Elimination             – a star here would empty some unit → X
+		obs = append(obs, Elimination{Unit: u, implied: implied})
 	}
-	// TODO: MultiLine / MultiColor   – k lines ↔ k colors (pigeonhole)
+	kinds := []puzzle.UnitKind{puzzle.Row, puzzle.Col, puzzle.Region}
+	for _, from := range kinds {
+		for _, to := range kinds {
+			if from == to {
+				continue
+			}
+			for k := 1; k <= max(1, p.N/2); k++ {
+				obs = append(obs, NewConfinement(p, from, to, k))
+			}
+		}
+	}
 	return obs
 }

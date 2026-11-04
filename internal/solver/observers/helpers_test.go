@@ -65,6 +65,8 @@ func TestSoundness(t *testing.T) {
 			}
 			if res.Status == solver.Solved {
 				solved++
+			} else {
+				t.Logf("n=%d seed=%d: stuck with %d free cells", n, seed, countFree(res.State))
 			}
 		}
 	}
@@ -91,4 +93,16 @@ func TestRunnersAgree(t *testing.T) {
 			}
 		}
 	}
+}
+
+func countFree(s *board.State) int {
+	free := 0
+	for r := range s.P.N {
+		for c := range s.P.N {
+			if s.At(r, c) == board.Free {
+				free++
+			}
+		}
+	}
+	return free
 }

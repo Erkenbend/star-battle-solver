@@ -233,3 +233,15 @@ func (p *Puzzle) Units() []Unit {
 	}
 	return units
 }
+
+// UnitOf returns the index of the unit of the given kind that contains q.
+func (p *Puzzle) UnitOf(kind UnitKind, q Pos) int {
+	switch kind {
+	case Row:
+		return q.Row
+	case Col:
+		return q.Col
+	default:
+		return p.Regions[q.Row][q.Col]
+	}
+}
