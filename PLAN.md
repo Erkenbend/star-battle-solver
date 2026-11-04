@@ -59,21 +59,43 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ## Nächste Schritte
 
-1. ~~**Generator mit dem eigenen Solver statt Brute Force**~~ ausprobiert und verworfen: Brute Force ist beim Generieren schneller. Der Generator bleibt bei `bruteforce.Solve`.
-2. ~~**Neue Regeln aus wiederkehrenden Annahmen**~~ umgesetzt als `ForcedPartner` und `DeadCells`. Für später vorgemerkt:
+### Als Nächstes
+
+1. **Prioritätsregeln für die Observer:** Die einfachste anwendbare Regel soll immer Vorrang haben, damit Erklärungen so menschlich wie möglich bleiben.
+   - Stand: `RunSync` behandelt die Reihenfolge aus `AllWith` als Priorität (Neustart nach jeder Änderung). `RunConcurrent` kennt keine Priorität, dort hängt die Reihenfolge der Schritte vom Zufall ab.
+   - **Explizite Prioritätsstufen** statt Reihenfolge in einer Liste, z. B. eine Methode `Priority() int` am Observer oder Stufen in `AllWith`:
+     1. `UnitFinish` · 2. `Confinement` k=1 · 3. `Elimination` · 4. `Confinement` k≥2 · 5. `ForcedPartner` · 6. `DeadCells` · (7. Lookahead, 8. Raten im Solver).
+   - **Stufen im nebenläufigen Runner:** Der Runner übernimmt Markierungen einer Stufe nur, wenn alle Observer niedrigerer Stufen auf der aktuellen Version idle sind. Vorgeschlagene Umsetzung: Nachrichten höherer Stufen puffern und erst nach Quiescence der niedrigeren Stufen anwenden. Die Goroutinen dürfen weiter parallel rechnen.
+   - **Innerhalb einer Stufe:** die kleinere Schlussfolgerung bevorzugen, z. B. bei `Confinement` kleineres k und bei `ForcedPartner` geringere Tiefe. Prüfen, ob eine feste Reihenfolge der Einheiten (Zeilen vor Spalten vor Farben) die Erklärungen ruhiger macht.
+   - Messen: Wie oft greifen die Regeln jeder Stufe vorher und nachher (Trace-Statistik, siehe Punkt 5)? `TestRunnersAgree` muss weiter gelten.
+
+2. **`Confinement` auf nebeneinanderliegende Zeilen/Spalten ausrichten:** Menschen betrachten bei „k Zeilen haben nur noch k Farben“ fast immer benachbarte Zeilen oder Spalten, nicht beliebige Teilmengen. Erklärungen wie „Zeilen 1, 4 und 7 …“ sind schwer nachzuvollziehen.
+   - Für k ≥ 2 mit From = Zeile/Spalte nur zusammenhängende Blöcke (r, r+1, …, r+k−1) betrachten. Für From = Farbe sind beliebige Teilmengen weiter sinnvoll; zu prüfen ist, ob dort „benachbarte Farben“ (Regionen, die sich berühren) menschlicher sind.
+   - Konfigurierbar machen (`Config.ConfinementContiguous`), damit beide Varianten verglichen werden können.
+   - Messen, was verloren geht: Wie viele Puzzles brauchen danach zusätzliche Annahmen bzw. `ForcedPartner`/`DeadCells`? Ein Nebeneffekt ist die kleinere Suche (N−k+1 Blöcke statt „N über k“ Teilmengen).
+   - Zusammen mit der vorgemerkten Regel „benachbarte Zeilen/Spalten mit drei Spalten Platz“ (unten) ergibt sich eine Familie von Regeln für benachbarte Linien.
+
+### Erledigt / verworfen
+
+- ~~**Generator mit dem eigenen Solver statt Brute Force**~~ ausprobiert und verworfen: Brute Force ist beim Generieren schneller. Der Generator bleibt bei `bruteforce.Solve`.
+- ~~**Neue Regeln aus wiederkehrenden Annahmen**~~ umgesetzt als `ForcedPartner` und `DeadCells`.
+
+### Später
+
+3. **Weitere Regeln (vorgemerkt):**
    - **Benachbarte Zeilen/Spalten:** Zwei benachbarte Zeilen haben zusammen nur noch freie Felder in drei nebeneinanderliegenden Spalten c, c+1, c+2 → die Sterne liegen in c und c+2, Spalte c+1 ist in beiden Zeilen X (bei nur zwei Spalten: Widerspruch). Klassische Technik; noch nicht gemessen, wie oft sie greift.
    - **Schubfachprinzip mit Annahme:** Ein Stern auf c ließe für k Einheiten nur noch weniger als k Einheiten eines anderen Typs übrig (z. B. zwei Spalten nur noch in Farbe B) → X. Kam in den Ketten nur 3-mal vor.
-   - Neue Testdaten, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
-3. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)?
-4. **Schwierigkeitsgrad** aus den benötigten Techniken (einfache Regeln / k ≥ 2 / Anzahl und Länge der Annahmen / Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
-5. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles für Schritt 2.
-6. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
-7. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-8. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
+4. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
+5. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für die Messungen in Punkt 1 und 2.
+6. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
+7. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles.
+8. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
+9. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+10. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`
 - `TestSoundness`: Jede Schlussfolgerung der Regeln stimmt mit der Brute-Force-Lösung überein.
 - `TestRunnersAgree`: `RunSync` und `RunConcurrent` erreichen denselben Endzustand.
-- `TestHardPuzzles`: Alle Puzzles in `testdata/hard` werden gelöst und bleiben ohne Suche unlösbar.
+- `TestHardPuzzles`: Alle Puzzles in `testdata/hard` werden gelöst und bleiben für die Basisregeln ohne Suche unlösbar.
 - Manuell: `go run ./cmd/starbattle generate -n 8 | go run ./cmd/starbattle solve -verbose -step`
