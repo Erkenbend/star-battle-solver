@@ -76,23 +76,21 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 			idleAt[m.id] = m.version
 		case msgMarks:
 			idleAt[m.id] = busy
-			step := Step{Source: observers[m.id].Name()}
+			var all []Mark // every cell changed by this message
 			var err error
 			for _, mk := range m.marks {
 				var delta []Mark
 				delta, err = Apply(s, mk)
-				step.Marks = append(step.Marks, delta...)
+				trace = record(trace, mk, delta)
+				all = append(all, delta...)
 				if err != nil {
 					break
 				}
 			}
-			if len(step.Marks) > 0 {
-				trace = append(trace, step)
-			}
 			if err != nil {
 				return finish(s, trace, err)
 			}
-			if len(step.Marks) == 0 {
+			if len(all) == 0 {
 				// All duplicates: the sender's copy is behind and a broadcast is
 				// already waiting in its mailbox, so it will wake up again.
 				continue
@@ -104,7 +102,7 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 				return finish(s, trace, nil)
 			}
 			version++
-			b := batch{version: version, marks: step.Marks}
+			b := batch{version: version, marks: all}
 			for id := range idleAt {
 				boxes[id].put(b)
 			}

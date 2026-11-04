@@ -141,36 +141,54 @@ func (p *Puzzle) String() string {
 func RegionLetter(reg int) byte { return alphabet[reg] }
 
 // Parse reads the text format: N non-empty lines of N letters each. Each distinct
-// letter is one region; letters are mapped to indices in order of first appearance.
+// letter is one region. If the letters are exactly the first N of the alphabet
+// (A, B, C, ...), they keep their meaning (A = region 0), so explanations and
+// rendering use the same letters as the file. Otherwise letters are mapped to
+// indices in order of first appearance.
 // Blank lines and lines starting with '#' are ignored; whitespace inside a line is ignored.
 func Parse(r io.Reader) (*Puzzle, error) {
 	sc := bufio.NewScanner(r)
-	ids := map[rune]int{}
-	var regions [][]int
+	ids := map[rune]int{} // letter -> index in order of first appearance
+	var rows [][]rune
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		var row []int
+		var row []rune
 		for _, ch := range line {
 			if ch == ' ' || ch == '\t' {
 				continue
 			}
-			id, ok := ids[ch]
-			if !ok {
-				id = len(ids)
-				ids[ch] = id
+			if _, ok := ids[ch]; !ok {
+				ids[ch] = len(ids)
 			}
-			row = append(row, id)
+			row = append(row, ch)
 		}
-		regions = append(regions, row)
+		rows = append(rows, row)
 	}
 	if err := sc.Err(); err != nil {
 		return nil, err
 	}
-	if len(ids) != len(regions) {
-		return nil, fmt.Errorf("found %d distinct regions in %d rows, want equal", len(ids), len(regions))
+	if len(ids) != len(rows) {
+		return nil, fmt.Errorf("found %d distinct regions in %d rows, want equal", len(ids), len(rows))
+	}
+	alphabetic := true
+	for ch := range ids {
+		if i := strings.IndexRune(alphabet, ch); i < 0 || i >= len(rows) {
+			alphabetic = false
+		}
+	}
+	if alphabetic {
+		for ch := range ids {
+			ids[ch] = strings.IndexRune(alphabet, ch)
+		}
+	}
+	regions := make([][]int, len(rows))
+	for r, row := range rows {
+		for _, ch := range row {
+			regions[r] = append(regions[r], ids[ch])
+		}
 	}
 	return New(regions)
 }

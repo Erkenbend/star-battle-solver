@@ -19,21 +19,20 @@ func RunSync(start *board.State, observers []Observer) Result {
 			}
 			next = append(next, o)
 
-			var step Step
-			step.Source = o.Name()
+			changed := false
 			for _, m := range o.Deduce(s) {
 				if m.Source == "" {
 					m.Source = o.Name()
 				}
 				delta, err := Apply(s, m)
-				step.Marks = append(step.Marks, delta...)
+				trace = record(trace, m, delta)
+				changed = changed || len(delta) > 0
 				if err != nil {
-					return finish(s, append(trace, step), err)
+					return finish(s, trace, err)
 				}
 			}
-			if len(step.Marks) > 0 {
+			if changed {
 				progress = true
-				trace = append(trace, step)
 				if err := s.Contradiction(); err != nil {
 					return finish(s, trace, err)
 				}

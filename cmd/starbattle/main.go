@@ -2,7 +2,7 @@
 //
 //	starbattle generate -n 8 [-seed 42] [-show]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
-//	starbattle solve [-runner concurrent|sync] [-step] [-nocolor] [p.txt]
+//	starbattle solve [-runner concurrent|sync] [-step] [-verbose] [-nocolor] [p.txt]
 package main
 
 import (
@@ -11,6 +11,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"os"
+	"strings"
 	"time"
 
 	"starbattle/internal/board"
@@ -47,7 +48,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   starbattle generate -n N [-seed S] [-show]
   starbattle show [-solution] [-nocolor] [file]
-  starbattle solve [-runner concurrent|sync] [-step] [-nocolor] [file]`)
+  starbattle solve [-runner concurrent|sync] [-step] [-verbose] [-nocolor] [file]`)
 	os.Exit(2)
 }
 
@@ -121,7 +122,8 @@ func readPuzzle(fs *flag.FlagSet) (*puzzle.Puzzle, error) {
 
 func cmdSolve(args []string) error {
 	fs := flag.NewFlagSet("solve", flag.ExitOnError)
-	step := fs.Bool("step", false, "render the board after every observer step")
+	step := fs.Bool("step", false, "render the board after every deduction")
+	verbose := fs.Bool("verbose", false, "explain every deduction in words")
 	runner := fs.String("runner", "concurrent", "concurrent (one goroutine per observer) or sync")
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
 	fs.Parse(args)
@@ -143,7 +145,7 @@ func cmdSolve(args []string) error {
 	}
 	res := run(board.New(p), observers.All(p))
 
-	if *step {
+	if *step || *verbose {
 		replay := board.New(p)
 		for i, st := range res.Trace {
 			hl := map[puzzle.Pos]bool{}
@@ -151,8 +153,17 @@ func cmdSolve(args []string) error {
 				replay.Set(m.Pos.Row, m.Pos.Col, m.Kind) // conflicting last step: keep what fits
 				hl[m.Pos] = true
 			}
-			fmt.Printf("\nstep %d: %s (%d cells)\n", i+1, st.Source, len(st.Marks))
-			fmt.Print(render.State(replay, render.Options{NoColor: *noColor, Highlight: hl}))
+			if *verbose && st.Reason != "" {
+				fmt.Printf("\n%d. %s\n", i+1, st.Reason)
+				if !*step { // with -step the board highlights the cells instead
+					fmt.Printf("    %s\n", describeMarks(st.Marks))
+				}
+			} else {
+				fmt.Printf("\nstep %d: %s (%d cells)\n", i+1, st.Source, len(st.Marks))
+			}
+			if *step {
+				fmt.Print(render.State(replay, render.Options{NoColor: *noColor, Highlight: hl}))
+			}
 		}
 	}
 
@@ -163,4 +174,26 @@ func cmdSolve(args []string) error {
 	fmt.Println()
 	fmt.Print(render.State(res.State, o))
 	return nil
+}
+
+// describeMarks lists the cells of one step: the stars (their implied crosses are
+// only counted), or else all crosses.
+func describeMarks(marks []solver.Mark) string {
+	var stars, crosses []string
+	for _, m := range marks {
+		pos := fmt.Sprintf("(%d,%d)", m.Pos.Row, m.Pos.Col)
+		if m.Kind == board.Star {
+			stars = append(stars, pos)
+		} else {
+			crosses = append(crosses, pos)
+		}
+	}
+	if len(stars) > 0 {
+		out := "★ " + strings.Join(stars, " ")
+		if len(crosses) > 0 {
+			out += fmt.Sprintf(", dazu %d × X in Zeile, Spalte, Farbe und Nachbarschaft", len(crosses))
+		}
+		return out
+	}
+	return "X: " + strings.Join(crosses, " ")
 }

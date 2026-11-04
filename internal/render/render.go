@@ -50,11 +50,12 @@ func State(s *board.State, o Options) string {
 				sym = "·"
 			}
 			hl := o.Highlight[puzzle.Pos{Row: r, Col: c}]
+			free := sym == " "
+			if free {
+				// Show the region letter so explanations like "Farbe B" can be matched.
+				sym = string(puzzle.RegionLetter(reg))
+			}
 			if o.NoColor {
-				letter := string(puzzle.RegionLetter(reg))
-				if sym == " " {
-					sym = strings.ToLower(letter)
-				}
 				if hl {
 					fmt.Fprintf(&b, "[%s]", sym)
 				} else {
@@ -63,6 +64,9 @@ func State(s *board.State, o Options) string {
 				continue
 			}
 			fg := "30" // black
+			if free {
+				fg = "38;5;240" // gray letter, so stars and crosses stand out
+			}
 			if hl {
 				fg = "1;31" // bold red
 			}

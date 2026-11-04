@@ -36,7 +36,9 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 	for _, q := range o.Unit.Cells {
 		inUnit[q] = true
 	}
-	var marks []solver.Mark
+	// Group the crosses by explanation so each one becomes a single step.
+	byReason := map[string][]puzzle.Pos{}
+	var order []string
 	n := s.P.N
 	for r := range n {
 		for c := range n {
@@ -45,11 +47,60 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 				continue
 			}
 			if o.implied.coversAll(cell, free) {
-				marks = append(marks, solver.Cross(cell, o.Name()))
+				why := o.explain(s.P, cell, free)
+				if _, seen := byReason[why]; !seen {
+					order = append(order, why)
+				}
+				byReason[why] = append(byReason[why], cell)
 			}
 		}
 	}
+	var marks []solver.Mark
+	for _, why := range order {
+		for _, cell := range byReason[why] {
+			marks = append(marks, solver.Cross(cell, o.Name()).Why(why))
+		}
+	}
 	return marks
+}
+
+// explain says why a star on cell would cross all free cells of the unit:
+//   - they all lie in one region / row / column that also contains cell
+//     (same wording as Confinement with k=1),
+//   - they all touch cell,
+//   - or a mix of both.
+func (o Elimination) explain(p *puzzle.Puzzle, cell puzzle.Pos, free []puzzle.Pos) string {
+	self := []int{o.Unit.Index}
+	for _, kind := range []puzzle.UnitKind{puzzle.Region, puzzle.Row, puzzle.Col} {
+		if kind == o.Unit.Kind {
+			continue
+		}
+		v := p.UnitOf(kind, cell)
+		all := true
+		for _, q := range free {
+			all = all && p.UnitOf(kind, q) == v
+		}
+		if all {
+			return confined(o.Unit.Kind, self, kind, []int{v})
+		}
+	}
+	touching := true
+	for _, q := range free {
+		touching = touching && abs(q.Row-cell.Row) <= 1 && abs(q.Col-cell.Col) <= 1
+	}
+	name := units(o.Unit.Kind, self)
+	if touching {
+		return "Die markierten Felder berühren jeweils alle freien Felder von " + name + " → X"
+	}
+	return "Ein Stern auf einem der markierten Felder würde alle freien Felder von " + name +
+		" streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X"
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // impliedTable precomputes board.Implied for every cell (shared, read-only).

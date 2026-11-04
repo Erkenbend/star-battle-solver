@@ -1,6 +1,8 @@
 package observers
 
 import (
+	"fmt"
+
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
@@ -21,7 +23,9 @@ func (o UnitFinish) Deduce(s *board.State) []solver.Mark {
 		return nil
 	}
 	if free := s.Free(o.Unit.Cells); len(free) == 1 {
-		return []solver.Mark{solver.Star(free[0], o.Name())}
+		why := fmt.Sprintf("In %s ist nur noch das Feld %s frei → Stern",
+			units(o.Unit.Kind, []int{o.Unit.Index}), cell(free[0]))
+		return []solver.Mark{solver.Star(free[0], o.Name()).Why(why)}
 	}
 	return nil
 }

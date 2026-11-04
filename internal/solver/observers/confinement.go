@@ -94,7 +94,7 @@ func (o Confinement) Deduce(s *board.State) []solver.Mark {
 				for _, i := range chosen {
 					from[opens[i].index] = true
 				}
-				marks = append(marks, o.crosses(s, from, union)...)
+				marks = append(marks, o.crosses(s, from, union, o.explain(from, union))...)
 			}
 			return
 		}
@@ -117,16 +117,22 @@ func (o Confinement) Deduce(s *board.State) []solver.Mark {
 
 // crosses returns X for every free cell inside the target To-units but outside the
 // chosen From-units.
-func (o Confinement) crosses(s *board.State, from, to map[int]bool) []solver.Mark {
+func (o Confinement) crosses(s *board.State, from, to map[int]bool, why string) []solver.Mark {
 	var marks []solver.Mark
 	n := s.P.N
 	for r := range n {
 		for c := range n {
 			q := puzzle.Pos{Row: r, Col: c}
 			if s.At(r, c) == board.Free && to[s.P.UnitOf(o.To, q)] && !from[s.P.UnitOf(o.From, q)] {
-				marks = append(marks, solver.Cross(q, o.Name()))
+				marks = append(marks, solver.Cross(q, o.Name()).Why(why))
 			}
 		}
 	}
 	return marks
+}
+
+// explain builds e.g. "Farben A und B liegen nur noch in Spalten 2 und 3 → alle
+// anderen Felder der Spalten 2 und 3 X" (see confined).
+func (o Confinement) explain(from, to map[int]bool) string {
+	return confined(o.From, keys(from), o.To, keys(to))
 }

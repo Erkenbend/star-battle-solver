@@ -18,7 +18,14 @@ import (
 type Mark struct {
 	Pos    puzzle.Pos
 	Kind   board.Cell // board.Star or board.Cross
-	Source string     // name of the observer (or "implied") that produced it
+	Source string     // name of the observer that produced it
+	Reason string     // human-readable explanation (German), shown by solve -verbose
+}
+
+// Why returns m with its explanation set.
+func (m Mark) Why(reason string) Mark {
+	m.Reason = reason
+	return m
 }
 
 func (m Mark) String() string {
@@ -44,7 +51,7 @@ type Observer interface {
 }
 
 // Apply puts m on s. For a star it also adds the implied crosses (rest of row,
-// column, region and the 8 neighbors), tagged with Source "implied". It returns
+// column, region and the 8 neighbors), with the star's Source and Reason. It returns
 // the marks that actually changed s (possibly none, for a duplicate).
 // An error means m conflicts with s; s may then be partially updated, which is
 // fine because the state is contradictory anyway.
@@ -58,14 +65,13 @@ func Apply(s *board.State, m Mark) ([]Mark, error) {
 	}
 	delta := []Mark{m}
 	if m.Kind == board.Star {
-		src := fmt.Sprintf("implied by (%d,%d)", m.Pos.Row, m.Pos.Col)
 		for _, q := range board.Implied(s.P, m.Pos.Row, m.Pos.Col) {
 			ch, err := s.Set(q.Row, q.Col, board.Cross)
 			if err != nil {
 				return delta, fmt.Errorf("%v: %w", m, err)
 			}
 			if ch {
-				delta = append(delta, Cross(q, src))
+				delta = append(delta, Cross(q, m.Source).Why(m.Reason))
 			}
 		}
 	}
@@ -85,10 +91,25 @@ func (s Status) String() string {
 	return [...]string{"stuck", "solved", "contradiction"}[s]
 }
 
-// Step is one batch of marks one observer produced, including implied crosses.
+// Step is one deduction: the marks that share a Source and Reason, including
+// the crosses implied by its stars.
 type Step struct {
 	Source string
+	Reason string
 	Marks  []Mark
+}
+
+// record adds the cells changed by applying m to the trace, extending the last
+// step if it is the same deduction.
+func record(trace []Step, m Mark, delta []Mark) []Step {
+	if len(delta) == 0 {
+		return trace
+	}
+	if n := len(trace); n > 0 && trace[n-1].Source == m.Source && trace[n-1].Reason == m.Reason {
+		trace[n-1].Marks = append(trace[n-1].Marks, delta...)
+		return trace
+	}
+	return append(trace, Step{Source: m.Source, Reason: m.Reason, Marks: delta})
 }
 
 // Result of a run.
