@@ -26,13 +26,13 @@ func checkSolution(t *testing.T, name string, p *puzzle.Puzzle, res solver.Resul
 	}
 }
 
-// TestHardPuzzles: puzzles where the rules alone get stuck (testdata/hard).
+// TestHardPuzzles: puzzles where the base rules alone get stuck (testdata/hard).
 func TestHardPuzzles(t *testing.T) {
 	files, _ := filepath.Glob("../../../testdata/hard/*.txt")
 	if len(files) == 0 {
 		t.Fatal("no testdata found")
 	}
-	needGuess := 0
+	needGuess, byNewRules := 0, 0
 	for _, f := range files {
 		in, err := os.Open(f)
 		if err != nil {
@@ -45,8 +45,13 @@ func TestHardPuzzles(t *testing.T) {
 		}
 		name := filepath.Base(f)
 
-		if res := solver.RunSync(board.New(p), All(p)); res.Status != solver.Stuck {
-			t.Errorf("%s: rules alone now give %v, testdata no longer hard", name, res.Status)
+		if res := solver.RunSync(board.New(p), AllWith(p, BaseConfig)); res.Status != solver.Stuck {
+			t.Errorf("%s: base rules alone now give %v, testdata no longer hard", name, res.Status)
+		}
+		if res := solver.RunSync(board.New(p), All(p)); res.Status == solver.Solved {
+			byNewRules++
+		} else {
+			t.Logf("%s: still needs lookahead with all rules", name)
 		}
 		full := solver.Options{Lookahead: true, Backtrack: true}
 		res := solver.Solve(board.New(p), All(p), full)
@@ -56,6 +61,7 @@ func TestHardPuzzles(t *testing.T) {
 		full.Run = solver.RunConcurrent
 		checkSolution(t, name+" (concurrent)", p, solver.Solve(board.New(p), All(p), full))
 	}
+	t.Logf("%d/%d solved by all rules without lookahead", byNewRules, len(files))
 	t.Logf("%d/%d hard puzzles needed guessing beyond lookahead", needGuess, len(files))
 }
 
@@ -124,7 +130,7 @@ func TestLookaheadOnlyIsSound(t *testing.T) {
 // with the assumed star and ending in a contradiction that names its cells.
 func TestLookaheadExplains(t *testing.T) {
 	p := puzzle.MustParse("CCAAA\nCCADA\nEDDDA\nEDEBB\nEEEEB\n") // testdata/hard/n05_s029.txt
-	res := solver.Solve(board.New(p), All(p), solver.Options{Lookahead: true})
+	res := solver.Solve(board.New(p), AllWith(p, BaseConfig), solver.Options{Lookahead: true})
 	found := 0
 	for _, st := range res.Trace {
 		if st.Source != solver.HypothesisSource {

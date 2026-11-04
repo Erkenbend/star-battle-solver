@@ -34,8 +34,16 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `UnitFinish` | Zeile, Spalte oder Farbe mit genau einem freien Feld → Stern |
 | `Confinement` (k, From→To) | Freie Felder von k offenen Einheiten liegen in genau k Einheiten eines anderen Typs → Rest dieser Einheiten X. Deckt „Line/Column“, „Color“ und die „Multiple“-Varianten aus dem groben Plan ab, in allen 6 Richtungen, k ≤ N/2 |
 | `Elimination` | Ein Stern auf c würde alle freien Felder einer Einheit streichen → c X. Ersetzt die Form-Regeln (2x1, L, Z …). Die Erklärung nennt den konkreten Grund (liegt in einer Einheit / berührt alle / gemischt) |
+| `ForcedPartner` (Tiefe, Standard 1) | Ein Stern auf c ließe in einer Einheit nur ein Feld q übrig; c und q zusammen würden eine Einheit leeren → c X. Mit Tiefe > 1 auch Ketten aus mehreren erzwungenen Sternen |
+| `DeadCells` (max. Felder, Standard 2) | Nach einem Stern auf c bleiben in einer Einheit nur 2 bis max. Felder, und jedes davon würde eine andere Einheit leeren → c X |
 
-Ergebnis: Die Regeln allein lösen ca. 96,5 % der generierten Puzzles (Stichprobe von 900 mit N = 4 bis 12).
+`ForcedPartner` und `DeadCells` sind die zwei häufigsten Muster aus den Annahmeketten der schweren Puzzles (zusammen gut drei Viertel aller Ketten). Konfiguration über `observers.Config` bzw. `solve -partner-depth N -dead-max N` (0 schaltet ab); `BaseConfig` = nur die ersten drei Regeln.
+
+`AllWith` liefert die Regeln von einfach nach anspruchsvoll sortiert (UnitFinish, Confinement k=1, Elimination, Confinement k≥2, ForcedPartner, DeadCells). `RunSync` behandelt die Liste als Priorität und fängt nach jeder Änderung wieder vorne an, damit die Erklärungen einfache Regeln bevorzugen. `RunConcurrent` kennt keine Priorität.
+
+Ergebnis:
+- Basisregeln: ca. 96,5 % der generierten Puzzles (Stichprobe von 900 mit N = 4 bis 12).
+- Mit `ForcedPartner` und `DeadCells`: 31 der 32 Puzzles aus `testdata/hard` ohne Annahmen; nur `n11_s095` braucht noch Lookahead.
 
 ### Suche (`solver.Solve`)
 1. Regeln bis zum Fixpunkt.
@@ -51,8 +59,11 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ## Nächste Schritte
 
-1. **Generator mit dem eigenen Solver statt Brute Force** zur Prüfung der Eindeutigkeit; CLI-Flag, um auf Brute Force umzuschalten. *(in Arbeit)*
-2. **Neue Regeln aus wiederkehrenden Annahmen:** Annahmeketten der schweren Puzzles sammeln, nach Mustern gruppieren und die häufigsten als Observer mit verständlichem Satz umsetzen. Fortschritt messen mit `TestHardPuzzles`.
+1. ~~**Generator mit dem eigenen Solver statt Brute Force**~~ ausprobiert und verworfen: Brute Force ist beim Generieren schneller. Der Generator bleibt bei `bruteforce.Solve`.
+2. ~~**Neue Regeln aus wiederkehrenden Annahmen**~~ umgesetzt als `ForcedPartner` und `DeadCells`. Für später vorgemerkt:
+   - **Benachbarte Zeilen/Spalten:** Zwei benachbarte Zeilen haben zusammen nur noch freie Felder in drei nebeneinanderliegenden Spalten c, c+1, c+2 → die Sterne liegen in c und c+2, Spalte c+1 ist in beiden Zeilen X (bei nur zwei Spalten: Widerspruch). Klassische Technik; noch nicht gemessen, wie oft sie greift.
+   - **Schubfachprinzip mit Annahme:** Ein Stern auf c ließe für k Einheiten nur noch weniger als k Einheiten eines anderen Typs übrig (z. B. zwei Spalten nur noch in Farbe B) → X. Kam in den Ketten nur 3-mal vor.
+   - Neue Testdaten, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
 3. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)?
 4. **Schwierigkeitsgrad** aus den benötigten Techniken (einfache Regeln / k ≥ 2 / Anzahl und Länge der Annahmen / Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
 5. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles für Schritt 2.

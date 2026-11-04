@@ -2,7 +2,8 @@
 //
 //	starbattle generate -n 8 [-seed 42] [-show]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
-//	starbattle solve [-runner concurrent|sync] [-search full|lookahead|none] [-step] [-verbose] [-nocolor] [p.txt]
+//	starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
+//	                 [-partner-depth N] [-dead-max N] [-step] [-verbose] [-nocolor] [p.txt]
 package main
 
 import (
@@ -49,7 +50,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   starbattle generate -n N [-seed S] [-show]
   starbattle show [-solution] [-nocolor] [file]
-  starbattle solve [-runner concurrent|sync] [-search full|lookahead|none] [-step] [-verbose] [-nocolor] [file]`)
+  starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
+                   [-partner-depth N] [-dead-max N] [-step] [-verbose] [-nocolor] [file]`)
 	os.Exit(2)
 }
 
@@ -127,6 +129,8 @@ func cmdSolve(args []string) error {
 	verbose := fs.Bool("verbose", false, "explain every deduction in words")
 	runner := fs.String("runner", "concurrent", "concurrent (one goroutine per observer) or sync")
 	search := fs.String("search", "full", "when the rules get stuck: full (lookahead + backtracking), lookahead, or none")
+	partnerDepth := fs.Int("partner-depth", observers.DefaultConfig.PartnerDepth, "ForcedPartner: max forced stars in a row (0 = off)")
+	deadMax := fs.Int("dead-max", observers.DefaultConfig.DeadCellsMax, "DeadCells: max remaining cells of a unit (0 = off)")
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
 	fs.Parse(args)
 
@@ -154,7 +158,8 @@ func cmdSolve(args []string) error {
 	default:
 		return fmt.Errorf("unknown search %q", *search)
 	}
-	res := solver.Solve(board.New(p), observers.All(p), opts)
+	cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax}
+	res := solver.Solve(board.New(p), observers.AllWith(p, cfg), opts)
 
 	if *step || *verbose {
 		printSteps(board.New(p), res.Trace, "", "", *step, *verbose, *noColor)

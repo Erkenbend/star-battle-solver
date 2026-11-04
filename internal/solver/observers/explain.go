@@ -72,6 +72,18 @@ func cells(qs []puzzle.Pos) string {
 	return strings.Join(out, " ")
 }
 
+// cellsAnd lists cells as "(1,2)", "(1,2) und (3,4)", "(1,2), (3,4) und (5,6)".
+func cellsAnd(qs []puzzle.Pos) string {
+	out := make([]string, len(qs))
+	for i, q := range qs {
+		out[i] = cell(q)
+	}
+	if len(out) <= 1 {
+		return strings.Join(out, "")
+	}
+	return strings.Join(out[:len(out)-1], ", ") + " und " + out[len(out)-1]
+}
+
 func keys(m map[int]bool) []int {
 	out := make([]int, 0, len(m))
 	for k := range m {

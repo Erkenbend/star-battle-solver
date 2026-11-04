@@ -2,8 +2,11 @@ package solver
 
 import "starbattle/internal/board"
 
-// RunSync is the simple reference runner: it calls every active observer in turn,
-// applies its marks, and repeats until a full pass changes nothing, the puzzle is
+// RunSync is the simple reference runner. Observers are treated as a priority
+// list: it calls them in order, and as soon as one changes the board it starts
+// again from the first. Simple rules (listed first) therefore always get the
+// first chance, and expensive or harder-to-explain rules only fire when nothing
+// simpler applies. It stops when a full pass changes nothing, the puzzle is
 // solved, or a contradiction shows up. start is not modified.
 func RunSync(start *board.State, observers []Observer) Result {
 	s := start.Clone()
@@ -13,7 +16,7 @@ func RunSync(start *board.State, observers []Observer) Result {
 	for progress := true; progress; {
 		progress = false
 		next := active[:0]
-		for _, o := range active {
+		for i, o := range active {
 			if o.Done(s) {
 				continue // unsubscribe
 			}
@@ -32,13 +35,16 @@ func RunSync(start *board.State, observers []Observer) Result {
 				}
 			}
 			if changed {
-				progress = true
 				if err := s.Contradiction(); err != nil {
 					return finish(s, trace, err)
 				}
 				if s.Solved() {
 					return finish(s, trace, nil)
 				}
+				// Keep the observers not yet visited in this pass, then restart.
+				next = append(next, active[i+1:]...)
+				progress = true
+				break
 			}
 		}
 		active = next
