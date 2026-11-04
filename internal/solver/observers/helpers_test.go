@@ -70,3 +70,25 @@ func TestSoundness(t *testing.T) {
 	}
 	t.Logf("solved by logic alone: %d/%d", solved, total)
 }
+
+// TestRunnersAgree checks the concurrent runner reaches the same fixpoint as the
+// synchronous one. Run with -race to also check for data races.
+func TestRunnersAgree(t *testing.T) {
+	for n := 4; n <= 10; n++ {
+		for seed := range uint64(10) {
+			rng := rand.New(rand.NewPCG(seed, uint64(n)))
+			p, _, err := generator.Generate(n, rng, generator.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := solver.RunSync(board.New(p), All(p))
+			for range 5 {
+				got := solver.RunConcurrent(board.New(p), All(p))
+				if got.Status != want.Status || !got.State.Equal(want.State) {
+					t.Fatalf("n=%d seed=%d: concurrent %v\n%s\nsync %v\n%s\n%s",
+						n, seed, got.Status, got.State, want.Status, want.State, p)
+				}
+			}
+		}
+	}
+}

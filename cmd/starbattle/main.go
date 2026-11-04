@@ -2,7 +2,7 @@
 //
 //	starbattle generate -n 8 [-seed 42] [-show]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
-//	starbattle solve [-step] [-nocolor] [p.txt]
+//	starbattle solve [-runner concurrent|sync] [-step] [-nocolor] [p.txt]
 package main
 
 import (
@@ -47,7 +47,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   starbattle generate -n N [-seed S] [-show]
   starbattle show [-solution] [-nocolor] [file]
-  starbattle solve [-step] [-nocolor] [file]`)
+  starbattle solve [-runner concurrent|sync] [-step] [-nocolor] [file]`)
 	os.Exit(2)
 }
 
@@ -122,6 +122,7 @@ func readPuzzle(fs *flag.FlagSet) (*puzzle.Puzzle, error) {
 func cmdSolve(args []string) error {
 	fs := flag.NewFlagSet("solve", flag.ExitOnError)
 	step := fs.Bool("step", false, "render the board after every observer step")
+	runner := fs.String("runner", "concurrent", "concurrent (one goroutine per observer) or sync")
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
 	fs.Parse(args)
 
@@ -132,7 +133,15 @@ func cmdSolve(args []string) error {
 	o := render.Options{NoColor: *noColor}
 	fmt.Print(render.Puzzle(p, o))
 
-	res := solver.RunSync(board.New(p), observers.All(p))
+	run := solver.RunConcurrent
+	switch *runner {
+	case "concurrent":
+	case "sync":
+		run = solver.RunSync
+	default:
+		return fmt.Errorf("unknown runner %q", *runner)
+	}
+	res := run(board.New(p), observers.All(p))
 
 	if *step {
 		replay := board.New(p)
