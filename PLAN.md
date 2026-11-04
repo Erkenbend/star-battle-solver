@@ -1,100 +1,68 @@
-# Star Battle (Meowdoku) Solver – genauer Plan
+# Star Battle (Meowdoku) Solver – Plan und Stand
 
-## Kontext
-Das Repo enthält bisher nur `grober_plan.md`: ein Solver in Go, bei dem mehrere nebenläufige **Observer** (Goroutinen) jeweils eine Regel beobachten und Markierungen (M = Stern, X = ausgeschlossen) über Channels austauschen. Ein Runner verteilt die Markierungen. Dazu kommen ein **Generator** für gültige, eindeutig lösbare Puzzles und eine einfache **Terminal-Darstellung** mit ANSI-Farben.
-Variante: **1 Stern** pro Zeile, Spalte und Farbe, auf einem NxN-Brett mit N Farben. Sterne dürfen sich nicht berühren, auch nicht diagonal.
+Variante: NxN-Brett mit N Farben, **1 Stern** pro Zeile, Spalte und Farbe; Sterne berühren sich nicht, auch nicht diagonal.
+Ausgangsidee: `grober_plan.md` (nebenläufige Observer, die über Channels Markierungen M/X austauschen).
+Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungsschritte, nicht Geschwindigkeit.
 
-## Validierung der Idee
+## Kernideen (validiert)
 
-**Was trägt:**
-- **Monotonie macht das Channel-Design sicher.** Der Zustand einer Zelle geht nur von *frei* zu M oder zu X und nie zurück. Dadurch ist die Reihenfolge der Nachrichten egal, und doppelte Nachrichten schaden nicht (idempotent). Jeder Observer kann eine eigene Kopie des Zustands führen, ohne zu locken. Die Variante „eigene Kopie, Updates per Channel“ ist die bessere: Sie ist frei von Data Races und isoliert testbar. Die Variante „Shared Board, read-only“ wäre ein Race, weil der Runner gleichzeitig schreibt.
-- Die Regeln „Line/Column“, „Multiple Line/Column“, „Color“ und „Multiple Color“ sind korrekt. Es sind Pigeonhole-Argumente: Sind die freien Zellen von k Zeilen auf genau k Farben beschränkt, dann liegen die Sterne dieser Farben genau in diesen Zeilen, und alle anderen Zellen dieser Farben sind X. Umgekehrt gilt dasselbe mit Farben und Zeilen vertauscht.
-- „Bei M verteilt der Runner X für Zeile, Spalte, Farbe und Nachbarschaft“ ist richtig und gehört zentral in den Runner.
+- **Monotonie:** Zellen gehen nur von *frei* zu M oder X, nie zurück. Darum ist die Reihenfolge von Updates egal und Duplikate schaden nicht. Jeder Observer hat eine eigene Kopie des Bretts, ohne Locks.
+- **Observer = reine Funktion** `Deduce(state) []Mark` plus `Done(state)`. Die Nebenläufigkeit steckt allein im Runner. Regeln sind so ohne Goroutinen testbar.
+- **Zwei Runner mit derselben `Apply`-Logik** (ein M setzt automatisch X in Zeile, Spalte, Farbe und Nachbarschaft):
+  - `RunSync`: einfache Referenz, ruft alle Observer reihum auf.
+  - `RunConcurrent`: eine Goroutine pro Observer; unbegrenzte Mailboxen verhindern Deadlocks; das Ende wird über Versionsnummern erkannt („alle idle auf der aktuellen Version“).
+  - Beide erreichen denselben Fixpunkt, solange die Regeln monoton sind (`TestRunnersAgree`).
+- **Widerspruchserkennung** im Runner (`board.ContradictionError` mit den betroffenen Zellen), Grundlage für die Suche.
 
-**Lücken und Korrekturen:**
-1. **„Finish“ fehlt für Zeile und Spalte.** Auch eine Zeile oder Spalte mit nur einer freien Zelle bekommt ein M. „Color Finish“ wird deshalb zu „Unit Finish“ für alle drei Einheitstypen.
-2. **„Form“ verallgemeinern.** Statt Formen wie 2x1, L oder Z einzeln aufzuzählen, gibt es einen **Elimination-Observer**: Würde ein M auf Zelle c *alle* freien Zellen einer Einheit (Zeile, Spalte oder Farbe) ausschalten, wird c zu X. Das deckt alle Formen automatisch ab und ist leicht zu testen.
-3. **Terminierung ist das schwierigste Problem.** Der Runner kann nicht einfach „Channel leer“ prüfen, weil ein Observer gerade rechnen könnte. Er braucht eine **Quiescence-Erkennung**: Jeder Observer meldet nach seiner Arbeit `Idle{seenVersion}`. Fertig oder festgefahren ist die Runde erst, wenn alle Observer idle gemeldet haben, und zwar auf der aktuellen Version, und keine Nachrichten mehr unterwegs sind.
-4. **Deadlock-Gefahr.** Der Runner blockiert beim Senden an Observer A, während A beim Senden an den Runner blockiert. Lösung: Jeder Observer hat eine **unbegrenzte Inbox** (eine Goroutine mit Slice-Queue). Der Runner sendet also nie blockierend. Observer senden auf einen gemeinsamen, gepufferten Output-Channel, den der Runner in seinem `select` immer liest.
-5. **„Observer exit wenn Einheit voll“:** Danach darf der Runner ihm nichts mehr schicken (Unsubscribe über eine `Done`-Nachricht). Sonst läuft die Inbox voll, oder ein Send auf einen geschlossenen Channel löst eine Panic aus.
-6. **Widerspruchserkennung fehlt**, ist aber für das Backtracking nötig. Widersprüche sind: eine Einheit ohne freie Zelle und ohne M, zwei M in einer Einheit oder benachbart. Der Runner prüft das bei jedem Update.
-7. **Backtracking mit Goroutinen ist einfach.** Wenn die Logik stagniert: Zelle mit den wenigsten Alternativen wählen, Zustand klonen, M setzen und eine neue Solver-Instanz starten. Bei Widerspruch wird die Zelle X. Es lohnt sich, das als eigenen „Hypothesis“-Schritt zu bauen und nicht als Observer.
+## Stand (umgesetzt)
 
-## Architektur (Go 1.26, nur Standardbibliothek)
-
-```
-cmd/starbattle/main.go     CLI: generate | solve | show
-internal/puzzle/           Puzzle (N, regions [][]int), Parsing/Format (Textformat: Buchstaben je Farbe)
-internal/board/            State: cells []Cell{Free,Star,Cross}, Apply(Mark) bool, Clone, Contradiction(), Solved()
-internal/render/           ANSI-Ausgabe: Hintergrund je Region, ★ / · / leer; Diff-Highlight für neue Marks
-internal/bruteforce/       Referenz-Solver (Backtracking über Zeilen) – CountSolutions(p, limit)
-internal/generator/        Puzzle-Generator
-internal/solver/           Runner + Observer-Framework
-internal/solver/observers/ ein File pro Regel + _test.go
-```
-
-### Kerntypen (`internal/solver`)
-```go
-type Mark struct { Row, Col int; Kind board.CellKind; Source string } // Source = Observer-Name (für Trace)
-type Observer interface {
-    Name() string
-    // reine Funktion: gegeben Zustand → neue Marks. Macht Observer trivial testbar.
-    Deduce(s *board.State) []Mark
-    Done(s *board.State) bool
-}
-```
-- **Die Logik ist rein, die Nebenläufigkeit liegt im Wrapper.** `runObserver(o, init, inbox <-chan []Mark, out chan<- Msg)` übernimmt die Inbox in die lokale Kopie (Leerlesen ohne Blockieren), ruft `Deduce` auf, bis nichts Neues mehr kommt, sendet die Marks und `Idle{version}` und wartet dann wieder. Jeder Observer lässt sich so ohne Goroutinen testen: Board-Zustand rein, erwartete Marks raus.
-- **Observer-Instanzen:** Für maximale Parallelität eine Goroutine pro (Regel × Einheit), z. B. „RowSingleColor[r=3]“. Das passt zum Gedanken „ignoriert, was ihn nicht betrifft“ und zu „exit wenn voll“. Die Multiple-Regeln laufen als je eine Instanz über alle Teilmengen. Die Teilmengengröße ist begrenzt, Standardwert k ≤ N/2, damit die Zahl der Teilmengen klein bleibt.
-- **Runner:** Er ist die einzige Instanz mit dem autoritativen State. Er übernimmt Marks (ein Duplikat wird ignoriert, und ein Konflikt zählt als Widerspruch). Bei einem M erzeugt er die abgeleiteten X selbst. Dann leitet er das Delta an alle aktiven Inboxes weiter und erhöht `version`. Er endet bei `Solved`, `Contradiction` oder Quiescence; im letzten Fall greift Hypothesis/Backtracking. Ein optionaler `Trace []Mark` zeichnet auf, welcher Observer was wann gefunden hat. Das ist für die Visualisierung und das Debugging wertvoll.
-
-### Observer-Liste (MVP)
-| Name | Regel |
+| Paket | Inhalt |
 |---|---|
-| `UnitFinish` | Zeile, Spalte oder Farbe mit genau 1 freien Zelle und ohne M → M |
-| `RowColor` / `ColColor` | Freie Zellen einer Zeile/Spalte haben alle eine Farbe → restliche Zellen dieser Farbe X |
-| `ColorInLine` | Freie Zellen einer Farbe liegen in einer Zeile/Spalte → restliche Zellen dieser Zeile/Spalte X |
-| `MultiLine` | k Zeilen (oder Spalten) enthalten zusammen genau k Farben → diese Farben außerhalb X |
-| `MultiColor` | k Farben liegen zusammen in genau k Zeilen (oder Spalten) → diese Zeilen außerhalb X |
-| `Elimination` | Ein M auf c würde eine Einheit leeren → c X (ersetzt „Form“) |
+| `internal/puzzle` | Layout, Textformat (Buchstaben bleiben erhalten, wenn es die ersten N sind), Einheiten |
+| `internal/board` | Zustand, `Set` mit Konflikterkennung, `Implied`, `Contradiction`, Parser für Testzustände |
+| `internal/render` | ANSI-Farben; neue Felder in `[ ]`, Widerspruchszellen in `( )`, Pfeile am Rand |
+| `internal/bruteforce` | Referenz-Solver (Backtracking über Zeilen), Test-Orakel |
+| `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Zellen zerstören |
+| `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
+| `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
+| `cmd/starbattle` | `generate`, `show`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor]` |
+| `testdata/hard` | 32 Puzzles, an denen die Regeln allein scheitern |
 
-`RowColor` und `ColorInLine` sind die Fälle k=1 von `MultiLine` und `MultiColor`. Ich würde sie trotzdem als eigene, einfache Observer bauen, weil sie leichter zu lesen sind und gut als Lernbeispiel taugen.
+### Regeln
+| Regel | Inhalt |
+|---|---|
+| `UnitFinish` | Zeile, Spalte oder Farbe mit genau einem freien Feld → Stern |
+| `Confinement` (k, From→To) | Freie Felder von k offenen Einheiten liegen in genau k Einheiten eines anderen Typs → Rest dieser Einheiten X. Deckt „Line/Column“, „Color“ und die „Multiple“-Varianten aus dem groben Plan ab, in allen 6 Richtungen, k ≤ N/2 |
+| `Elimination` | Ein Stern auf c würde alle freien Felder einer Einheit streichen → c X. Ersetzt die Form-Regeln (2x1, L, Z …). Die Erklärung nennt den konkreten Grund (liegt in einer Einheit / berührt alle / gemischt) |
 
-## Generator (`internal/generator`)
-1. **Zufällige Lösung:** Permutation `p` mit `|p[i]−p[i+1]| > 1`, per Backtracking mit gemischter Reihenfolge.
-2. **Regionen wachsen lassen:** Jeder Stern ist der Keim einer Region. Danach wird zufällig per Flood-Fill erweitert, indem eine zufällige Grenzzelle einer zufälligen Region zugeschlagen wird. Das ergibt N zusammenhängende Regionen mit je genau einem Stern.
-3. **Eindeutigkeit:** `bruteforce.CountSolutions(p, 2)` prüft auf genau eine Lösung. Bei mehreren Lösungen eine Zelle finden, in der eine zweite Lösung einen Stern hat, die keine Keimzelle ist, und sie einer Nachbarregion zuschlagen, solange die Zusammenhängigkeit erhalten bleibt. Dann erneut prüfen. Nach X Versuchen neu starten.
-4. **Optional, Schwierigkeit:** Den eigenen Solver ohne Backtracking laufen lassen und ausweisen, ob ihn die Logik allein schafft und welche Observer nötig waren. Mit `--logic-only` werden nur Puzzles behalten, die ohne Raten lösbar sind.
+Ergebnis: Die Regeln allein lösen ca. 96,5 % der generierten Puzzles (Stichprobe von 900 mit N = 4 bis 12).
 
-Der Brute-Force-Solver ist zugleich das **Test-Orakel** für den Observer-Solver.
+### Suche (`solver.Solve`)
+1. Regeln bis zum Fixpunkt.
+2. **Lookahead:** Für jedes freie Feld parallel „Stern hier“ annehmen und `RunSync` laufen lassen. Von den Widersprüchen wird der mit der **kürzesten Kette** übernommen (dann weniger gesetzte Felder, dann enge Einheiten zuerst). Das Feld wird X, danach geht es zurück zu 1. Die ganze Kette steht im Trace und wird mit `-verbose`/`-step` verschachtelt angezeigt.
+3. **Raten:** Stern im engsten offenen Feld setzen und rekursiv lösen; scheitert das, ist das Feld bewiesenermaßen X, zurück zu 1.
 
-## Darstellung (`internal/render`)
-- `Render(p, state) string`: Jede Zelle besteht aus 2 bis 3 Zeichen mit dem ANSI-256-Hintergrund ihrer Region (Palette mit ca. 12 unterscheidbaren Farben). Inhalt: `★` für M, `·` oder `x` für X, Leerzeichen für frei.
-- `--step`: Nach jedem Delta wird das Brett neu ausgegeben, neue Marks sind hervorgehoben, und daneben steht der Name des Observers aus dem Trace.
-- Textformat für Puzzles (Datei oder stdin), z. B. für 5x5:
-  ```
-  AABBB
-  ACCDB
-  ...
-  ```
+Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nötig. Der Preis der kürzesten Ketten: 119 Annahmen mit Ø 2,6 Schritten statt 46 mit Ø 4,9 Schritten bei „erstes widerlegtes Feld“.
 
-## CLI
-- `starbattle generate -n 8 [-seed 42] [-logic-only] > p.txt`
-- `starbattle solve [-step] [-no-guess] p.txt`
-- `starbattle show p.txt`
+### Entscheidungen
+- Erklärungen sind deutsch; Koordinaten (Zeile, Spalte), beginnend bei 0.
+- Probeläufe im Lookahead immer mit `RunSync`, damit die gewählte Erklärung reproduzierbar ist.
+- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`); `generate -n 5 -seed 29` erzeugt `testdata/hard/n05_s029.txt`.
 
-## Umsetzungsreihenfolge
-1. `go mod init`, `puzzle`, `board` und `render` (`show` funktioniert)
-2. `bruteforce` und Tests mit handgebauten Puzzles
-3. `generator` (`generate` funktioniert, Eindeutigkeit wird über `bruteforce` geprüft)
-4. `solver`: zuerst ein synchroner Runner, der alle `Deduce` in einer Schleife aufruft (zeigt, dass die Regeln korrekt sind), danach der nebenläufige Runner mit Channels und Quiescence
-5. Observer einzeln mit Tabellentests
-6. Hypothesis/Backtracking
-7. `-step`-Trace-Visualisierung
+## Nächste Schritte
 
-Der synchrone Runner aus Schritt 4 ist der Trick, um Logikfehler von Nebenläufigkeitsfehlern zu trennen. Beide Runner müssen auf denselben Puzzles dasselbe Ergebnis liefern.
+1. **Generator mit dem eigenen Solver statt Brute Force** zur Prüfung der Eindeutigkeit; CLI-Flag, um auf Brute Force umzuschalten. *(in Arbeit)*
+2. **Neue Regeln aus wiederkehrenden Annahmen:** Annahmeketten der schweren Puzzles sammeln, nach Mustern gruppieren und die häufigsten als Observer mit verständlichem Satz umsetzen. Fortschritt messen mit `TestHardPuzzles`.
+3. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)?
+4. **Schwierigkeitsgrad** aus den benötigten Techniken (einfache Regeln / k ≥ 2 / Anzahl und Länge der Annahmen / Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
+5. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles für Schritt 2.
+6. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
+7. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+8. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
 
 ## Verifikation
-- `go test ./...`: Tabellentests pro Observer (Zustand rein, erwartete Marks raus). Für den Generator wird geprüft, dass die Regionen zusammenhängen und jeweils genau einen Stern der Lösung enthalten, und dass `CountSolutions == 1` gilt.
-- `go test -race ./internal/solver/...`: Der nebenläufige Runner muss frei von Data Races sein.
-- **Property-Test:** 200 generierte Puzzles (N = 5 bis 10). Der Observer-Solver mit Backtracking muss jedes Mal die Brute-Force-Lösung finden. Synchroner und nebenläufiger Runner liefern identische Endzustände.
-- Manuell: `go run ./cmd/starbattle generate -n 8 | go run ./cmd/starbattle solve -step`
+- `go test ./...` und `go test -race ./...`
+- `TestSoundness`: Jede Schlussfolgerung der Regeln stimmt mit der Brute-Force-Lösung überein.
+- `TestRunnersAgree`: `RunSync` und `RunConcurrent` erreichen denselben Endzustand.
+- `TestHardPuzzles`: Alle Puzzles in `testdata/hard` werden gelöst und bleiben ohne Suche unlösbar.
+- Manuell: `go run ./cmd/starbattle generate -n 8 | go run ./cmd/starbattle solve -verbose -step`
