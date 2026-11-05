@@ -39,7 +39,11 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 
 `ForcedPartner` und `DeadCells` sind die zwei häufigsten Muster aus den Annahmeketten der schweren Puzzles (zusammen gut drei Viertel aller Ketten). Konfiguration über `observers.Config` bzw. `solve -partner-depth N -dead-max N` (0 schaltet ab); `BaseConfig` = nur die ersten drei Regeln.
 
-`AllWith` liefert die Regeln von einfach nach anspruchsvoll sortiert (UnitFinish, Confinement k=1, Elimination, Confinement k≥2, ForcedPartner, DeadCells). `RunSync` behandelt die Liste als Priorität und fängt nach jeder Änderung wieder vorne an, damit die Erklärungen einfache Regeln bevorzugen. `RunConcurrent` kennt keine Priorität.
+**Prioritätsstufen:** Jede Regel meldet über `Priority()` ihre Stufe (`solver.Prioritized`): 1 `UnitFinish` · 2 `Confinement` k=1 · 3 `Elimination` · 4 `Confinement` k≥2 · 5 `ForcedPartner` · 6 `DeadCells`; Lookahead (100) und Raten (101) liegen darüber. Beide Runner wenden eine Regel nur an, wenn keine einfachere etwas findet:
+- `RunSync` sortiert stabil nach Stufe und fängt nach jeder Änderung wieder vorne an.
+- `RunConcurrent` sammelt Markierungen, die auf der aktuellen Version gefunden wurden, und wendet die der niedrigsten Stufe erst an, wenn alle Observer niedrigerer Stufen auf dieser Version idle sind (eine Nachricht pro Version; veraltete Nachrichten werden verworfen, die Absender rechnen nach dem Broadcast neu). Die Goroutinen rechnen weiter parallel.
+- Innerhalb einer Stufe entscheidet die Reihenfolge aus `AllWith` (Confinement mit kleinerem k zuerst, dann Zeilen, Spalten, Farben).
+- `Mark.Level`/`Step.Level` halten die Stufe im Trace fest. `TestPriorityOrder` prüft für jeden Schritt, dass vorher keine einfachere Regel gegriffen hätte.
 
 Ergebnis:
 - Basisregeln: ca. 96,5 % der generierten Puzzles (Stichprobe von 900 mit N = 4 bis 12).
@@ -61,15 +65,7 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Als Nächstes
 
-1. **Prioritätsregeln für die Observer:** Die einfachste anwendbare Regel soll immer Vorrang haben, damit Erklärungen so menschlich wie möglich bleiben.
-   - Stand: `RunSync` behandelt die Reihenfolge aus `AllWith` als Priorität (Neustart nach jeder Änderung). `RunConcurrent` kennt keine Priorität, dort hängt die Reihenfolge der Schritte vom Zufall ab.
-   - **Explizite Prioritätsstufen** statt Reihenfolge in einer Liste, z. B. eine Methode `Priority() int` am Observer oder Stufen in `AllWith`:
-     1. `UnitFinish` · 2. `Confinement` k=1 · 3. `Elimination` · 4. `Confinement` k≥2 · 5. `ForcedPartner` · 6. `DeadCells` · (7. Lookahead, 8. Raten im Solver).
-   - **Stufen im nebenläufigen Runner:** Der Runner übernimmt Markierungen einer Stufe nur, wenn alle Observer niedrigerer Stufen auf der aktuellen Version idle sind. Vorgeschlagene Umsetzung: Nachrichten höherer Stufen puffern und erst nach Quiescence der niedrigeren Stufen anwenden. Die Goroutinen dürfen weiter parallel rechnen.
-   - **Innerhalb einer Stufe:** die kleinere Schlussfolgerung bevorzugen, z. B. bei `Confinement` kleineres k und bei `ForcedPartner` geringere Tiefe. Prüfen, ob eine feste Reihenfolge der Einheiten (Zeilen vor Spalten vor Farben) die Erklärungen ruhiger macht.
-   - Messen: Wie oft greifen die Regeln jeder Stufe vorher und nachher (Trace-Statistik, siehe Punkt 5)? `TestRunnersAgree` muss weiter gelten.
-
-2. **`Confinement` auf nebeneinanderliegende Zeilen/Spalten ausrichten:** Menschen betrachten bei „k Zeilen haben nur noch k Farben“ fast immer benachbarte Zeilen oder Spalten, nicht beliebige Teilmengen. Erklärungen wie „Zeilen 1, 4 und 7 …“ sind schwer nachzuvollziehen.
+1. **`Confinement` auf nebeneinanderliegende Zeilen/Spalten ausrichten:** Menschen betrachten bei „k Zeilen haben nur noch k Farben“ fast immer benachbarte Zeilen oder Spalten, nicht beliebige Teilmengen. Erklärungen wie „Zeilen 1, 4 und 7 …“ sind schwer nachzuvollziehen.
    - Für k ≥ 2 mit From = Zeile/Spalte nur zusammenhängende Blöcke (r, r+1, …, r+k−1) betrachten. Für From = Farbe sind beliebige Teilmengen weiter sinnvoll; zu prüfen ist, ob dort „benachbarte Farben“ (Regionen, die sich berühren) menschlicher sind.
    - Konfigurierbar machen (`Config.ConfinementContiguous`), damit beide Varianten verglichen werden können.
    - Messen, was verloren geht: Wie viele Puzzles brauchen danach zusätzliche Annahmen bzw. `ForcedPartner`/`DeadCells`? Ein Nebeneffekt ist die kleinere Suche (N−k+1 Blöcke statt „N über k“ Teilmengen).
@@ -77,26 +73,31 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Erledigt / verworfen
 
+- ~~**Prioritätsregeln für die Observer**~~ umgesetzt (siehe „Regeln“). Messung über 80 Puzzles (32 schwere + 48 generierte mit N = 5 bis 10), nur Regeln, Schritte pro Stufe L1 bis L6:
+   - `RunSync`: 657 / 233 / 323 / 63 / 118 / 2, 0 Verletzungen.
+   - `RunConcurrent` vorher: 657 / 122 / 475 / 353 / 656 / 642, **2013 Verletzungen**, d. h. `ForcedPartner` und `DeadCells` feuerten oft, obwohl eine einfache Regel griff.
+   - `RunConcurrent` nachher: 657 / 229 / 327 / 61 / 112 / 2, 0 Verletzungen. Kosten: `TestHardPuzzles` 3,2 s statt 2,0 s.
+   - Offen (klein): Innerhalb einer Stufe nimmt der nebenläufige Runner die wartende Nachricht mit dem kleinsten Index und wartet nicht auf langsamere Observer derselben Stufe. Bei Bedarf feinere Stufen (z. B. je k bei `Confinement`).
 - ~~**Generator mit dem eigenen Solver statt Brute Force**~~ ausprobiert und verworfen: Brute Force ist beim Generieren schneller. Der Generator bleibt bei `bruteforce.Solve`.
 - ~~**Neue Regeln aus wiederkehrenden Annahmen**~~ umgesetzt als `ForcedPartner` und `DeadCells`.
 
 ### Später
 
-3. **Weitere Regeln (vorgemerkt):**
+2. **Weitere Regeln (vorgemerkt):**
    - **Benachbarte Zeilen/Spalten:** Zwei benachbarte Zeilen haben zusammen nur noch freie Felder in drei nebeneinanderliegenden Spalten c, c+1, c+2 → die Sterne liegen in c und c+2, Spalte c+1 ist in beiden Zeilen X (bei nur zwei Spalten: Widerspruch). Klassische Technik; noch nicht gemessen, wie oft sie greift.
    - **Kreuzung von Zeile und Spalte:** Ein Observer für ein Paar aus Zeile r und Spalte c: Wenn beide ihren Stern in derselben Farbe F haben müssen (alle freien Felder der Zeile und alle freien Felder der Spalte sind F), dann liegt der Stern von F auf der Kreuzung (r, c). Ist (r, c) nicht frei oder nicht F, ist das ein Widerspruch. Bisher nur über eine Kette erreichbar (`Confinement` Zeile→Farbe, dann Spalte→Farbe, dann `UnitFinish`); als eigene Regel ergibt das eine einzige, direkte Erklärung. Zu prüfen: Priorität (vermutlich direkt nach `Confinement` k=1) und wie oft die Regel in den Traces greift.
    - **Schubfachprinzip mit Annahme:** Ein Stern auf c ließe für k Einheiten nur noch weniger als k Einheiten eines anderen Typs übrig (z. B. zwei Spalten nur noch in Farbe B) → X. Kam in den Ketten nur 3-mal vor.
-4. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
-5. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für die Messungen in Punkt 1 und 2.
-6. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
-7. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles.
-8. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
-9. **HTML-Darstellung, möglichst interaktiv:**
+3. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
+4. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und in Punkt 1.
+5. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
+6. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles.
+7. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
+8. **HTML-Darstellung, möglichst interaktiv:**
    - **Selbst lösen:** Felder per Klick als X oder Stern markieren, mit Rückgängig, Prüfung auf Regelverstöße (Hervorhebung wie die `( )`-Widerspruchszellen) und optional einem Hinweis-Knopf, der die nächste Regel samt Erklärung zeigt.
    - **Automatische Lösung anschauen:** Den Trace Schritt für Schritt abspielen (vor/zurück, Autoplay), neue Felder hervorheben und die deutsche Begründung dazu anzeigen; Annahmeketten aus dem Lookahead aufklappbar wie bei `-verbose`.
    - Umsetzung offen: z. B. `starbattle html` erzeugt eine eigenständige Datei mit Puzzle und Trace als JSON, oder ein kleiner lokaler Server (`starbattle serve`), der auch Hinweise live berechnet. Dafür braucht der Trace ein stabiles JSON-Format.
-10. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-11. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
+9. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+10. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`

@@ -16,6 +16,8 @@ type UnitFinish struct {
 
 func (o UnitFinish) Name() string { return "UnitFinish[" + o.Unit.String() + "]" }
 
+func (UnitFinish) Priority() int { return LevelUnitFinish }
+
 func (o UnitFinish) Done(s *board.State) bool { return s.HasStar(o.Unit.Cells) }
 
 func (o UnitFinish) Deduce(s *board.State) []solver.Mark {

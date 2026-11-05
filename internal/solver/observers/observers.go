@@ -27,16 +27,22 @@ var BaseConfig = Config{}
 // All returns every observer instance for p with DefaultConfig.
 func All(p *puzzle.Puzzle) []solver.Observer { return AllWith(p, DefaultConfig) }
 
-// AllWith returns the observer instances for p, ordered from simplest to most
-// demanding. RunSync treats the list as a priority order (it restarts from the
-// top after every change), so the explanations prefer simple rules:
-//
-//  1. UnitFinish            only one free cell left → star
-//  2. Confinement k=1       a unit lies within one other unit
-//  3. Elimination           a star here would empty a unit
-//  4. Confinement k≥2       pigeonhole over several units
-//  5. ForcedPartner         a star here forces another one, together they empty a unit
-//  6. DeadCells             after a star here, every remaining cell of a unit is dead
+// Priority levels of the rules (see solver.Prioritized), from simplest to most
+// demanding. Both runners apply a rule only when no simpler one applies, so the
+// explanations stay as human as possible. Lookahead and guessing in Solve come
+// after all of them (solver.LevelLookahead, solver.LevelGuess).
+const (
+	LevelUnitFinish        = 1 + iota // only one free cell left → star
+	LevelConfinementSingle            // Confinement k=1: a unit lies within one other unit
+	LevelElimination                  // a star here would empty a unit
+	LevelConfinementMulti             // Confinement k≥2: pigeonhole over several units
+	LevelForcedPartner                // a star here forces another one, together they empty a unit
+	LevelDeadCells                    // after a star here, every remaining cell of a unit is dead
+)
+
+// AllWith returns the observer instances for p, sorted by priority level.
+// Within a level the order is the tie-break: Confinement with smaller k first,
+// then rows, columns, regions.
 func AllWith(p *puzzle.Puzzle, cfg Config) []solver.Observer {
 	var obs []solver.Observer
 	units := p.Units()

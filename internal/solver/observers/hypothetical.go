@@ -28,6 +28,8 @@ type ForcedPartner struct {
 	units []puzzle.Unit
 }
 
+func (ForcedPartner) Priority() int { return LevelForcedPartner }
+
 func (o ForcedPartner) Name() string {
 	return fmt.Sprintf("ForcedPartner[%s d=%d]", cell(o.Cell), o.Depth)
 }
@@ -106,6 +108,8 @@ type DeadCells struct {
 	MaxCells int
 	units    []puzzle.Unit
 }
+
+func (DeadCells) Priority() int { return LevelDeadCells }
 
 func (o DeadCells) Name() string {
 	return fmt.Sprintf("DeadCells[%s max=%d]", cell(o.Cell), o.MaxCells)

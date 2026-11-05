@@ -47,6 +47,14 @@ func (o Confinement) Name() string {
 	return fmt.Sprintf("Confinement[k=%d %v→%v]", o.K, o.From, o.To)
 }
 
+// Priority: k=1 is as easy to see as a single unit, larger k is a real pigeonhole step.
+func (o Confinement) Priority() int {
+	if o.K == 1 {
+		return LevelConfinementSingle
+	}
+	return LevelConfinementMulti
+}
+
 // Done once fewer than K units of kind From are open (no K-subset left), except
 // that K=1 keeps running while any unit is open.
 func (o Confinement) Done(s *board.State) bool {

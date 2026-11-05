@@ -22,6 +22,8 @@ type Elimination struct {
 
 func (o Elimination) Name() string { return "Elimination[" + o.Unit.String() + "]" }
 
+func (Elimination) Priority() int { return LevelElimination }
+
 func (o Elimination) Done(s *board.State) bool { return s.HasStar(o.Unit.Cells) }
 
 func (o Elimination) Deduce(s *board.State) []solver.Mark {

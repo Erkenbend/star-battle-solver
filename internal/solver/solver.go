@@ -2,9 +2,9 @@
 // the shared Apply logic and the runners that drive observers to a fixpoint.
 //
 // Observers hold the deduction logic as pure functions (state in, marks out).
-// Runners decide how they are scheduled: RunSync calls them in a loop, a later
-// concurrent runner will give each its own goroutine and channels. Both share
-// Apply, so they must reach the same fixpoint.
+// Runners decide how they are scheduled: RunSync calls them in a loop,
+// RunConcurrent gives each its own goroutine. Both share Apply, so they reach
+// the same fixpoint, and both respect the observers' priority levels.
 package solver
 
 import (
@@ -20,6 +20,7 @@ type Mark struct {
 	Kind   board.Cell // board.Star or board.Cross
 	Source string     // name of the observer that produced it
 	Reason string     // human-readable explanation (German), shown by solve -verbose
+	Level  int        // priority level of the rule (set by the runner, see Prioritized)
 }
 
 // Why returns m with its explanation set.
@@ -71,7 +72,9 @@ func Apply(s *board.State, m Mark) ([]Mark, error) {
 				return delta, fmt.Errorf("%w (%s)", err, m.Source)
 			}
 			if ch {
-				delta = append(delta, Cross(q, m.Source).Why(m.Reason))
+				implied := Cross(q, m.Source).Why(m.Reason)
+				implied.Level = m.Level
+				delta = append(delta, implied)
 			}
 		}
 	}
@@ -96,6 +99,7 @@ func (s Status) String() string {
 type Step struct {
 	Source string
 	Reason string
+	Level  int // priority level of the rule or search step
 	Marks  []Mark
 	// Hypothesis is set for a cross proven by refuting a star: it holds the
 	// steps that followed from assuming the star, ending in a contradiction.
@@ -118,7 +122,7 @@ func record(trace []Step, m Mark, delta []Mark) []Step {
 		trace[n-1].Marks = append(trace[n-1].Marks, delta...)
 		return trace
 	}
-	return append(trace, Step{Source: m.Source, Reason: m.Reason, Marks: delta})
+	return append(trace, Step{Source: m.Source, Reason: m.Reason, Level: m.Level, Marks: delta})
 }
 
 // Result of a run.

@@ -87,7 +87,7 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 		if o.Lookahead {
 			if r, ok := lookahead(s, observers); ok {
 				var err error
-				if trace, err = refute(s, trace, r.pos, r.hyp); err != nil {
+				if trace, err = refute(s, trace, r.pos, r.hyp, LevelLookahead); err != nil {
 					return done(finish(s, nil, err))
 				}
 				stats.Lookahead++
@@ -109,6 +109,7 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 		why := fmt.Sprintf("Raten: Stern auf (%d,%d) (eines von %d freien Feldern in %s)",
 			pos.Row, pos.Col, len(free), unitName(*unit))
 		guess := Star(pos, HypothesisSource).Why(why)
+		guess.Level = LevelGuess
 		delta, err := Apply(guessed, guess)
 		var sub Result
 		if err != nil {
@@ -127,7 +128,7 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 		if sub.Stats.Guesses == 0 { // short chain of rules only: worth showing
 			hyp = &Hypothesis{Steps: append([]Step{assumedStep(s.P, pos, delta)}, sub.Trace...), Contradiction: sub.Err}
 		}
-		if trace, err = refute(s, trace, pos, hyp); err != nil {
+		if trace, err = refute(s, trace, pos, hyp, LevelGuess); err != nil {
 			return done(finish(s, nil, err))
 		}
 	}
@@ -139,16 +140,18 @@ type refutation struct {
 }
 
 // refute crosses pos because a star there was shown impossible, and records the
-// step with its reasoning chain (hyp may be nil for deep backtracking).
-func refute(s *board.State, trace []Step, pos puzzle.Pos, hyp *Hypothesis) ([]Step, error) {
+// step with its reasoning chain (hyp may be nil for deep backtracking). level is
+// LevelLookahead or LevelGuess, depending on how the star was refuted.
+func refute(s *board.State, trace []Step, pos puzzle.Pos, hyp *Hypothesis, level int) ([]Step, error) {
 	why := fmt.Sprintf("Annahme: Stern auf (%d,%d) führt zu einem Widerspruch → X", pos.Row, pos.Col)
 	if hyp == nil {
 		why = fmt.Sprintf("Annahme: Stern auf (%d,%d) führt nach weiterem Raten immer zu einem Widerspruch → X", pos.Row, pos.Col)
 	}
 	m := Cross(pos, HypothesisSource).Why(why)
+	m.Level = level
 	delta, err := Apply(s, m)
 	if len(delta) > 0 {
-		trace = append(trace, Step{Source: m.Source, Reason: why, Marks: delta, Hypothesis: hyp})
+		trace = append(trace, Step{Source: m.Source, Reason: why, Level: m.Level, Marks: delta, Hypothesis: hyp})
 	}
 	return trace, err
 }
@@ -159,8 +162,9 @@ func assumedStep(p *puzzle.Puzzle, pos puzzle.Pos, delta []Mark) Step {
 		pos.Row, pos.Col, pos.Row, pos.Col, puzzle.RegionLetter(p.Region(pos.Row, pos.Col)))
 	for i := range delta {
 		delta[i].Reason = why
+		delta[i].Level = LevelLookahead
 	}
-	return Step{Source: HypothesisSource, Reason: why, Marks: delta}
+	return Step{Source: HypothesisSource, Reason: why, Level: LevelLookahead, Marks: delta}
 }
 
 // lookahead tries a star on every free cell in parallel and returns the

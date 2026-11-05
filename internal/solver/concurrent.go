@@ -29,6 +29,15 @@ import (
 // from one goroutine arrive in order, so any marks it found earlier have
 // already been processed by then.
 //
+// Priorities: marks found on the current version wait in a pending set. The
+// runner applies the pending message of the lowest level (ties: lowest index)
+// once every active observer of a lower level is idle at the current version,
+// i.e. no simpler rule can deduce anything. It applies one message per version;
+// the other pending messages are then stale and dropped, because their senders
+// get the new broadcast and deduce again. Marks computed on an older version
+// are dropped on arrival for the same reason. The goroutines keep computing in
+// parallel; only the order of application is serialized by level.
+//
 // start is not modified. The result is the same fixpoint RunSync reaches as long
 // as the rules are monotone (more information never prevents a deduction).
 func RunConcurrent(start *board.State, observers []Observer) Result {
@@ -58,10 +67,13 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 
 	const busy = -1
 	version := 0
+	levels := make([]int, len(observers))
 	idleAt := make(map[int]int, len(observers)) // active observer → version it is idle at
-	for i := range observers {
+	for i, o := range observers {
+		levels[i] = PriorityOf(o)
 		idleAt[i] = busy
 	}
+	pending := map[int][]Mark{} // observer → marks found on the current version, waiting for their turn
 	var trace []Step
 
 	for len(idleAt) > 0 {
@@ -72,13 +84,30 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 		switch m.kind {
 		case msgDone:
 			delete(idleAt, m.id)
+			delete(pending, m.id)
 		case msgIdle:
 			idleAt[m.id] = m.version
+			delete(pending, m.id)
 		case msgMarks:
 			idleAt[m.id] = busy
+			if m.version == version {
+				pending[m.id] = m.marks
+			}
+			// Otherwise stale: a newer broadcast waits in the sender's mailbox,
+			// so it will deduce again on the current state.
+		}
+
+		for {
+			id, ok := nextReady(levels, idleAt, pending, version)
+			if !ok {
+				break
+			}
+			marks := pending[id]
+			delete(pending, id)
 			var all []Mark // every cell changed by this message
 			var err error
-			for _, mk := range m.marks {
+			for _, mk := range marks {
+				mk.Level = levels[id]
 				var delta []Mark
 				delta, err = Apply(s, mk)
 				trace = record(trace, mk, delta)
@@ -91,8 +120,10 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 				return finish(s, trace, err)
 			}
 			if len(all) == 0 {
-				// All duplicates: the sender's copy is behind and a broadcast is
-				// already waiting in its mailbox, so it will wake up again.
+				// Cannot happen for marks found on the current version (the
+				// sender filters out what its copy already has). Treat it as
+				// idle, since no broadcast follows that would wake the sender.
+				idleAt[id] = version
 				continue
 			}
 			if err := s.Contradiction(); err != nil {
@@ -102,6 +133,7 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 				return finish(s, trace, nil)
 			}
 			version++
+			clear(pending) // all stale now; the senders deduce again after the broadcast
 			b := batch{version: version, marks: all}
 			for id := range idleAt {
 				boxes[id].put(b)
@@ -112,6 +144,28 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 		}
 	}
 	return finish(s, trace, nil)
+}
+
+// nextReady picks the pending message to apply next: the one of the lowest
+// level (ties: lowest observer index), provided every active observer of a lower
+// level is idle at the current version. Otherwise a simpler rule may still
+// report something, and the runner waits.
+func nextReady(levels []int, idleAt map[int]int, pending map[int][]Mark, version int) (int, bool) {
+	best := -1
+	for id := range pending {
+		if best < 0 || levels[id] < levels[best] || (levels[id] == levels[best] && id < best) {
+			best = id
+		}
+	}
+	if best < 0 {
+		return 0, false
+	}
+	for id, v := range idleAt {
+		if levels[id] < levels[best] && v != version {
+			return 0, false
+		}
+	}
+	return best, true
 }
 
 func quiescent(idleAt map[int]int, version int) bool {
