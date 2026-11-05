@@ -61,6 +61,18 @@ for (const f of files) {
     assert.ok(st.hypothesis.contradiction.length > 0);
   }
 
+  // No region letter is left as plain text once swatches replace them.
+  const texts = [];
+  for (const st of d.steps) {
+    texts.push(st.reason);
+    if (st.hypothesis) texts.push(st.hypothesis.contradiction, ...st.hypothesis.steps.map((h) => h.reason));
+  }
+  for (const t of texts) {
+    for (const seg of L.colorSegments(d, t)) {
+      if (typeof seg === "string") assert.doesNotMatch(seg, /\bFarben? [A-Z]\b/, `${name}: letter left in "${t}"`);
+    }
+  }
+
   // Every explanation that names a unit or cell is understood by refs.
   for (const st of d.steps) {
     if (/(Zeile|Spalte|Farbe) [0-9A-Z]/.test(st.reason)) {
@@ -139,3 +151,31 @@ for (const f of files) {
 }
 
 console.log(`ok: ${files.length} puzzles`);
+
+// Drag painting.
+{
+  const d = { n: 5 };
+  assert.deepEqual(L.line(d, 0, 4), [0, 1, 2, 3, 4]);
+  assert.deepEqual(L.line(d, 0, 24), [0, 6, 12, 18, 24]); // diagonal
+  assert.deepEqual(L.line(d, 7, 7), [7]);
+  assert.deepEqual(L.line(d, 0, 12).length, 3); // (0,0) → (2,2) via (1,1)
+  const m = new Uint8Array(25);
+  m[2] = L.STAR;
+  assert.equal(L.paint(m, [0, 1, 2, 3], false), true);
+  assert.deepEqual([...m.slice(0, 5)], [1, 1, 2, 1, 0]); // star kept
+  assert.equal(L.paint(m, [0, 2, 4], true), true);
+  assert.deepEqual([...m.slice(0, 5)], [0, 1, 2, 1, 0]);
+  assert.equal(L.paint(m, [4], true), false);
+}
+console.log("drag ok");
+
+// Color swatches instead of region letters.
+{
+  const d = { letters: "ABCDE" };
+  assert.deepEqual(L.colorSegments(d, "Farben B und C liegen nur noch in Zeile 0"), ["Farben ", { region: 1 }, " und ", { region: 2 }, " liegen nur noch in Zeile 0"]);
+  assert.deepEqual(L.colorSegments(d, "Farben A, B und D"), ["Farben ", { region: 0 }, ", ", { region: 1 }, " und ", { region: 3 }]);
+  assert.deepEqual(L.colorSegments(d, "X in Zeile 2, Spalte 3, Farbe E und Nachbarschaft"), ["X in Zeile 2, Spalte 3, Farbe ", { region: 4 }, " und Nachbarschaft"]);
+  assert.deepEqual(L.colorSegments(d, "Zeile 3 hat 2 Sterne"), ["Zeile 3 hat 2 Sterne"]);
+  assert.deepEqual(L.colorSegments(d, ""), []);
+}
+console.log("swatches ok");

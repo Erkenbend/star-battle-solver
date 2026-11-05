@@ -14,8 +14,6 @@
   --new: #2f5bd3;
   --bad: #d23c2f;
   --hint: #e08a00;
-  --cell-s: 62%;
-  --cell-l: 84%;
   --dim: rgba(246, 245, 242, 0.62);
   color-scheme: light;
 }
@@ -37,8 +35,6 @@
     --new: #8fb0ff;
     --bad: #ff6b5e;
     --hint: #ffb340;
-    --cell-s: 32%;
-    --cell-l: 30%;
     --dim: rgba(23, 23, 26, 0.6);
     color-scheme: dark;
   }
@@ -60,8 +56,6 @@
   --new: #8fb0ff;
   --bad: #ff6b5e;
   --hint: #ffb340;
-  --cell-s: 32%;
-  --cell-l: 30%;
   --dim: rgba(23, 23, 26, 0.6);
   color-scheme: dark;
 }
@@ -157,7 +151,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); o
   position: relative;
   aspect-ratio: 1;
   display: flex; align-items: center; justify-content: center;
-  background: hsl(var(--h) var(--cell-s) var(--l, var(--cell-l)));
+  background: hsl(var(--h) var(--s) var(--l));
   border-top: 1px solid var(--thin);
   border-left: 1px solid var(--thin);
   cursor: pointer;
@@ -166,12 +160,9 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); o
 .cell.bl { border-left: 3px solid var(--thick); }
 .cell.br { border-right: 3px solid var(--thick); }
 .cell.bb { border-bottom: 3px solid var(--thick); }
-.watch .cell { cursor: default; }
+.cell { touch-action: none; } /* drag to paint crosses instead of scrolling */
+.watch .cell { cursor: default; touch-action: auto; }
 
-.cell .lt {
-  position: absolute; top: 0.12em; left: 0.2em;
-  font-size: 0.3em; color: var(--muted); opacity: 0.8; line-height: 1;
-}
 .cell .sym { line-height: 1; pointer-events: none; }
 .cell.star .sym { color: var(--star); }
 .cell.cross .sym { color: var(--cross); font-size: 0.7em; }
@@ -194,7 +185,29 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); o
 @media (prefers-reduced-motion: reduce) { .cell.new .sym { animation: none; } }
 
 .legend { color: var(--muted); font-size: 13px; margin: 10px 0 0; max-width: 560px; }
-.legend .sw { display: inline-block; width: 0.9em; height: 0.9em; vertical-align: -0.1em; margin: 0 4px 0 10px; border-radius: 2px; }
+/* Color swatch standing in for a region letter in explanations ("Farbe ■"). */
+.sw {
+  display: inline-block;
+  width: 1.15em; height: 1.15em;
+  vertical-align: -0.2em;
+  border-radius: 3px;
+  background: hsl(var(--h) var(--s) var(--l));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 35%, transparent);
+  cursor: help;
+}
+.sw:hover { box-shadow: inset 0 0 0 2px var(--fg); }
+
+/* Dark theme: same hues, darker and less saturated (variables set per region). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cell,
+  :root:not([data-theme="light"]) .sw { background: hsl(var(--h) var(--ds) var(--dl)); }
+}
+:root[data-theme="dark"] .cell,
+:root[data-theme="dark"] .sw { background: hsl(var(--h) var(--ds) var(--dl)); }
+
+/* Spotlight of one region while pointing at its swatch. */
+.board.spotting .cell:not(.spot)::after { background: var(--dim); }
+.board.spotting .cell.spot::after { box-shadow: inset 0 0 0 2px var(--fg); }
 
 .panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

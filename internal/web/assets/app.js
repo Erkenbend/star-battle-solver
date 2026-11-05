@@ -161,6 +161,29 @@ const Logic = (() => {
     return { cells, units: unitCells };
   }
 
+  // Splits an explanation into text and region references, so the page can
+  // show a color swatch instead of the letter: "Farben B und C liegen …" →
+  // ["Farben ", {region: 1}, " und ", {region: 2}, " liegen …"].
+  function colorSegments(d, text) {
+    const out = [];
+    let last = 0;
+    for (const m of text.matchAll(/\b(Farben?) ([A-Za-z](?:(?:, | und )[A-Za-z](?![a-zäöüß]))*)(?![a-zäöüß])/g)) {
+      out.push(text.slice(last, m.index) + m[1] + " ");
+      for (const part of m[2].split(/(, | und )/)) {
+        const i = d.letters.indexOf(part);
+        out.push(part.length === 1 && i >= 0 ? { region: i } : part);
+      }
+      last = m.index + m[0].length;
+    }
+    out.push(text.slice(last));
+    // Merge neighboring strings, drop empty ones.
+    return out.reduce((acc, s) => {
+      if (typeof s === "string" && typeof acc[acc.length - 1] === "string") acc[acc.length - 1] += s;
+      else acc.push(s);
+      return acc;
+    }, []).filter((s) => s !== "");
+  }
+
   // German name and color class of a rule, from the step's rule and level.
   function ruleLabel(step) {
     const names = {
@@ -176,7 +199,32 @@ const Logic = (() => {
     return { name: names[step.rule] || step.rule, cls };
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, solved, apply, prefixStates, nextHint, refs, ruleLabel };
+  // Cells on the straight line from cell a to cell b (both included), so a
+  // fast drag that skips cells between two pointer events still covers them.
+  function line(d, a, b) {
+    const r0 = Math.floor(a / d.n), c0 = a % d.n, r1 = Math.floor(b / d.n), c1 = b % d.n;
+    const steps = Math.max(Math.abs(r1 - r0), Math.abs(c1 - c0));
+    const out = [];
+    for (let t = 0; t <= steps; t++) {
+      const f = steps === 0 ? 0 : t / steps;
+      const i = idx(d, Math.round(r0 + (r1 - r0) * f), Math.round(c0 + (c1 - c0) * f));
+      if (out[out.length - 1] !== i) out.push(i);
+    }
+    return out;
+  }
+
+  // Drag painting: crosses on free cells, or (erase) free on crossed cells.
+  // Stars are never touched. Changes marks in place, returns whether anything changed.
+  function paint(marks, cells, erase) {
+    let changed = false;
+    for (const i of cells) {
+      if (!erase && marks[i] === FREE) { marks[i] = CROSS; changed = true; }
+      if (erase && marks[i] === CROSS) { marks[i] = FREE; changed = true; }
+    }
+    return changed;
+  }
+
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, paint, colorSegments };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -194,6 +242,49 @@ function boot() {
     return e;
   };
 
+  // Region colors: 12 hand-tuned colors [hue, saturation, lightness] for the
+  // light theme (dark: same hue, less saturation, low lightness). Fewer regions
+  // use an evenly spread subset; more regions fall back to computed hues. The
+  // stride shuffles the order, so regions with consecutive letters (often
+  // neighbors on the board) do not get neighboring colors.
+  const PALETTE = [
+    [0, 72, 82], [28, 85, 76], [50, 85, 70], [85, 50, 72], [140, 40, 76], [176, 45, 68],
+    [202, 70, 80], [228, 65, 83], [266, 55, 84], [305, 40, 80], [35, 28, 72], [0, 0, 80],
+  ];
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  let stride = Math.max(1, Math.round(n * 0.382));
+  while (gcd(stride, n) !== 1) stride++;
+  const regionHSL = (reg) => {
+    const rank = (reg * stride) % n;
+    if (n <= PALETTE.length) return PALETTE[Math.floor((rank * PALETTE.length) / n)];
+    return [Math.round(rank * (360 / n) + 25) % 360, 60, rank % 2 ? 74 : 82];
+  };
+  const regionColor = (e, reg) => {
+    const [h, s, l] = regionHSL(reg);
+    e.style.setProperty("--h", h);
+    e.style.setProperty("--s", s + "%");
+    e.style.setProperty("--l", l + "%");
+    e.style.setProperty("--ds", Math.round(s * 0.62) + "%");
+    e.style.setProperty("--dl", Math.round(22 + (l - 60) * 0.75) + "%");
+  };
+  // Explanation text with a color swatch for every "Farbe X".
+  const rich = (text) =>
+    L.colorSegments(d, text).map((s) => {
+      if (typeof s === "string") return document.createTextNode(s);
+      const sw = el("span", "sw");
+      regionColor(sw, s.region);
+      sw.title = "Farbe " + d.letters[s.region];
+      sw.setAttribute("role", "img");
+      sw.setAttribute("aria-label", sw.title);
+      sw.dataset.region = s.region;
+      return sw;
+    });
+  const elr = (tag, cls, text) => {
+    const e = el(tag, cls);
+    e.append(...rich(text));
+    return e;
+  };
+
   // ---------- board ----------
   const boardEl = $("board");
   boardEl.style.setProperty("--n", n);
@@ -205,13 +296,12 @@ function boot() {
     for (let c = 0; c < n; c++) {
       const reg = d.regions[r][c];
       const e = el("div", "cell");
-      e.style.setProperty("--h", Math.round((reg * 137.508 + 25) % 360));
-      if (reg % 2) e.style.setProperty("--l", "calc(var(--cell-l) - 6%)");
+      regionColor(e, reg);
       if (r === 0 || d.regions[r - 1][c] !== reg) e.classList.add("bt");
       if (c === 0 || d.regions[r][c - 1] !== reg) e.classList.add("bl");
       if (c === n - 1) e.classList.add("br");
       if (r === n - 1) e.classList.add("bb");
-      e.append(el("span", "lt", d.letters[reg]), el("span", "sym"));
+      e.append(el("span", "sym"));
       e.dataset.i = r * n + c;
       e.setAttribute("aria-label", `Feld (${r},${c}), Farbe ${d.letters[reg]}`);
       boardEl.append(e);
@@ -238,7 +328,7 @@ function boot() {
   function banner(text, cls) {
     const b = $("banner");
     b.hidden = !text;
-    b.textContent = text || "";
+    b.replaceChildren(...rich(text || ""));
     b.className = "banner " + (cls || "");
   }
 
@@ -248,6 +338,33 @@ function boot() {
     c.title = `${step.source} (Stufe ${step.level})`;
     return c;
   }
+
+  // Pointing at a color swatch in a text spotlights that region on the board
+  // (tap on touch screens toggles it).
+  function spotlight(reg) {
+    boardEl.classList.toggle("spotting", reg != null);
+    cellEls.forEach((e, i) => e.classList.toggle("spot", reg != null && d.regions[Math.floor(i / n)][i % n] === reg));
+  }
+  let spotted = null;
+  document.addEventListener("pointerover", (ev) => {
+    const sw = ev.target.closest && ev.target.closest(".sw[data-region]");
+    if (sw && ev.pointerType === "mouse") spotlight(+sw.dataset.region);
+  });
+  document.addEventListener("pointerout", (ev) => {
+    const sw = ev.target.closest && ev.target.closest(".sw[data-region]");
+    if (sw && ev.pointerType === "mouse") spotlight(spotted);
+  });
+  document.addEventListener("click", (ev) => {
+    const sw = ev.target.closest && ev.target.closest(".sw[data-region]");
+    if (!sw) {
+      if (spotted != null) spotlight((spotted = null));
+      return;
+    }
+    if (ev.pointerType === "mouse") return; // the mouse spotlights on hover
+    const reg = +sw.dataset.region; // the click still reaches the step row (navigates)
+    spotted = spotted === reg ? null : reg;
+    spotlight(spotted);
+  }, true);
 
   // ---------- summary ----------
   const k = d.steps.length;
@@ -301,7 +418,7 @@ function boot() {
     drawBoard(view);
 
     const list = $("problems");
-    list.replaceChildren(...probs.map((p) => el("li", "", p.msg)));
+    list.replaceChildren(...probs.map((p) => elr("li", "", p.msg)));
     $("undo").disabled = undoStack.length === 0;
     $("redo").disabled = redoStack.length === 0;
     if (L.solved(d, eff.cells)) banner("Gelöst! Alle Sterne sitzen richtig.", "good");
@@ -336,14 +453,14 @@ function boot() {
     overlay = { hint: new Set(h.marks.map(([r, c]) => L.idx(d, r, c))), ref: refs.units, refcell: refs.cells };
     const head = el("p", "");
     head.append(chip(step), " ", el("span", "muted", `Schritt ${h.step + 1} des Lösungswegs`));
-    const reason = el("p", "", step.reason);
+    const reason = elr("p", "", step.reason);
     const nodes = [head, reason];
     if (step.hypothesis) {
       const det = el("details");
       det.append(el("summary", "", "Gedankengang anzeigen"));
       const ol = el("ol");
-      for (const s of step.hypothesis.steps) ol.append(el("li", "", s.reason));
-      det.append(ol, el("p", "contra", "⇒ Widerspruch: " + step.hypothesis.contradiction));
+      for (const s of step.hypothesis.steps) ol.append(elr("li", "", s.reason));
+      det.append(ol, elr("p", "contra", "⇒ Widerspruch: " + step.hypothesis.contradiction));
       nodes.push(det);
     }
     const apply = el("button", "primary", "Anwenden");
@@ -372,11 +489,52 @@ function boot() {
     renderPlay();
   }
 
-  boardEl.addEventListener("click", (ev) => {
+  // Pointer input: a press without moving to another cell is a click (cycle
+  // free → cross → star). Moving on paints crosses over every cell passed, or
+  // removes them if the press started on a cross. One drag is one undo step.
+  let drag = null; // {start, last, erase, before, moved}
+  const cellAt = (ev) => {
+    const e = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : ev.target;
+    const c = e && e.closest ? e.closest(".cell") : null;
+    return c ? +c.dataset.i : -1;
+  };
+  boardEl.addEventListener("pointerdown", (ev) => {
     const c = ev.target.closest(".cell");
-    if (!c || mode !== "play") return;
-    clickCell(+c.dataset.i, ev.shiftKey);
+    if (!c || mode !== "play" || ev.button !== 0) return;
+    ev.preventDefault();
+    const i = +c.dataset.i;
+    drag = { start: i, last: i, erase: marks[i] === L.CROSS, before: marks, moved: false, shift: ev.shiftKey };
   });
+  document.addEventListener("pointermove", (ev) => {
+    if (!drag) return;
+    const i = cellAt(ev);
+    if (i < 0 || i === drag.last) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      marks = Uint8Array.from(marks);
+      overlay = null;
+      pendingHint = null;
+    }
+    L.paint(marks, L.line(d, drag.last, i), drag.erase);
+    drag.last = i;
+    renderPlay();
+  });
+  const endDrag = (ev) => {
+    if (!drag) return;
+    const dr = drag;
+    drag = null;
+    if (!dr.moved) {
+      if (ev.type === "pointerup") clickCell(dr.start, dr.shift || ev.shiftKey);
+      return;
+    }
+    if (marks.some((v, i) => v !== dr.before[i])) {
+      undoStack.push(dr.before);
+      redoStack.length = 0;
+    }
+    renderPlay();
+  };
+  document.addEventListener("pointerup", endDrag);
+  document.addEventListener("pointercancel", endDrag);
   boardEl.addEventListener("contextmenu", (ev) => {
     const c = ev.target.closest(".cell");
     if (!c || mode !== "play") return;
@@ -442,7 +600,7 @@ function boot() {
     d.steps.forEach((s, i) => {
       const li = el("li");
       const row = el("div", "row");
-      const text = el("span", "text", s.reason || s.source);
+      const text = elr("span", "text", s.reason || s.source);
       if (s.hypothesis) {
         const t = el("button", "toggle-chain", expanded[i] ? "Gedankengang ausblenden" : "Gedankengang zeigen");
         t.onclick = (ev) => {
@@ -463,13 +621,13 @@ function boot() {
         s.hypothesis.steps.forEach((h, j) => {
           const cli = el("li");
           const crow = el("div", "row");
-          crow.append(el("span", "num", `${i + 1}.${j + 1}`), chip(h), el("span", "text", h.reason || h.source));
+          crow.append(el("span", "num", `${i + 1}.${j + 1}`), chip(h), elr("span", "text", h.reason || h.source));
           crow.onclick = () => go({ k: i + 1, j });
           cli.append(crow);
           chain.append(cli);
           rowEls.set(`${i + 1}.${j}`, crow);
         });
-        chain.append(el("li", "end", "⇒ Widerspruch: " + s.hypothesis.contradiction));
+        chain.append(elr("li", "end", "⇒ Widerspruch: " + s.hypothesis.contradiction));
         li.append(chain);
       }
       ol.append(li);
@@ -517,8 +675,8 @@ function boot() {
     } else {
       const num = pos.j === undefined ? `Schritt ${pos.k} von ${d.steps.length}` : `Gedankengang ${pos.k}.${pos.j + 1}`;
       head.append(chip(v.step), el("span", "", num));
-      cur.append(head, el("p", "reason", v.step.reason || v.step.source));
-      if (v.last) cur.append(el("p", "contra", "⇒ Widerspruch: " + v.parent.hypothesis.contradiction));
+      cur.append(head, elr("p", "reason", v.step.reason || v.step.source));
+      if (v.last) cur.append(elr("p", "contra", "⇒ Widerspruch: " + v.parent.hypothesis.contradiction));
     }
     if (pos.j !== undefined) {
       const first = v.parent.hypothesis.steps[0].marks.find((m) => m[2] === 1);
