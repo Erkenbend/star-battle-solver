@@ -84,14 +84,19 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 3. **Weitere Regeln (vorgemerkt):**
    - **Benachbarte Zeilen/Spalten:** Zwei benachbarte Zeilen haben zusammen nur noch freie Felder in drei nebeneinanderliegenden Spalten c, c+1, c+2 → die Sterne liegen in c und c+2, Spalte c+1 ist in beiden Zeilen X (bei nur zwei Spalten: Widerspruch). Klassische Technik; noch nicht gemessen, wie oft sie greift.
+   - **Kreuzung von Zeile und Spalte:** Ein Observer für ein Paar aus Zeile r und Spalte c: Wenn beide ihren Stern in derselben Farbe F haben müssen (alle freien Felder der Zeile und alle freien Felder der Spalte sind F), dann liegt der Stern von F auf der Kreuzung (r, c). Ist (r, c) nicht frei oder nicht F, ist das ein Widerspruch. Bisher nur über eine Kette erreichbar (`Confinement` Zeile→Farbe, dann Spalte→Farbe, dann `UnitFinish`); als eigene Regel ergibt das eine einzige, direkte Erklärung. Zu prüfen: Priorität (vermutlich direkt nach `Confinement` k=1) und wie oft die Regel in den Traces greift.
    - **Schubfachprinzip mit Annahme:** Ein Stern auf c ließe für k Einheiten nur noch weniger als k Einheiten eines anderen Typs übrig (z. B. zwei Spalten nur noch in Farbe B) → X. Kam in den Ketten nur 3-mal vor.
 4. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
 5. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für die Messungen in Punkt 1 und 2.
 6. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
 7. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles.
 8. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
-9. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-10. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
+9. **HTML-Darstellung, möglichst interaktiv:**
+   - **Selbst lösen:** Felder per Klick als X oder Stern markieren, mit Rückgängig, Prüfung auf Regelverstöße (Hervorhebung wie die `( )`-Widerspruchszellen) und optional einem Hinweis-Knopf, der die nächste Regel samt Erklärung zeigt.
+   - **Automatische Lösung anschauen:** Den Trace Schritt für Schritt abspielen (vor/zurück, Autoplay), neue Felder hervorheben und die deutsche Begründung dazu anzeigen; Annahmeketten aus dem Lookahead aufklappbar wie bei `-verbose`.
+   - Umsetzung offen: z. B. `starbattle html` erzeugt eine eigenständige Datei mit Puzzle und Trace als JSON, oder ein kleiner lokaler Server (`starbattle serve`), der auch Hinweise live berechnet. Dafür braucht der Trace ein stabiles JSON-Format.
+10. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+11. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`
