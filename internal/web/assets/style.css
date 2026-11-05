@@ -9,8 +9,9 @@
   --thin: rgba(0, 0, 0, 0.18);
   --thick: #1d1d1f;
   --star: #1d1d1f;
-  --cross: rgba(0, 0, 0, 0.55);
-  --auto: rgba(0, 0, 0, 0.28);
+  --cross: rgba(0, 0, 0, 0.72);
+  --auto: rgba(0, 0, 0, 0.38);
+  --star-edge: #1d1d1f;
   --new: #2f5bd3;
   --bad: #d23c2f;
   --hint: #e08a00;
@@ -30,8 +31,9 @@
     --thin: rgba(255, 255, 255, 0.16);
     --thick: #d6d6dc;
     --star: #fff7d6;
-    --cross: rgba(255, 255, 255, 0.6);
-    --auto: rgba(255, 255, 255, 0.3);
+    --cross: rgba(255, 255, 255, 0.78);
+    --auto: rgba(255, 255, 255, 0.42);
+    --star-edge: #111114;
     --new: #8fb0ff;
     --bad: #ff6b5e;
     --hint: #ffb340;
@@ -51,8 +53,9 @@
   --thin: rgba(255, 255, 255, 0.16);
   --thick: #d6d6dc;
   --star: #fff7d6;
-  --cross: rgba(255, 255, 255, 0.6);
-  --auto: rgba(255, 255, 255, 0.3);
+  --cross: rgba(255, 255, 255, 0.78);
+  --auto: rgba(255, 255, 255, 0.42);
+  --star-edge: #111114;
   --new: #8fb0ff;
   --bad: #ff6b5e;
   --hint: #ffb340;
@@ -156,7 +159,7 @@ dialog textarea {
 .banner.good { border-color: #2e9d58; color: #2e9d58; }
 .banner.what-if { border-color: var(--hint); color: var(--hint); }
 
-.board-frame { --size: min(560px, calc(100vw - 32px)); width: var(--size); }
+.board-frame { --size: min(680px, calc(100vw - 32px), max(400px, calc(100vh - 150px))); width: var(--size); }
 
 .board {
   display: grid;
@@ -188,10 +191,14 @@ dialog textarea {
 .cell { touch-action: none; } /* drag to paint crosses instead of scrolling */
 .watch .cell { cursor: default; touch-action: auto; }
 
-.cell .sym { line-height: 1; pointer-events: none; }
-.cell.star .sym { color: var(--star); }
-.cell.cross .sym { color: var(--cross); font-size: 0.7em; }
-.cell.auto .sym { color: var(--auto); font-size: 0.45em; }
+.cell .sym { width: 82%; height: 82%; pointer-events: none; display: flex; }
+.cell .sym svg { width: 100%; height: 100%; overflow: visible; }
+.sym .g-star, .sym .g-cross, .sym .g-auto { display: none; }
+.cell.star .g-star { display: inline; fill: var(--star); stroke: var(--star-edge); stroke-width: 3; stroke-linejoin: round; }
+.cell.cross .g-cross { display: inline; stroke: var(--cross); stroke-width: 11; stroke-linecap: round; fill: none; }
+.cell.auto .g-auto { display: inline; fill: var(--auto); }
+.cell.bad .g-star { fill: var(--bad); stroke: var(--bad); }
+.cell.bad .g-cross { stroke: var(--bad); }
 
 /* Overlays: referenced units (tint), new marks, hints, problems. */
 .cell::after {
@@ -204,7 +211,6 @@ dialog textarea {
 .cell.new::after { box-shadow: inset 0 0 0 3px var(--new); }
 .cell.hint::after { box-shadow: inset 0 0 0 3px var(--hint); border-radius: 2px; }
 .cell.bad::after { box-shadow: inset 0 0 0 3px var(--bad); }
-.cell.bad .sym { color: var(--bad); }
 .cell.new .sym { animation: pop 0.25s ease-out; }
 @keyframes pop { from { transform: scale(0.4); opacity: 0.2; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cell.new .sym { animation: none; } }

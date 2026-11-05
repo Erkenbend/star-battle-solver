@@ -286,6 +286,13 @@ function boot() {
   };
 
   // ---------- board ----------
+  // Marks as vector shapes sized to the cell (font glyphs were small and thin);
+  // CSS shows the one matching the cell's class.
+  const SYM =
+    '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+    '<polygon class="g-star" points="50,6 61.5,37.2 94.7,38.5 68.5,59 77.6,91 50,72.5 22.4,91 31.5,59 5.3,38.5 38.5,37.2"/>' +
+    '<path class="g-cross" d="M25 25L75 75M75 25L25 75"/>' +
+    '<circle class="g-auto" cx="50" cy="50" r="9"/></svg>';
   const boardEl = $("board");
   boardEl.style.setProperty("--n", n);
   boardEl.append(el("div", "axis"));
@@ -301,7 +308,9 @@ function boot() {
       if (c === 0 || d.regions[r][c - 1] !== reg) e.classList.add("bl");
       if (c === n - 1) e.classList.add("br");
       if (r === n - 1) e.classList.add("bb");
-      e.append(el("span", "sym"));
+      const sym = el("span", "sym");
+      sym.innerHTML = SYM;
+      e.append(sym);
       e.dataset.i = r * n + c;
       e.setAttribute("aria-label", `Feld (${r},${c}), Farbe ${d.letters[reg]}`);
       boardEl.append(e);
@@ -321,7 +330,6 @@ function boot() {
       for (const k of ["new", "hint", "bad", "refcell"]) e.classList.toggle(k, !!(m[k] && m[k].has(i)));
       // Cells outside the units named in the explanation are dimmed.
       e.classList.toggle("dim", !!(m.ref && m.ref.size && !m.ref.has(i)));
-      e.lastChild.textContent = v === L.STAR ? "★" : v === L.CROSS ? (auto ? "•" : "✕") : "";
     }
   }
 
