@@ -20,10 +20,13 @@ type Config struct {
 	// or columns. By default (false) it only looks at blocks of consecutive rows
 	// or columns, which read more naturally; regions always use any subset.
 	ConfinementAnySubset bool
+	// PigeonholeMaxK: Pigeonhole checks up to this many units at once (0 = off;
+	// it starts at 2).
+	PigeonholeMaxK int
 }
 
 // DefaultConfig is used by All.
-var DefaultConfig = Config{PartnerDepth: 1, DeadCellsMax: 2}
+var DefaultConfig = Config{PartnerDepth: 1, DeadCellsMax: 2, PigeonholeMaxK: 2}
 
 // BaseConfig disables the look-ahead rules (only UnitFinish, Elimination, Confinement).
 var BaseConfig = Config{}
@@ -42,6 +45,7 @@ const (
 	LevelConfinementMulti             // Confinement k≥2: pigeonhole over several units
 	LevelForcedPartner                // a star here forces another one, together they empty a unit
 	LevelDeadCells                    // after a star here, every remaining cell of a unit is dead
+	LevelPigeonhole                   // after a star here, k units fit into fewer than k others
 )
 
 // AllWith returns the observer instances for p, sorted by priority level.
@@ -93,6 +97,11 @@ func AllWith(p *puzzle.Puzzle, cfg Config) []solver.Observer {
 	if cfg.DeadCellsMax >= 2 {
 		forEachCell(func(q puzzle.Pos) {
 			obs = append(obs, DeadCells{Cell: q, MaxCells: cfg.DeadCellsMax, units: units})
+		})
+	}
+	if cfg.PigeonholeMaxK >= 2 {
+		forEachCell(func(q puzzle.Pos) {
+			obs = append(obs, Pigeonhole{Cell: q, MaxK: cfg.PigeonholeMaxK, units: units})
 		})
 	}
 	return obs

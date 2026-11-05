@@ -170,6 +170,74 @@ func (o DeadCells) Deduce(s *board.State) []solver.Mark {
 	return nil
 }
 
+// Pigeonhole: after a star on c, k open units of one kind have their free cells
+// within fewer than k units of another kind. They need k stars, but those units
+// hold at most k−1, so c is a cross. It is Confinement one assumption ahead.
+//
+//	Ein Stern auf (2,3) ließe Zeilen 4 und 5 nur noch Platz in Spalte 1,
+//	zu wenig für 2 Sterne → X
+//
+// As in Confinement, rows and columns are only taken as blocks of consecutive
+// open lines, regions as any subset. k=1 (an empty unit) is Elimination's case,
+// so k runs from 2 to MaxK.
+type Pigeonhole struct {
+	Cell  puzzle.Pos
+	MaxK  int
+	units []puzzle.Unit
+}
+
+func (Pigeonhole) Priority() int { return LevelPigeonhole }
+
+func (o Pigeonhole) Name() string {
+	return fmt.Sprintf("Pigeonhole[%s k≤%d]", cell(o.Cell), o.MaxK)
+}
+
+func (o Pigeonhole) Done(s *board.State) bool { return s.At(o.Cell.Row, o.Cell.Col) != board.Free }
+
+func (o Pigeonhole) Deduce(s *board.State) []solver.Mark {
+	t, ok := assume(s, o.Cell)
+	if !ok || emptyUnit(t, o.units) != nil {
+		return nil // plain Elimination
+	}
+	type pair struct {
+		from, to puzzle.UnitKind
+		opens    []openUnit
+	}
+	kinds := []puzzle.UnitKind{puzzle.Row, puzzle.Col, puzzle.Region}
+	var pairs []pair
+	for _, from := range kinds {
+		var us []puzzle.Unit
+		for _, u := range o.units {
+			if u.Kind == from {
+				us = append(us, u)
+			}
+		}
+		for _, to := range kinds {
+			if to != from {
+				pairs = append(pairs, pair{from, to, openUnits(t, us, to)})
+			}
+		}
+	}
+	// Smallest k first: the shortest explanation.
+	for k := 2; k <= o.MaxK; k++ {
+		for _, pr := range pairs {
+			if len(pr.opens) < k {
+				continue
+			}
+			var why string
+			confinedSets(pr.opens, k, k-1, pr.from != puzzle.Region, func(from, union map[int]bool) bool {
+				why = fmt.Sprintf("Ein Stern auf %s ließe %s nur noch Platz in %s, zu wenig für %d Sterne → X",
+					cell(o.Cell), units(pr.from, keys(from)), units(pr.to, keys(union)), k)
+				return false
+			})
+			if why != "" {
+				return []solver.Mark{solver.Cross(o.Cell, o.Name()).Why(why)}
+			}
+		}
+	}
+	return nil
+}
+
 // assume returns a copy of s with a star on q and its implied crosses.
 // ok is false if that already conflicts.
 func assume(s *board.State, q puzzle.Pos) (*board.State, bool) {

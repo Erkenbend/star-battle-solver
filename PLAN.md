@@ -25,7 +25,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Regionsstücken zerstören (siehe „Erledigt“) |
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
-| `cmd/starbattle` | `generate`, `show`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-non-contiguous]` |
+| `cmd/starbattle` | `generate`, `show`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
 | `testdata/hard` | 32 Puzzles, an denen die Regeln allein scheitern |
 
 ### Regeln
@@ -36,10 +36,11 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `Elimination` | Ein Stern auf c würde alle freien Felder einer Einheit streichen → c X. Ersetzt die Form-Regeln (2x1, L, Z …). Die Erklärung nennt den konkreten Grund (liegt in einer Einheit / berührt alle / gemischt) |
 | `ForcedPartner` (Tiefe, Standard 1) | Ein Stern auf c ließe in einer Einheit nur ein Feld q übrig; c und q zusammen würden eine Einheit leeren → c X. Mit Tiefe > 1 auch Ketten aus mehreren erzwungenen Sternen |
 | `DeadCells` (max. Felder, Standard 2) | Nach einem Stern auf c bleiben in einer Einheit nur 2 bis max. Felder, und jedes davon würde eine andere Einheit leeren → c X |
+| `Pigeonhole` (max. k, Standard 2) | `Confinement` mit einer Annahme: Nach einem Stern auf c haben k offene Einheiten nur noch Platz in weniger als k Einheiten eines anderen Typs → c X. Zeilen/Spalten als Blöcke, Farben als beliebige Teilmengen, k ab 2 |
 
-`ForcedPartner` und `DeadCells` sind die zwei häufigsten Muster aus den Annahmeketten der schweren Puzzles (zusammen gut drei Viertel aller Ketten). Konfiguration über `observers.Config` bzw. `solve -partner-depth N -dead-max N` (0 schaltet ab); `BaseConfig` = nur die ersten drei Regeln.
+`ForcedPartner` und `DeadCells` sind die zwei häufigsten Muster aus den Annahmeketten der schweren Puzzles (zusammen gut drei Viertel aller Ketten). Konfiguration über `observers.Config` bzw. `solve -partner-depth N -dead-max N -pigeonhole-max N` (0 schaltet ab); `BaseConfig` = nur die ersten drei Regeln.
 
-**Prioritätsstufen:** Jede Regel meldet über `Priority()` ihre Stufe (`solver.Prioritized`): 1 `UnitFinish` · 2 `Confinement` k=1 · 3 `Elimination` · 4 `Confinement` k≥2 · 5 `ForcedPartner` · 6 `DeadCells`; Lookahead (100) und Raten (101) liegen darüber. Beide Runner wenden eine Regel nur an, wenn keine einfachere etwas findet:
+**Prioritätsstufen:** Jede Regel meldet über `Priority()` ihre Stufe (`solver.Prioritized`): 1 `UnitFinish` · 2 `Confinement` k=1 · 3 `Elimination` · 4 `Confinement` k≥2 · 5 `ForcedPartner` · 6 `DeadCells` · 7 `Pigeonhole`; Lookahead (100) und Raten (101) liegen darüber. Beide Runner wenden eine Regel nur an, wenn keine einfachere etwas findet:
 - `RunSync` sortiert stabil nach Stufe und fängt nach jeder Änderung wieder vorne an.
 - `RunConcurrent` sammelt Markierungen, die auf der aktuellen Version gefunden wurden, und wendet die der niedrigsten Stufe erst an, wenn alle Observer niedrigerer Stufen auf dieser Version idle sind (eine Nachricht pro Version; veraltete Nachrichten werden verworfen, die Absender rechnen nach dem Broadcast neu). Die Goroutinen rechnen weiter parallel.
 - Innerhalb einer Stufe entscheidet die Reihenfolge aus `AllWith` (Confinement mit kleinerem k zuerst, dann Zeilen, Spalten, Farben).
@@ -48,6 +49,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 Ergebnis:
 - Basisregeln: ca. 96,5 % der generierten Puzzles (Stichprobe von 900 mit N = 4 bis 12).
 - Mit `ForcedPartner` und `DeadCells`: 31 der 32 Puzzles aus `testdata/hard` ohne Annahmen; nur `n11_s095` braucht noch Lookahead.
+- Mit `Pigeonhole` zusätzlich: `n11_s095` braucht 11 statt 14 Lookahead-Schritte.
 
 ### Suche (`solver.Solve`)
 1. Regeln bis zum Fixpunkt.
@@ -69,6 +71,11 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
 
+- ~~**Neue Regel `Pigeonhole`**~~ (Schubfachprinzip mit Annahme) umgesetzt. Die Suche nach Teilmengen/Blöcken teilt sie mit `Confinement` (`confinedSets`). Messung auf `testdata/hard`:
+   - Mit allen Regeln greift sie 3-mal, alle in `n11_s095` (11 statt 14 Lookahead-Schritte); das Puzzle braucht weiter Lookahead. `ForcedPartner` und `DeadCells` haben Vorrang und decken fast alles ab.
+   - Nur mit den Basisregeln ist sie stark: 19 von 32 ohne Lookahead (sonst 0), 47 statt 108 Lookahead-Schritte.
+   - k ≤ 3 bringt nichts gegenüber k ≤ 2.
+- ~~**Regeln „benachbarte Zeilen/Spalten mit drei Spalten Platz“ und „Kreuzung von Zeile und Spalte“**~~ verworfen: Beide finden nichts Neues, sie fassen nur Ketten zusammen (`Elimination` ×2 + `Confinement` k=2 bzw. `Confinement` k=1 + `UnitFinish`) und müssten dafür vor den einfachen Regeln stehen.
 - ~~**Generator: weniger verworfene Layouts**~~ umgesetzt. Frisch gewachsene Layouts sind praktisch nie eindeutig (Median ca. 124 Lösungen bei N = 8, über 5000 bei N = 12); alles hängt an der Reparatur. Die alte Reparatur scheiterte meist, weil der Stern der Alternative ein Engpass seiner Region war (70 bis 87 % der Fehlschläge), und drehte sich im Kreis (55 bis 60 % der gesehenen Alternativen waren schon einmal zerstört).
    - **Stück statt Zelle:** Stern x einer Alternative in Region A wandert in eine Nachbarregion B, zusammen mit allem, was ohne x vom Lösungsstern von A abgeschnitten wäre (liegt x im Inneren, zusätzlich der kürzeste Weg zum Rand von A). A bleibt zusammenhängend, die Lösung gültig.
    - **Bewertung über bis zu 8 Alternativen pro Schritt:** Eine Alternative stirbt genau dann, wenn sie einen Stern im Stück hat; Punkte 10 je zerstörte, −20 je wiederbelebte früher zerstörte Alternative, −1 je bewegte Zelle.
@@ -93,21 +100,17 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Später
 
-1. **Weitere Regeln (vorgemerkt):**
-   - **Benachbarte Zeilen/Spalten:** Zwei benachbarte Zeilen haben zusammen nur noch freie Felder in drei nebeneinanderliegenden Spalten c, c+1, c+2 → die Sterne liegen in c und c+2, Spalte c+1 ist in beiden Zeilen X (bei nur zwei Spalten: Widerspruch). Klassische Technik; noch nicht gemessen, wie oft sie greift.
-   - **Kreuzung von Zeile und Spalte:** Ein Observer für ein Paar aus Zeile r und Spalte c: Wenn beide ihren Stern in derselben Farbe F haben müssen (alle freien Felder der Zeile und alle freien Felder der Spalte sind F), dann liegt der Stern von F auf der Kreuzung (r, c). Ist (r, c) nicht frei oder nicht F, ist das ein Widerspruch. Bisher nur über eine Kette erreichbar (`Confinement` Zeile→Farbe, dann Spalte→Farbe, dann `UnitFinish`); als eigene Regel ergibt das eine einzige, direkte Erklärung. Zu prüfen: Priorität (vermutlich direkt nach `Confinement` k=1) und wie oft die Regel in den Traces greift.
-   - **Schubfachprinzip mit Annahme:** Ein Stern auf c ließe für k Einheiten nur noch weniger als k Einheiten eines anderen Typs übrig (z. B. zwei Spalten nur noch in Farbe B) → X. Kam in den Ketten nur 3-mal vor.
-2. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
-3. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und beim zusammenhängenden `Confinement`.
-4. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
-5. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize`. Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
-6. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
-7. **HTML-Darstellung, möglichst interaktiv:**
+1. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
+2. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und beim zusammenhängenden `Confinement`.
+3. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
+4. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize`. Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
+5. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
+6. **HTML-Darstellung, möglichst interaktiv:**
    - **Selbst lösen:** Felder per Klick als X oder Stern markieren, mit Rückgängig, Prüfung auf Regelverstöße (Hervorhebung wie die `( )`-Widerspruchszellen) und optional einem Hinweis-Knopf, der die nächste Regel samt Erklärung zeigt.
    - **Automatische Lösung anschauen:** Den Trace Schritt für Schritt abspielen (vor/zurück, Autoplay), neue Felder hervorheben und die deutsche Begründung dazu anzeigen; Annahmeketten aus dem Lookahead aufklappbar wie bei `-verbose`.
    - Umsetzung offen: z. B. `starbattle html` erzeugt eine eigenständige Datei mit Puzzle und Trace als JSON, oder ein kleiner lokaler Server (`starbattle serve`), der auch Hinweise live berechnet. Dafür braucht der Trace ein stabiles JSON-Format.
-8. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-9. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
+7. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+8. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`

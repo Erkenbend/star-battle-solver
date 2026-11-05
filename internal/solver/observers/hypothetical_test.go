@@ -95,3 +95,74 @@ func TestForcedPartnerDepth(t *testing.T) {
 		t.Fatalf("got %v\nwant %q", marks, want)
 	}
 }
+
+// p5 layout (see unitfinish_test.go):
+//
+//	  01234
+//	0 DBBBB
+//	1 DDBCC
+//	2 DDBAA
+//	3 EDDAA
+//	4 EAAAA
+func TestPigeonhole(t *testing.T) {
+	units := p5.Units()
+	at := func(r, c, maxK int) Pigeonhole {
+		return Pigeonhole{Cell: puzzle.Pos{Row: r, Col: c}, MaxK: maxK, units: units}
+	}
+	rows34 := `
+		.....
+		.....
+		.....
+		.X.XX
+		.X.XX`
+	// (0,2) crosses column 2: rows 3 and 4 keep only column 0.
+	expectDeduce(t, p5, at(0, 2, 2), rows34, `
+		..X..
+		.....
+		.....
+		.X.XX
+		.X.XX`)
+	marks := at(0, 2, 2).Deduce(board.MustParse(p5, rows34))
+	want := "Ein Stern auf (0,2) ließe Zeilen 3 und 4 nur noch Platz in Spalte 0, zu wenig für 2 Sterne → X"
+	if len(marks) != 1 || marks[0].Reason != want {
+		t.Fatalf("got %v\nwant %q", marks, want)
+	}
+	// Switched off below k=2.
+	expectDeduce(t, p5, at(0, 2, 1), rows34, rows34)
+	// (0,4) would empty region C: Elimination's case, not this rule's.
+	expectDeduce(t, p5, at(0, 4, 2), `
+		.....
+		.....
+		.....
+		.XXX.
+		.XXX.`, `
+		.....
+		.....
+		.....
+		.XXX.
+		.XXX.`)
+	// (1,4) leaves rows 2 and 4 only column 0, but they are not adjacent (row 3
+	// is open in between), and no other set of units is short of room.
+	nonAdjacent := `
+		.....
+		.....
+		.XXX.
+		.....
+		.XXX.`
+	expectDeduce(t, p5, at(1, 4, 2), nonAdjacent, nonAdjacent)
+	after, _ := assume(board.MustParse(p5, nonAdjacent), puzzle.Pos{Row: 1, Col: 4})
+	if emptyUnit(after, units) != nil {
+		t.Fatal("test case should not empty a unit")
+	}
+	var rows []puzzle.Unit
+	for _, u := range units {
+		if u.Kind == puzzle.Row {
+			rows = append(rows, u)
+		}
+	}
+	found := false
+	confinedSets(openUnits(after, rows, puzzle.Col), 2, 1, false, func(_, _ map[int]bool) bool { found = true; return false })
+	if !found {
+		t.Fatal("with any subset of rows the case should apply")
+	}
+}

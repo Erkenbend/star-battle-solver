@@ -89,59 +89,76 @@ func (o Confinement) Done(s *board.State) bool {
 }
 
 func (o Confinement) Deduce(s *board.State) []solver.Mark {
-	p := s.P
-	// For each open From-unit: the set of To-units its free cells touch.
-	type open struct {
-		index   int
-		targets map[int]bool
+	opens := openUnits(s, o.units, o.To)
+	if len(opens) < o.minOpen() {
+		return nil
 	}
-	var opens []open
-	for _, u := range o.units {
+	var marks []solver.Mark
+	confinedSets(opens, o.K, o.K, o.blocks(), func(from, union map[int]bool) bool {
+		if len(union) == o.K { // fewer would be a contradiction, left to the runner
+			marks = append(marks, o.crosses(s, from, union, o.explain(from, union))...)
+		}
+		return true
+	})
+	return marks
+}
+
+// openUnit is an open unit (no star yet) with the set of To-units its free
+// cells lie in.
+type openUnit struct {
+	index   int
+	targets map[int]bool
+}
+
+// openUnits lists the open units among us, in order, with their targets of kind to.
+func openUnits(s *board.State, us []puzzle.Unit, to puzzle.UnitKind) []openUnit {
+	var opens []openUnit
+	for _, u := range us {
 		if s.HasStar(u.Cells) {
 			continue
 		}
 		t := map[int]bool{}
 		for _, q := range s.Free(u.Cells) {
-			t[p.UnitOf(o.To, q)] = true
+			t[s.P.UnitOf(to, q)] = true
 		}
-		opens = append(opens, open{u.Index, t})
+		opens = append(opens, openUnit{u.Index, t})
 	}
-	if len(opens) < o.minOpen() {
-		return nil
-	}
+	return opens
+}
 
-	var marks []solver.Mark
-	if o.blocks() {
-		for i := 0; i+o.K <= len(opens); i++ {
+// confinedSets calls f for every choice of k open units whose free cells
+// together lie in at most limit To-units, passing the chosen unit indices and
+// the To-units. With blocks, only k consecutive entries of opens are chosen;
+// otherwise any subset. f returns false to stop the search.
+func confinedSets(opens []openUnit, k, limit int, blocks bool, f func(from, union map[int]bool) bool) {
+	if blocks {
+		for i := 0; i+k <= len(opens); i++ {
 			from, union := map[int]bool{}, map[int]bool{}
-			for _, op := range opens[i : i+o.K] {
+			for _, op := range opens[i : i+k] {
 				from[op.index] = true
 				for t := range op.targets {
 					union[t] = true
 				}
 			}
-			if len(union) == o.K {
-				marks = append(marks, o.crosses(s, from, union, o.explain(from, union))...)
+			if len(union) <= limit && !f(from, union) {
+				return
 			}
 		}
-		return marks
+		return
 	}
 
-	chosen := make([]int, 0, o.K) // indices into opens
-	var rec func(start int, union map[int]bool)
-	rec = func(start int, union map[int]bool) {
-		if len(union) > o.K {
-			return // prune: already too many targets
+	chosen := make([]int, 0, k) // indices into opens
+	var rec func(start int, union map[int]bool) bool
+	rec = func(start int, union map[int]bool) bool {
+		if len(union) > limit {
+			return true // prune: already too many targets
 		}
-		if len(chosen) == o.K {
-			if len(union) == o.K {
-				from := make(map[int]bool, o.K)
-				for _, i := range chosen {
-					from[opens[i].index] = true
-				}
-				marks = append(marks, o.crosses(s, from, union, o.explain(from, union))...)
+		if len(chosen) == k {
+			from := make(map[int]bool, k)
+			for _, i := range chosen {
+				from[opens[i].index] = true
 			}
-			return
+			return f(from, union)
 		}
 		for i := start; i < len(opens); i++ {
 			next := make(map[int]bool, len(union)+len(opens[i].targets))
@@ -152,12 +169,15 @@ func (o Confinement) Deduce(s *board.State) []solver.Mark {
 				next[t] = true
 			}
 			chosen = append(chosen, i)
-			rec(i+1, next)
+			more := rec(i+1, next)
 			chosen = chosen[:len(chosen)-1]
+			if !more {
+				return false
+			}
 		}
+		return true
 	}
 	rec(0, map[int]bool{})
-	return marks
 }
 
 // crosses returns X for every free cell inside the target To-units but outside the

@@ -131,6 +131,7 @@ func cmdSolve(args []string) error {
 	search := fs.String("search", "full", "when the rules get stuck: full (lookahead + backtracking), lookahead, or none")
 	partnerDepth := fs.Int("partner-depth", observers.DefaultConfig.PartnerDepth, "ForcedPartner: max forced stars in a row (0 = off)")
 	deadMax := fs.Int("dead-max", observers.DefaultConfig.DeadCellsMax, "DeadCells: max remaining cells of a unit (0 = off)")
+	pigeonMax := fs.Int("pigeonhole-max", observers.DefaultConfig.PigeonholeMaxK, "Pigeonhole: max units checked at once after an assumed star (0 = off)")
 	anySubset := fs.Bool("non-contiguous", observers.DefaultConfig.ConfinementAnySubset, "Confinement k≥2: any subset of rows/columns instead of only adjacent ones")
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
 	fs.Parse(args)
@@ -159,7 +160,7 @@ func cmdSolve(args []string) error {
 	default:
 		return fmt.Errorf("unknown search %q", *search)
 	}
-	cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax, ConfinementAnySubset: *anySubset}
+	cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax, ConfinementAnySubset: *anySubset, PigeonholeMaxK: *pigeonMax}
 	res := solver.Solve(board.New(p), observers.AllWith(p, cfg), opts)
 
 	if *step || *verbose {
