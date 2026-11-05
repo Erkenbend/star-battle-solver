@@ -25,14 +25,14 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Zellen zerstören |
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
-| `cmd/starbattle` | `generate`, `show`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor]` |
+| `cmd/starbattle` | `generate`, `show`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-non-contiguous]` |
 | `testdata/hard` | 32 Puzzles, an denen die Regeln allein scheitern |
 
 ### Regeln
 | Regel | Inhalt |
 |---|---|
 | `UnitFinish` | Zeile, Spalte oder Farbe mit genau einem freien Feld → Stern |
-| `Confinement` (k, From→To) | Freie Felder von k offenen Einheiten liegen in genau k Einheiten eines anderen Typs → Rest dieser Einheiten X. Deckt „Line/Column“, „Color“ und die „Multiple“-Varianten aus dem groben Plan ab, in allen 6 Richtungen, k ≤ N/2 |
+| `Confinement` (k, From→To) | Freie Felder von k offenen Einheiten liegen in genau k Einheiten eines anderen Typs → Rest dieser Einheiten X. Deckt „Line/Column“, „Color“ und die „Multiple“-Varianten aus dem groben Plan ab, in allen 6 Richtungen. Für k ≥ 2 über Zeilen/Spalten standardmäßig nur **Blöcke aufeinanderfolgender offener Linien** (dann k ≤ N−1), über Farben beliebige Teilmengen mit k ≤ N/2; `-non-contiguous` bzw. `Config.ConfinementAnySubset` erlaubt wieder beliebige Teilmengen |
 | `Elimination` | Ein Stern auf c würde alle freien Felder einer Einheit streichen → c X. Ersetzt die Form-Regeln (2x1, L, Z …). Die Erklärung nennt den konkreten Grund (liegt in einer Einheit / berührt alle / gemischt) |
 | `ForcedPartner` (Tiefe, Standard 1) | Ein Stern auf c ließe in einer Einheit nur ein Feld q übrig; c und q zusammen würden eine Einheit leeren → c X. Mit Tiefe > 1 auch Ketten aus mehreren erzwungenen Sternen |
 | `DeadCells` (max. Felder, Standard 2) | Nach einem Stern auf c bleiben in einer Einheit nur 2 bis max. Felder, und jedes davon würde eine andere Einheit leeren → c X |
@@ -65,14 +65,16 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Als Nächstes
 
-1. **`Confinement` auf nebeneinanderliegende Zeilen/Spalten ausrichten:** Menschen betrachten bei „k Zeilen haben nur noch k Farben“ fast immer benachbarte Zeilen oder Spalten, nicht beliebige Teilmengen. Erklärungen wie „Zeilen 1, 4 und 7 …“ sind schwer nachzuvollziehen.
-   - Für k ≥ 2 mit From = Zeile/Spalte nur zusammenhängende Blöcke (r, r+1, …, r+k−1) betrachten. Für From = Farbe sind beliebige Teilmengen weiter sinnvoll; zu prüfen ist, ob dort „benachbarte Farben“ (Regionen, die sich berühren) menschlicher sind.
-   - Konfigurierbar machen (`Config.ConfinementContiguous`), damit beide Varianten verglichen werden können.
-   - Messen, was verloren geht: Wie viele Puzzles brauchen danach zusätzliche Annahmen bzw. `ForcedPartner`/`DeadCells`? Ein Nebeneffekt ist die kleinere Suche (N−k+1 Blöcke statt „N über k“ Teilmengen).
-   - Zusammen mit der vorgemerkten Regel „benachbarte Zeilen/Spalten mit drei Spalten Platz“ (unten) ergibt sich eine Familie von Regeln für benachbarte Linien.
+_(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
 
+- ~~**`Confinement` auf nebeneinanderliegende Zeilen/Spalten**~~ umgesetzt, jetzt Standard (`-non-contiguous` schaltet zurück). Gelöste Linien innerhalb eines Blocks werden übersprungen. Erklärungen nennen Bereiche: „Zeilen 3 bis 5“. Messung über 900 generierte Puzzles (N = 4 bis 12, enthält die 32 schweren):
+   - Alle Regeln: 899/900 ohne Lookahead, 14 Lookahead-Schritte, mit und ohne Blöcke gleich.
+   - Nur Basisregeln: 867 statt 868 ohne Lookahead, 109 statt 108 Lookahead-Schritte.
+   - Gewinn: Mit beliebigen Teilmengen nutzten 41 von 208 `Confinement`-Schritten (k ≥ 2, Zeilen/Spalten, Basisregeln, inkl. Annahmeketten) nicht benachbarte Linien, z. B. „Zeilen 1 und 6 …“.
+   - Blöcke mit k > N/2 kamen nie zum Zug.
+   - Offen: ob bei Farben „benachbarte Regionen“ menschlicher wären; mit der Regel „benachbarte Zeilen/Spalten mit drei Spalten Platz“ (unten) ergibt sich eine Familie von Regeln für benachbarte Linien.
 - ~~**Prioritätsregeln für die Observer**~~ umgesetzt (siehe „Regeln“). Messung über 80 Puzzles (32 schwere + 48 generierte mit N = 5 bis 10), nur Regeln, Schritte pro Stufe L1 bis L6:
    - `RunSync`: 657 / 233 / 323 / 63 / 118 / 2, 0 Verletzungen.
    - `RunConcurrent` vorher: 657 / 122 / 475 / 353 / 656 / 642, **2013 Verletzungen**, d. h. `ForcedPartner` und `DeadCells` feuerten oft, obwohl eine einfache Regel griff.
@@ -83,21 +85,21 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Später
 
-2. **Weitere Regeln (vorgemerkt):**
+1. **Weitere Regeln (vorgemerkt):**
    - **Benachbarte Zeilen/Spalten:** Zwei benachbarte Zeilen haben zusammen nur noch freie Felder in drei nebeneinanderliegenden Spalten c, c+1, c+2 → die Sterne liegen in c und c+2, Spalte c+1 ist in beiden Zeilen X (bei nur zwei Spalten: Widerspruch). Klassische Technik; noch nicht gemessen, wie oft sie greift.
    - **Kreuzung von Zeile und Spalte:** Ein Observer für ein Paar aus Zeile r und Spalte c: Wenn beide ihren Stern in derselben Farbe F haben müssen (alle freien Felder der Zeile und alle freien Felder der Spalte sind F), dann liegt der Stern von F auf der Kreuzung (r, c). Ist (r, c) nicht frei oder nicht F, ist das ein Widerspruch. Bisher nur über eine Kette erreichbar (`Confinement` Zeile→Farbe, dann Spalte→Farbe, dann `UnitFinish`); als eigene Regel ergibt das eine einzige, direkte Erklärung. Zu prüfen: Priorität (vermutlich direkt nach `Confinement` k=1) und wie oft die Regel in den Traces greift.
    - **Schubfachprinzip mit Annahme:** Ein Stern auf c ließe für k Einheiten nur noch weniger als k Einheiten eines anderen Typs übrig (z. B. zwei Spalten nur noch in Farbe B) → X. Kam in den Ketten nur 3-mal vor.
-3. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
-4. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und in Punkt 1.
-5. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
-6. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles.
-7. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
-8. **HTML-Darstellung, möglichst interaktiv:**
+2. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
+3. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und beim zusammenhängenden `Confinement`.
+4. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
+5. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles.
+6. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
+7. **HTML-Darstellung, möglichst interaktiv:**
    - **Selbst lösen:** Felder per Klick als X oder Stern markieren, mit Rückgängig, Prüfung auf Regelverstöße (Hervorhebung wie die `( )`-Widerspruchszellen) und optional einem Hinweis-Knopf, der die nächste Regel samt Erklärung zeigt.
    - **Automatische Lösung anschauen:** Den Trace Schritt für Schritt abspielen (vor/zurück, Autoplay), neue Felder hervorheben und die deutsche Begründung dazu anzeigen; Annahmeketten aus dem Lookahead aufklappbar wie bei `-verbose`.
    - Umsetzung offen: z. B. `starbattle html` erzeugt eine eigenständige Datei mit Puzzle und Trace als JSON, oder ein kleiner lokaler Server (`starbattle serve`), der auch Hinweise live berechnet. Dafür braucht der Trace ein stabiles JSON-Format.
-9. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-10. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
+8. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+9. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`

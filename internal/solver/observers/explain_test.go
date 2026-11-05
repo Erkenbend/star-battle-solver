@@ -16,6 +16,9 @@ func TestUnitsPhrase(t *testing.T) {
 		{puzzle.Row, []int{3}, "Zeile 3"},
 		{puzzle.Col, []int{3, 2}, "Spalten 2 und 3"},
 		{puzzle.Region, []int{3, 0, 1}, "Farben A, B und D"},
+		{puzzle.Row, []int{5, 3, 4}, "Zeilen 3 bis 5"},
+		{puzzle.Col, []int{1, 2, 4}, "Spalten 1, 2 und 4"},
+		{puzzle.Region, []int{0, 1, 2}, "Farben A, B und C"},
 	} {
 		if got := units(tt.kind, tt.idx); got != tt.want {
 			t.Errorf("got %q, want %q", got, tt.want)

@@ -16,6 +16,10 @@ type Config struct {
 	PartnerDepth int
 	// DeadCellsMax: DeadCells checks units with up to this many cells left (0 = off).
 	DeadCellsMax int
+	// ConfinementAnySubset: Confinement with k ≥ 2 looks at any subset of rows
+	// or columns. By default (false) it only looks at blocks of consecutive rows
+	// or columns, which read more naturally; regions always use any subset.
+	ConfinementAnySubset bool
 }
 
 // DefaultConfig is used by All.
@@ -50,9 +54,15 @@ func AllWith(p *puzzle.Puzzle, cfg Config) []solver.Observer {
 	kinds := []puzzle.UnitKind{puzzle.Row, puzzle.Col, puzzle.Region}
 	confinement := func(k int) {
 		for _, from := range kinds {
+			blocks := !cfg.ConfinementAnySubset && from != puzzle.Region
+			if k > p.N/2 && !(blocks && k < p.N) {
+				continue
+			}
 			for _, to := range kinds {
 				if from != to {
-					obs = append(obs, NewConfinement(p, from, to, k))
+					c := NewConfinement(p, from, to, k)
+					c.Contiguous = !cfg.ConfinementAnySubset
+					obs = append(obs, c)
 				}
 			}
 		}
@@ -72,7 +82,7 @@ func AllWith(p *puzzle.Puzzle, cfg Config) []solver.Observer {
 	for _, u := range units {
 		obs = append(obs, Elimination{Unit: u, implied: implied})
 	}
-	for k := 2; k <= p.N/2; k++ {
+	for k := 2; k < p.N; k++ {
 		confinement(k)
 	}
 	if cfg.PartnerDepth > 0 {

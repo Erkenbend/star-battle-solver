@@ -26,10 +26,17 @@ import (
 // One instance handles one (From, To, K) triple over all K-subsets of From-units.
 // Only K ≤ m/2 is needed (m = unsolved From-units): a larger confinement implies a
 // smaller one in the opposite direction (To → From), which another instance covers.
+//
+// Contiguous restricts the subsets to blocks of K consecutive open rows or
+// columns (solved ones in between are skipped), the way humans look at the
+// board: "Zeilen 3 bis 5" instead of "Zeilen 1, 4 und 7". The complement of a
+// block need not be a block, so the K ≤ m/2 argument no longer holds and K runs
+// up to m−1. Contiguous has no effect when From is Region.
 type Confinement struct {
-	From, To puzzle.UnitKind
-	K        int
-	units    []puzzle.Unit // all units of kind From, indexed by unit index
+	From, To   puzzle.UnitKind
+	K          int
+	Contiguous bool
+	units      []puzzle.Unit // all units of kind From, indexed by unit index
 }
 
 // NewConfinement creates the observer for one (from, to, k) triple.
@@ -47,6 +54,21 @@ func (o Confinement) Name() string {
 	return fmt.Sprintf("Confinement[k=%d %v→%v]", o.K, o.From, o.To)
 }
 
+// blocks reports whether o only looks at consecutive From-units.
+func (o Confinement) blocks() bool { return o.Contiguous && o.From != puzzle.Region }
+
+// minOpen is the number of open From-units below which o can deduce nothing.
+func (o Confinement) minOpen() int {
+	switch {
+	case o.K == 1:
+		return 1
+	case o.blocks():
+		return o.K + 1 // with K = m the block covers everything: nothing to cross
+	default:
+		return 2 * o.K
+	}
+}
+
 // Priority: k=1 is as easy to see as a single unit, larger k is a real pigeonhole step.
 func (o Confinement) Priority() int {
 	if o.K == 1 {
@@ -55,8 +77,7 @@ func (o Confinement) Priority() int {
 	return LevelConfinementMulti
 }
 
-// Done once fewer than K units of kind From are open (no K-subset left), except
-// that K=1 keeps running while any unit is open.
+// Done once too few units of kind From are open (see minOpen).
 func (o Confinement) Done(s *board.State) bool {
 	open := 0
 	for _, u := range o.units {
@@ -64,7 +85,7 @@ func (o Confinement) Done(s *board.State) bool {
 			open++
 		}
 	}
-	return open == 0 || (o.K > 1 && open < 2*o.K)
+	return open < o.minOpen()
 }
 
 func (o Confinement) Deduce(s *board.State) []solver.Mark {
@@ -85,11 +106,27 @@ func (o Confinement) Deduce(s *board.State) []solver.Mark {
 		}
 		opens = append(opens, open{u.Index, t})
 	}
-	if o.K > 1 && len(opens) < 2*o.K {
+	if len(opens) < o.minOpen() {
 		return nil
 	}
 
 	var marks []solver.Mark
+	if o.blocks() {
+		for i := 0; i+o.K <= len(opens); i++ {
+			from, union := map[int]bool{}, map[int]bool{}
+			for _, op := range opens[i : i+o.K] {
+				from[op.index] = true
+				for t := range op.targets {
+					union[t] = true
+				}
+			}
+			if len(union) == o.K {
+				marks = append(marks, o.crosses(s, from, union, o.explain(from, union))...)
+			}
+		}
+		return marks
+	}
+
 	chosen := make([]int, 0, o.K) // indices into opens
 	var rec func(start int, union map[int]bool)
 	rec = func(start int, union map[int]bool) {

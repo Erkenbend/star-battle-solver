@@ -17,8 +17,12 @@ var unitWords = map[puzzle.UnitKind][2]string{ // singular, plural
 }
 
 // units names a set of units, e.g. "Zeile 3", "Spalten 2 und 3", "Farben A, B und D".
+// Three or more consecutive rows or columns become a range: "Zeilen 3 bis 5".
 func units(kind puzzle.UnitKind, idx []int) string {
 	idx = slices.Sorted(slices.Values(idx))
+	if n := len(idx); kind != puzzle.Region && n >= 3 && idx[n-1]-idx[0] == n-1 {
+		return fmt.Sprintf("%s %d bis %d", unitWords[kind][1], idx[0], idx[n-1])
+	}
 	names := make([]string, len(idx))
 	for i, x := range idx {
 		if kind == puzzle.Region {

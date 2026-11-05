@@ -38,6 +38,19 @@ func expectDeduce(t *testing.T, p *puzzle.Puzzle, o solver.Observer, before, aft
 // deduction agrees with the (unique) brute-force solution. This catches wrong rules
 // even while the solver is still too weak to finish puzzles.
 func TestSoundness(t *testing.T) {
+	for name, cfg := range testConfigs {
+		t.Run(name, func(t *testing.T) { testSoundness(t, cfg) })
+	}
+}
+
+// testConfigs are the rule sets checked by TestSoundness and TestRunnersAgree.
+var testConfigs = map[string]Config{
+	"default":         DefaultConfig,
+	"base":            BaseConfig,
+	"base any subset": {ConfinementAnySubset: true},
+}
+
+func testSoundness(t *testing.T, cfg Config) {
 	solved, total := 0, 0
 	for n := 4; n <= 10; n++ {
 		for seed := range uint64(20) {
@@ -49,7 +62,7 @@ func TestSoundness(t *testing.T) {
 			if bruteforce.CountSolutions(p, 2) != 1 {
 				t.Fatal("generator returned a non-unique puzzle")
 			}
-			res := solver.RunSync(board.New(p), All(p))
+			res := solver.RunSync(board.New(p), AllWith(p, cfg))
 			total++
 			if res.Status == solver.Contradiction {
 				t.Fatalf("n=%d seed=%d: contradiction: %v\n%s", n, seed, res.Err, render.State(res.State, render.Options{NoColor: true}))
@@ -83,12 +96,14 @@ func TestRunnersAgree(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := solver.RunSync(board.New(p), All(p))
-			for range 5 {
-				got := solver.RunConcurrent(board.New(p), All(p))
-				if got.Status != want.Status || !got.State.Equal(want.State) {
-					t.Fatalf("n=%d seed=%d: concurrent %v\n%s\nsync %v\n%s\n%s",
-						n, seed, got.Status, got.State, want.Status, want.State, p)
+			for name, cfg := range testConfigs {
+				want := solver.RunSync(board.New(p), AllWith(p, cfg))
+				for range 5 {
+					got := solver.RunConcurrent(board.New(p), AllWith(p, cfg))
+					if got.Status != want.Status || !got.State.Equal(want.State) {
+						t.Fatalf("%s n=%d seed=%d: concurrent %v\n%s\nsync %v\n%s\n%s",
+							name, n, seed, got.Status, got.State, want.Status, want.State, p)
+					}
 				}
 			}
 		}
