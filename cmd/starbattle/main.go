@@ -3,7 +3,9 @@
 //	starbattle generate -n 8 [-seed 42] [-show]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
 //	starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
-//	                 [-partner-depth N] [-dead-max N] [-step] [-verbose] [-nocolor] [p.txt]
+//	                 [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
+//	                 [-step] [-verbose] [-nocolor] [p.txt]
+//	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
 package main
 
 import (
@@ -13,6 +15,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +26,7 @@ import (
 	"starbattle/internal/render"
 	"starbattle/internal/solver"
 	"starbattle/internal/solver/observers"
+	"starbattle/internal/web"
 )
 
 func main() {
@@ -37,6 +41,8 @@ func main() {
 		err = cmdShow(os.Args[2:])
 	case "solve":
 		err = cmdSolve(os.Args[2:])
+	case "html":
+		err = cmdHTML(os.Args[2:])
 	default:
 		usage()
 	}
@@ -51,7 +57,9 @@ func usage() {
   starbattle generate -n N [-seed S] [-show]
   starbattle show [-solution] [-nocolor] [file]
   starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
-                   [-partner-depth N] [-dead-max N] [-step] [-verbose] [-nocolor] [file]`)
+                   [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
+                   [-step] [-verbose] [-nocolor] [file]
+  starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]`)
 	os.Exit(2)
 }
 
@@ -123,17 +131,44 @@ func readPuzzle(fs *flag.FlagSet) (*puzzle.Puzzle, error) {
 	return puzzle.Parse(in)
 }
 
-func cmdSolve(args []string) error {
-	fs := flag.NewFlagSet("solve", flag.ExitOnError)
-	step := fs.Bool("step", false, "render the board after every deduction")
-	verbose := fs.Bool("verbose", false, "explain every deduction in words")
-	runner := fs.String("runner", "concurrent", "concurrent (one goroutine per observer) or sync")
+// solverFlags registers the flags that configure the solver and returns a
+// function that runs it on p with those settings (call after fs.Parse).
+func solverFlags(fs *flag.FlagSet, defaultRunner string) func(p *puzzle.Puzzle) (solver.Result, error) {
+	runner := fs.String("runner", defaultRunner, "concurrent (one goroutine per observer) or sync")
 	search := fs.String("search", "full", "when the rules get stuck: full (lookahead + backtracking), lookahead, or none")
 	partnerDepth := fs.Int("partner-depth", observers.DefaultConfig.PartnerDepth, "ForcedPartner: max forced stars in a row (0 = off)")
 	deadMax := fs.Int("dead-max", observers.DefaultConfig.DeadCellsMax, "DeadCells: max remaining cells of a unit (0 = off)")
 	pigeonMax := fs.Int("pigeonhole-max", observers.DefaultConfig.PigeonholeMaxK, "Pigeonhole: max units checked at once after an assumed star (0 = off)")
 	anySubset := fs.Bool("non-contiguous", observers.DefaultConfig.ConfinementAnySubset, "Confinement k≥2: any subset of rows/columns instead of only adjacent ones")
+	return func(p *puzzle.Puzzle) (solver.Result, error) {
+		opts := solver.Options{Run: solver.RunConcurrent}
+		switch *runner {
+		case "concurrent":
+		case "sync":
+			opts.Run = solver.RunSync
+		default:
+			return solver.Result{}, fmt.Errorf("unknown runner %q", *runner)
+		}
+		switch *search {
+		case "full":
+			opts.Lookahead, opts.Backtrack = true, true
+		case "lookahead":
+			opts.Lookahead = true
+		case "none":
+		default:
+			return solver.Result{}, fmt.Errorf("unknown search %q", *search)
+		}
+		cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax, ConfinementAnySubset: *anySubset, PigeonholeMaxK: *pigeonMax}
+		return solver.Solve(board.New(p), observers.AllWith(p, cfg), opts), nil
+	}
+}
+
+func cmdSolve(args []string) error {
+	fs := flag.NewFlagSet("solve", flag.ExitOnError)
+	step := fs.Bool("step", false, "render the board after every deduction")
+	verbose := fs.Bool("verbose", false, "explain every deduction in words")
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
+	solve := solverFlags(fs, "concurrent")
 	fs.Parse(args)
 
 	p, err := readPuzzle(fs)
@@ -143,25 +178,10 @@ func cmdSolve(args []string) error {
 	o := render.Options{NoColor: *noColor}
 	fmt.Print(render.Puzzle(p, o))
 
-	opts := solver.Options{Run: solver.RunConcurrent}
-	switch *runner {
-	case "concurrent":
-	case "sync":
-		opts.Run = solver.RunSync
-	default:
-		return fmt.Errorf("unknown runner %q", *runner)
+	res, err := solve(p)
+	if err != nil {
+		return err
 	}
-	switch *search {
-	case "full":
-		opts.Lookahead, opts.Backtrack = true, true
-	case "lookahead":
-		opts.Lookahead = true
-	case "none":
-	default:
-		return fmt.Errorf("unknown search %q", *search)
-	}
-	cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax, ConfinementAnySubset: *anySubset, PigeonholeMaxK: *pigeonMax}
-	res := solver.Solve(board.New(p), observers.AllWith(p, cfg), opts)
 
 	if *step || *verbose {
 		printSteps(board.New(p), res.Trace, "", "", *step, *verbose, *noColor)
@@ -178,6 +198,49 @@ func cmdSolve(args []string) error {
 	fmt.Println()
 	fmt.Print(render.State(res.State, o))
 	return nil
+}
+
+// cmdHTML writes an interactive page: solve the puzzle yourself (with checks
+// and hints) or step through the solver's explanation.
+func cmdHTML(args []string) error {
+	fs := flag.NewFlagSet("html", flag.ExitOnError)
+	out := fs.String("o", "", "output file (default: stdout)")
+	title := fs.String("title", "", "page title (default: from the file name)")
+	// sync by default: the step order (and so the explanation) is reproducible.
+	solve := solverFlags(fs, "sync")
+	fs.Parse(args)
+
+	p, err := readPuzzle(fs)
+	if err != nil {
+		return err
+	}
+	res, err := solve(p)
+	if err != nil {
+		return err
+	}
+	var sol []int
+	if sols := bruteforce.Solve(p, 2); len(sols) == 1 {
+		sol = sols[0]
+	}
+	t := *title
+	if t == "" {
+		t = fmt.Sprintf("Star Battle %d×%d", p.N, p.N)
+		if fs.NArg() > 0 {
+			t += " · " + strings.TrimSuffix(filepath.Base(fs.Arg(0)), filepath.Ext(fs.Arg(0)))
+		}
+	}
+	data := web.Build(t, p, sol, res)
+
+	var w io.Writer = os.Stdout
+	if *out != "" {
+		f, err := os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
+	}
+	return web.Write(w, data)
 }
 
 // describeMarks lists the crosses of one step. Steps that place a star name it

@@ -25,7 +25,8 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Regionsstücken zerstören (siehe „Erledigt“) |
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
-| `cmd/starbattle` | `generate`, `show`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
+| `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS) |
+| `cmd/starbattle` | `generate`, `show`, `html [-o] [-title]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
 | `testdata/hard` | 32 Puzzles, an denen die Regeln allein scheitern |
 
 ### Regeln
@@ -71,6 +72,13 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
 
+- ~~**HTML-Darstellung**~~ umgesetzt als `starbattle html [-o page.html] [Solver-Optionen] puzzle.txt` (Standard-Runner `sync`, damit die Erklärung reproduzierbar ist).
+   - **Selbst lösen:** Klick wechselt frei → ✕ → ★, Rechtsklick/Umschalt setzt direkt ★; Rückgängig/Wiederholen; Nachbarn eines Sterns optional automatisch gekreuzt; Regelverstöße live rot (zwei Sterne, Berührung, Einheit ohne Platz); „Fehler suchen“ vergleicht mit der Lösung; Fortschritt im `localStorage`.
+   - **Hinweis:** erster Schritt des Traces, der auf dem Brett noch etwas Neues setzt. Alle Schritte davor liegen schon, also gelten seine Voraussetzungen (die Regeln sind monoton). Mit „Anwenden“ übernehmen; bei falschen Feldern zuerst „Fehler zeigen“.
+   - **Lösungsweg:** Schritt für Schritt (Knöpfe, ←/→, Abspielen mit Tempo), Etikett pro Regel nach Stufe eingefärbt; Gedankengänge aus Annahmen eingerückt und mit abgespielt („Gedankenexperiment“, Widerspruchszellen rot), einzeln ausblendbar. Nicht in der Erklärung genannte Zeilen/Spalten/Farben werden abgedunkelt (die Seite liest „Zeilen 3 bis 5“, „Farben B und C“, „(2,3)“ aus dem Text).
+   - Hell/dunkel nach Systemeinstellung, Handy-Layout ohne horizontales Scrollen.
+   - Tests: `internal/web` (Daten, Escaping, `logic_test.js` mit node: wer nur den Hinweisen folgt, löst alle 32 schweren Puzzles ohne Fehler). Die Oberfläche selbst wurde mit jsdom und Chromium-Screenshots geprüft, diese Skripte liegen nicht im Repo.
+   - Offen: Hinweise bei Brettern, die vom Trace abweichen, sind nicht immer der einfachste mögliche Schritt (dafür bräuchte es einen Server, z. B. `starbattle serve`, oder den Solver als WebAssembly); Stern per langem Druck auf dem Handy; Puzzle im Browser eingeben oder generieren.
 - ~~**Neue Regel `Pigeonhole`**~~ (Schubfachprinzip mit Annahme) umgesetzt. Die Suche nach Teilmengen/Blöcken teilt sie mit `Confinement` (`confinedSets`). Messung auf `testdata/hard`:
    - Mit allen Regeln greift sie 3-mal, alle in `n11_s095` (11 statt 14 Lookahead-Schritte); das Puzzle braucht weiter Lookahead. `ForcedPartner` und `DeadCells` haben Vorrang und decken fast alles ab.
    - Nur mit den Basisregeln ist sie stark: 19 von 32 ohne Lookahead (sonst 0), 47 statt 108 Lookahead-Schritte.
@@ -105,12 +113,8 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 3. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
 4. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize`. Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
 5. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
-6. **HTML-Darstellung, möglichst interaktiv:**
-   - **Selbst lösen:** Felder per Klick als X oder Stern markieren, mit Rückgängig, Prüfung auf Regelverstöße (Hervorhebung wie die `( )`-Widerspruchszellen) und optional einem Hinweis-Knopf, der die nächste Regel samt Erklärung zeigt.
-   - **Automatische Lösung anschauen:** Den Trace Schritt für Schritt abspielen (vor/zurück, Autoplay), neue Felder hervorheben und die deutsche Begründung dazu anzeigen; Annahmeketten aus dem Lookahead aufklappbar wie bei `-verbose`.
-   - Umsetzung offen: z. B. `starbattle html` erzeugt eine eigenständige Datei mit Puzzle und Trace als JSON, oder ein kleiner lokaler Server (`starbattle serve`), der auch Hinweise live berechnet. Dafür braucht der Trace ein stabiles JSON-Format.
-7. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-8. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
+6. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+7. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`
