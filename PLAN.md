@@ -22,7 +22,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/board` | Zustand, `Set` mit Konflikterkennung, `Implied`, `Contradiction`, Parser für Testzustände |
 | `internal/render` | ANSI-Farben; neue Felder in `[ ]`, Widerspruchszellen in `( )`, Pfeile am Rand |
 | `internal/bruteforce` | Referenz-Solver (Backtracking über Zeilen), Test-Orakel |
-| `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Zellen zerstören |
+| `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Regionsstücken zerstören (siehe „Erledigt“) |
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
 | `cmd/starbattle` | `generate`, `show`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-non-contiguous]` |
@@ -59,7 +59,7 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 ### Entscheidungen
 - Erklärungen sind deutsch; Koordinaten (Zeile, Spalte), beginnend bei 0.
 - Probeläufe im Lookahead immer mit `RunSync`, damit die gewählte Erklärung reproduzierbar ist.
-- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`); `generate -n 5 -seed 29` erzeugt `testdata/hard/n05_s029.txt`.
+- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`). Die Dateien in `testdata/hard` stammen vom alten Generator (bis Commit `def8c05`, z. B. `generate -n 5 -seed 29` → `n05_s029.txt`); mit dem neuen Generator ergeben dieselben Seeds andere Puzzles. Die Dateien gelten als feste Testdaten.
 
 ## Nächste Schritte
 
@@ -68,6 +68,14 @@ Alle 32 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
+
+- ~~**Generator: weniger verworfene Layouts**~~ umgesetzt. Frisch gewachsene Layouts sind praktisch nie eindeutig (Median ca. 124 Lösungen bei N = 8, über 5000 bei N = 12); alles hängt an der Reparatur. Die alte Reparatur scheiterte meist, weil der Stern der Alternative ein Engpass seiner Region war (70 bis 87 % der Fehlschläge), und drehte sich im Kreis (55 bis 60 % der gesehenen Alternativen waren schon einmal zerstört).
+   - **Stück statt Zelle:** Stern x einer Alternative in Region A wandert in eine Nachbarregion B, zusammen mit allem, was ohne x vom Lösungsstern von A abgeschnitten wäre (liegt x im Inneren, zusätzlich der kürzeste Weg zum Rand von A). A bleibt zusammenhängend, die Lösung gültig.
+   - **Bewertung über bis zu 8 Alternativen pro Schritt:** Eine Alternative stirbt genau dann, wenn sie einen Stern im Stück hat; Punkte 10 je zerstörte, −20 je wiederbelebte früher zerstörte Alternative, −1 je bewegte Zelle.
+   - **Abbruch nach 6·N Schritten** statt 4·N² (erfolgreiche Reparaturen brauchen höchstens ca. 4,5·N).
+   - `Options.MinRegionSize` (verwirft Puzzles mit kleineren Regionen, Reparatur verkleinert nie darunter), `Options.Alternatives`.
+   - Ergebnis, je 40 Puzzles: N = 10 in 0,09 s statt 1,6 s, N = 12 in 1,8 s statt 151 s. Mit `MinRegionSize` 3 etwa 3- bis 5-mal so viele Versuche. Logik allein löst etwa denselben Anteil wie vorher (135 bis 139 von 140 statt 137 bis 140).
+   - Gegenprobe: ausgewogenes oder kompaktes Wachsen der Regionen verschlechtert die Eindeutigkeit deutlich (2- bis 3-mal so viele Lösungen bei N = 8). Krumme, ungleiche Regionen machen Lösungen eindeutig.
 
 - ~~**`Confinement` auf nebeneinanderliegende Zeilen/Spalten**~~ umgesetzt, jetzt Standard (`-non-contiguous` schaltet zurück). Gelöste Linien innerhalb eines Blocks werden übersprungen. Erklärungen nennen Bereiche: „Zeilen 3 bis 5“. Messung über 900 generierte Puzzles (N = 4 bis 12, enthält die 32 schweren):
    - Alle Regeln: 899/900 ohne Lookahead, 14 Lookahead-Schritte, mit und ohne Blöcke gleich.
@@ -92,7 +100,7 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 2. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher nur `n11_s095`).
 3. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und beim zusammenhängenden `Confinement`.
 4. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
-5. **Ausgewogenere Regionen im Generator:** Kleine Regionen bevorzugen, Inseln aus 2 bis 3 Feldern vermeiden; ergibt kniffligere Puzzles.
+5. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize`. Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
 6. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
 7. **HTML-Darstellung, möglichst interaktiv:**
    - **Selbst lösen:** Felder per Klick als X oder Stern markieren, mit Rückgängig, Prüfung auf Regelverstöße (Hervorhebung wie die `( )`-Widerspruchszellen) und optional einem Hinweis-Knopf, der die nächste Regel samt Erklärung zeigt.
