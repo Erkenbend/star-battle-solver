@@ -373,6 +373,7 @@ function boot() {
   let summary = `${n}×${n} · Solver: ${statusText}`;
   if (d.stats.lookahead) summary += ` · ${d.stats.lookahead} Annahmen`;
   if (d.stats.guesses) summary += ` · ${d.stats.guesses}× geraten`;
+  if (!d.solution) summary += " · keine eindeutige Lösung";
   $("summary").textContent = summary;
 
   // ---------- storage (per-viewer convenience only) ----------
@@ -765,6 +766,30 @@ function boot() {
       if (ev.key === "y" || (ev.key === "z" && ev.shiftKey) || ev.key === "Z") { ev.preventDefault(); $("redo").click(); }
     }
   });
+
+  // ---------- served by `starbattle serve`: new and pasted puzzles ----------
+  if (d.served) {
+    const sizes = $("newgame-n");
+    for (let k = 4; k <= 14; k++) {
+      const o = el("option", null, `${k}×${k}`);
+      o.value = k;
+      o.selected = k === n;
+      sizes.append(o);
+    }
+    $("newgame").hidden = false;
+    const dlg = $("paste");
+    $("paste-open").onclick = () => {
+      $("paste-text").value = d.text || "";
+      dlg.showModal();
+      $("paste-text").select();
+    };
+    $("paste-cancel").onclick = () => dlg.close();
+    // Rows joined by "/" give a short, readable link.
+    dlg.querySelector("form").addEventListener("submit", () => {
+      const t = $("paste-text");
+      t.value = t.value.split("\n").map((r) => r.replace(/\s+/g, "")).filter((r) => r && !r.startsWith("#")).join("/");
+    });
+  }
 
   buildPositions();
   buildList();

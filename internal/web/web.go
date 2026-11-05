@@ -40,6 +40,10 @@ type Data struct {
 	Error    string  `json:"error,omitempty"`
 	Stats    Stats   `json:"stats"`
 	Steps    []Step  `json:"steps"`
+
+	// Set by the server (starbattle serve): the page shows forms for new puzzles.
+	Served bool   `json:"served,omitempty"`
+	Text   string `json:"text,omitempty"` // the puzzle in the text format
 }
 
 // Stats summarizes the search effort.

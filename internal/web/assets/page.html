@@ -18,7 +18,24 @@
     <button role="tab" id="tab-play" aria-selected="true">Selbst lösen</button>
     <button role="tab" id="tab-watch" aria-selected="false">Lösungsweg</button>
   </nav>
+  <form class="newgame" id="newgame" action="/" method="get" hidden>
+    <select name="n" id="newgame-n" title="Größe" aria-label="Größe"></select>
+    <button type="submit" class="primary">Neues Puzzle</button>
+    <button type="button" id="paste-open">Eigenes…</button>
+  </form>
 </header>
+
+<dialog id="paste">
+  <form action="/play" method="get">
+    <h2>Eigenes Puzzle</h2>
+    <p class="muted">Eine Zeile pro Reihe, ein Buchstabe pro Feld, jeder Buchstabe eine Farbe.</p>
+    <textarea name="p" id="paste-text" rows="10" spellcheck="false" autocomplete="off" required></textarea>
+    <div class="toolbar">
+      <button type="submit" class="primary">Lösen</button>
+      <button type="button" id="paste-cancel" class="quiet">Abbrechen</button>
+    </div>
+  </form>
+</dialog>
 
 <main class="layout">
   <section class="board-wrap">

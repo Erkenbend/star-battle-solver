@@ -1,0 +1,109 @@
+package web
+
+import (
+	"bytes"
+	"fmt"
+	"math/rand/v2"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"starbattle/internal/bruteforce"
+	"starbattle/internal/generator"
+	"starbattle/internal/puzzle"
+	"starbattle/internal/solver"
+)
+
+// Size limits for generated and pasted puzzles.
+const (
+	MinN     = 4
+	MaxN     = 14
+	DefaultN = 8
+)
+
+// SolveFunc runs the solver on a puzzle.
+type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
+
+// Handler serves the interactive page with a form to generate new puzzles or
+// paste one. Every page has a stable URL, so reloading keeps the puzzle (and,
+// via the page's local storage, the progress):
+//
+//	/?n=8&seed=42   generated puzzle (same seeding as `starbattle generate`)
+//	/?n=8           new random seed, redirects to the URL above
+//	/play?p=AAB...  pasted puzzle in the text format (rows separated by
+//	                newlines, '/' or ',')
+func Handler(solve SolveFunc) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		n := DefaultN
+		if s := q.Get("n"); s != "" {
+			v, err := strconv.Atoi(s)
+			if err != nil || v < MinN || v > MaxN {
+				http.Error(w, fmt.Sprintf("n muss zwischen %d und %d liegen", MinN, MaxN), http.StatusBadRequest)
+				return
+			}
+			n = v
+		}
+		seedStr := q.Get("seed")
+		if seedStr == "" {
+			seed := rand.IntN(999_999) + 1 // short enough for the title; never 0 (the CLI's "time based")
+			http.Redirect(w, r, fmt.Sprintf("/?n=%d&seed=%d", n, seed), http.StatusFound)
+			return
+		}
+		seed, err := strconv.ParseUint(seedStr, 10, 64)
+		if err != nil {
+			http.Error(w, "ungültiger Seed", http.StatusBadRequest)
+			return
+		}
+		p, sol, err := generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		page(w, solve, fmt.Sprintf("Star Battle %d×%d · Nr. %d", n, n, seed), p, sol)
+	})
+	mux.HandleFunc("GET /play", func(w http.ResponseWriter, r *http.Request) {
+		text := r.URL.Query().Get("p")
+		text = strings.NewReplacer("/", "\n", ",", "\n", ";", "\n").Replace(text)
+		p, err := puzzle.Parse(strings.NewReader(text))
+		if err == nil && (p.N < MinN || p.N > MaxN) {
+			err = fmt.Errorf("Größe %d×%d, erlaubt sind %d bis %d", p.N, p.N, MinN, MaxN)
+		}
+		if err != nil {
+			http.Error(w, "Puzzle nicht lesbar: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		var sol []int
+		sols := bruteforce.Solve(p, 2)
+		switch len(sols) {
+		case 0:
+			http.Error(w, "Das Puzzle hat keine Lösung.", http.StatusBadRequest)
+			return
+		case 1:
+			sol = sols[0]
+		}
+		page(w, solve, fmt.Sprintf("Star Battle %d×%d · eigenes Puzzle", p.N, p.N), p, sol)
+	})
+	return mux
+}
+
+// page solves p and writes the page, marked as served so it shows the forms.
+func page(w http.ResponseWriter, solve SolveFunc, title string, p *puzzle.Puzzle, sol []int) {
+	res, err := solve(p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	d := Build(title, p, sol, res)
+	d.Served = true
+	d.Text = p.String()
+	var buf bytes.Buffer
+	if err := Write(&buf, d); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	buf.WriteTo(w)
+}

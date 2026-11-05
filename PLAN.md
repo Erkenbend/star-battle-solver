@@ -25,8 +25,8 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Regionsstücken zerstören (siehe „Erledigt“) |
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
-| `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS) |
-| `cmd/starbattle` | `generate`, `show`, `html [-o] [-title]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
+| `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS); `Handler` für `serve` |
+| `cmd/starbattle` | `generate`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
 | `testdata/hard` | 32 Puzzles, an denen die Regeln allein scheitern |
 
 ### Regeln
@@ -80,7 +80,8 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
    - **Farben statt Buchstaben:** In allen Texten steht statt „Farbe B“ ein Farbfeld in der Farbe der Region; Zeigen (Touch: Antippen) hebt die Region auf dem Brett hervor. Feste Palette aus 12 abgestimmten Farben (mehr Regionen: berechnete Farbtöne), eigene Varianten für den dunklen Modus. Die Buchstaben in den Feldecken sind entfallen.
    - Hell/dunkel nach Systemeinstellung, Handy-Layout ohne horizontales Scrollen.
    - Tests: `internal/web` (Daten, Escaping, `logic_test.js` mit node: wer nur den Hinweisen folgt, löst alle 32 schweren Puzzles ohne Fehler). Die Oberfläche selbst wurde mit jsdom und Chromium-Screenshots geprüft, diese Skripte liegen nicht im Repo.
-   - Offen: Hinweise bei Brettern, die vom Trace abweichen, sind nicht immer der einfachste mögliche Schritt (dafür bräuchte es einen Server, z. B. `starbattle serve`, oder den Solver als WebAssembly); Stern per langem Druck auf dem Handy; Puzzle im Browser eingeben oder generieren.
+   - **`starbattle serve [-addr localhost:8080] [Solver-Optionen]`:** dieselbe Seite vom Server, mit „Neues Puzzle“ (Größe 4 bis 14) und „Eigenes…“ (Puzzle als Text einfügen, vorbelegt mit dem aktuellen). Jedes Puzzle hat eine feste URL (`/?n=8&seed=123` wie `generate -seed`, `/play?p=AAB/…`), Neuladen behält also Puzzle und Fortschritt. Mehrdeutige Puzzles werden ohne Lösung gezeigt, unlösbare abgelehnt.
+   - Offen: Hinweise bei Brettern, die vom Trace abweichen, sind nicht immer der einfachste mögliche Schritt (jetzt mit `serve` machbar: Solver auf dem aktuellen Brett starten); Stern per langem Druck auf dem Handy.
 - ~~**Neue Regel `Pigeonhole`**~~ (Schubfachprinzip mit Annahme) umgesetzt. Die Suche nach Teilmengen/Blöcken teilt sie mit `Confinement` (`confinedSets`). Messung auf `testdata/hard`:
    - Mit allen Regeln greift sie 3-mal, alle in `n11_s095` (11 statt 14 Lookahead-Schritte); das Puzzle braucht weiter Lookahead. `ForcedPartner` und `DeadCells` haben Vorrang und decken fast alles ab.
    - Nur mit den Basisregeln ist sie stark: 19 von 32 ohne Lookahead (sonst 0), 47 statt 108 Lookahead-Schritte.
@@ -116,7 +117,7 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 4. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize`. Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
 5. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
 6. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-7. **Aufräumen:** README mit CLI-Befehlen, Branch `grundgeruest` nach `main` mergen.
+7. **Aufräumen:** README mit CLI-Befehlen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`

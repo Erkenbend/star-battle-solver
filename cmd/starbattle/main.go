@@ -6,6 +6,7 @@
 //	                 [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
 //	                 [-step] [-verbose] [-nocolor] [p.txt]
 //	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
+//	starbattle serve [-addr localhost:8080] [solver flags]   generate and solve in the browser
 package main
 
 import (
@@ -14,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +45,8 @@ func main() {
 		err = cmdSolve(os.Args[2:])
 	case "html":
 		err = cmdHTML(os.Args[2:])
+	case "serve":
+		err = cmdServe(os.Args[2:])
 	default:
 		usage()
 	}
@@ -59,7 +63,8 @@ func usage() {
   starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
                    [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
                    [-step] [-verbose] [-nocolor] [file]
-  starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]`)
+  starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
+  starbattle serve [-addr localhost:8080] [solver flags as for solve]`)
 	os.Exit(2)
 }
 
@@ -241,6 +246,18 @@ func cmdHTML(args []string) error {
 		w = f
 	}
 	return web.Write(w, data)
+}
+
+// cmdServe serves the interactive page with forms to generate a new puzzle or
+// paste one; each puzzle is solved on request.
+func cmdServe(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	addr := fs.String("addr", "localhost:8080", "listen address")
+	solve := solverFlags(fs, "sync") // sync: reproducible explanations, as for html
+	fs.Parse(args)
+
+	fmt.Fprintf(os.Stderr, "Star Battle auf http://%s/\n", *addr)
+	return http.ListenAndServe(*addr, web.Handler(solve))
 }
 
 // describeMarks lists the crosses of one step. Steps that place a star name it
