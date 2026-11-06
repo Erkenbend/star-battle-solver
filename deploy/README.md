@@ -7,8 +7,9 @@ hosting means: cross-compile, copy, run as a systemd service.
 
 - On this machine: Go (see `go.mod`), `ssh`, `scp`.
 - On the Pi: any Raspberry Pi OS (or other systemd Linux), SSH enabled, a user
-  with `sudo`. An SSH key (`ssh-copy-id pi@raspberrypi.local`) avoids typing the
-  password several times.
+  with `sudo`. The script asks for the SSH password once (all steps share one
+  connection), and for the sudo password only if sudo on the Pi wants one. With
+  an SSH key (`ssh-copy-id pi@raspberrypi.local`) there is no prompt at all.
 
 ## Install and update
 
@@ -16,10 +17,13 @@ hosting means: cross-compile, copy, run as a systemd service.
 deploy/deploy.sh pi@raspberrypi.local
 ```
 
-The script asks the Pi for its CPU (`uname -m`: 64-bit `aarch64`, 32-bit
-`armv7l`, or `armv6l` on Pi Zero / Pi 1), builds for it, installs
-`/usr/local/bin/starbattle` and `/etc/systemd/system/starbattle.service`, and
-(re)starts the service. Run it again after every change.
+The script reports five steps: connect; build for the Pi's CPU (`uname -m`:
+64-bit `aarch64`, 32-bit `armv7l`, or `armv6l` on Pi Zero / Pi 1); upload;
+install (`deploy/remote-install.sh` on the Pi puts the binary in
+`/usr/local/bin/starbattle` and the unit in
+`/etc/systemd/system/starbattle.service`, restarts the service and waits until
+the page answers, otherwise it shows the last log lines and fails); done. Run it
+again after every change.
 
 The page is then at `http://raspberrypi.local:6369/`.
 
