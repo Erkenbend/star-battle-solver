@@ -56,7 +56,7 @@ func Handler(solve SolveFunc) http.Handler {
 			http.Error(w, "ungültiger Seed", http.StatusBadRequest)
 			return
 		}
-		p, sol, err := generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{})
+		p, sol, err := generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n)})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

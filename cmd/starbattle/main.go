@@ -1,6 +1,6 @@
 // Command starbattle generates and displays 1-star Star Battle puzzles.
 //
-//	starbattle generate -n 8 [-seed 42] [-show]   > p.txt
+//	starbattle generate -n 8 [-seed 42] [-min-region K] [-show]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
 //	starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
 //	                 [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
@@ -58,7 +58,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
-  starbattle generate -n N [-seed S] [-show]
+  starbattle generate -n N [-seed S] [-min-region K] [-show]
   starbattle show [-solution] [-nocolor] [file]
   starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
                    [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
@@ -74,6 +74,7 @@ func cmdGenerate(args []string) error {
 	seed := fs.Uint64("seed", 0, "random seed (0 = time based)")
 	show := fs.Bool("show", false, "also render puzzle and solution to stderr")
 	noColor := fs.Bool("nocolor", false, "render with letters instead of colors")
+	minRegion := fs.Int("min-region", 0, "smallest allowed region size (0 = 2 from N = 10 on, else 1)")
 	fs.Parse(args)
 
 	s := *seed
@@ -81,7 +82,11 @@ func cmdGenerate(args []string) error {
 		s = uint64(time.Now().UnixNano())
 	}
 	rng := rand.New(rand.NewPCG(s, uint64(*n))) // same seeding as the tests and testdata/hard
-	p, sol, err := generator.Generate(*n, rng, generator.Options{})
+	mr := *minRegion
+	if mr == 0 {
+		mr = generator.DefaultMinRegionSize(*n)
+	}
+	p, sol, err := generator.Generate(*n, rng, generator.Options{MinRegionSize: mr})
 	if err != nil {
 		return err
 	}

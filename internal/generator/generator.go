@@ -25,6 +25,17 @@ type Options struct {
 	MinRegionSize int
 }
 
+// DefaultMinRegionSize is the MinRegionSize the CLI and the web server use for
+// an n×n puzzle. From n = 10 on, regions of one cell (a free star) are ruled
+// out: at n = 12 to 15 this gives 20 to 30 % longer solutions that need the
+// harder rules more often, at 1.5 to 2.5 times the generation time.
+func DefaultMinRegionSize(n int) int {
+	if n >= 10 {
+		return 2
+	}
+	return 1
+}
+
 var orth = [4]puzzle.Pos{{Row: -1, Col: 0}, {Row: 1, Col: 0}, {Row: 0, Col: -1}, {Row: 0, Col: 1}}
 
 // Generate returns a uniquely solvable n×n puzzle and its solution (star column per row).
