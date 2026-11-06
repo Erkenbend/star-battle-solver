@@ -456,9 +456,52 @@ function boot() {
       if (!done) { clockRun(false); done = true; }
       const with_ = !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
       banner(`Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
+      const share = el("button", "share", "Ergebnis kopieren");
+      share.title = "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
+      share.onclick = () => copyText(shareText(with_), share);
+      $("banner").append(" ", share);
     } else banner(null);
     drawClock();
     store();
+  }
+
+  // The text for sharing a result; with the page's link when it has a stable
+  // one (served pages: /?n=8&seed=42 or /play?p=...), not for a local file.
+  function shareText(with_) {
+    let t = `Star Battle ${n}×${n} in ${fmtTime(clockMs())} gelöst (${with_})!`;
+    if (d.served && /^https?:$/.test(location.protocol)) t += " " + location.href.split("#")[0];
+    return t;
+  }
+
+  // Copies text to the clipboard. navigator.clipboard needs a secure context
+  // (HTTPS or localhost), which a home server like http://raspberrypi:6369 is
+  // not, so fall back to the old execCommand route.
+  async function copyText(text, btn) {
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch { /* fall through */ }
+    if (!ok) {
+      const ta = el("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.append(ta);
+      ta.focus();
+      ta.select();
+      try { ok = document.execCommand("copy"); } catch { ok = false; }
+      ta.remove();
+    }
+    if (ok) {
+      btn.textContent = "Kopiert ✓";
+      setTimeout(() => { btn.textContent = "Ergebnis kopieren"; }, 2000);
+    } else {
+      window.prompt("Kopieren nicht möglich, bitte selbst kopieren:", text);
+    }
   }
 
   function store() {
