@@ -1,0 +1,38 @@
+# systemd unit for `starbattle serve`. Installed by deploy/deploy.sh to
+# /etc/systemd/system/starbattle.service. Address and solver options can be
+# changed in /etc/default/starbattle, e.g.
+#
+#   STARBATTLE_ADDR=:8080
+#   STARBATTLE_OPTS=-search lookahead
+[Unit]
+Description=Star Battle puzzle server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=STARBATTLE_ADDR=:8080
+EnvironmentFile=-/etc/default/starbattle
+ExecStart=/usr/local/bin/starbattle serve -addr ${STARBATTLE_ADDR} $STARBATTLE_OPTS
+Restart=on-failure
+RestartSec=2
+# Generating a large puzzle keeps all cores busy for seconds; stay behind
+# interactive work on the Pi.
+Nice=5
+
+# Runs as a throwaway user without access to the rest of the system.
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+# Needed only for a port below 1024 (e.g. STARBATTLE_ADDR=:80).
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
