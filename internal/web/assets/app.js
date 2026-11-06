@@ -398,6 +398,28 @@ function boot() {
   let marks = new Uint8Array(n * n);
   if (saved && Array.isArray(saved.marks) && saved.marks.length === n * n) marks = Uint8Array.from(saved.marks);
   if (saved && typeof saved.auto === "boolean") $("autocross").checked = saved.auto;
+
+  // Solving time and hints shown, saved with the marks. The clock runs only
+  // while the page is visible and stops for good once the puzzle is solved.
+  const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
+  let elapsed = num(saved && saved.time); // ms, not counting the running stretch
+  let hintCount = num(saved && saved.hints);
+  let done = !!(saved && saved.done);
+  let runningSince = null;
+  const clockMs = () => elapsed + (runningSince === null ? 0 : Date.now() - runningSince);
+  function clockRun(on) {
+    if (on && runningSince === null && !done) runningSince = Date.now();
+    if (!on && runningSince !== null) { elapsed = clockMs(); runningSince = null; }
+  }
+  function fmtTime(ms) {
+    const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+    const ss = String(s % 60).padStart(2, "0");
+    return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+  }
+  const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
+  function drawClock() {
+    $("clock").textContent = `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
+  }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
   const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
@@ -430,9 +452,17 @@ function boot() {
     $("undo").disabled = undoStack.length === 0;
     $("redo").disabled = redoStack.length === 0;
     $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
-    if (L.solved(d, eff.cells)) banner("Gelöst! Alle Sterne sitzen richtig.", "good");
-    else banner(null);
-    save({ marks: [...marks], auto: $("autocross").checked });
+    if (L.solved(d, eff.cells)) {
+      if (!done) { clockRun(false); done = true; }
+      const with_ = !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
+      banner(`Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
+    } else banner(null);
+    drawClock();
+    store();
+  }
+
+  function store() {
+    save({ marks: [...marks], auto: $("autocross").checked, time: Math.round(clockMs()), hints: hintCount, done });
   }
 
   function message(...nodes) {
@@ -467,6 +497,7 @@ function boot() {
     }
     const step = d.steps[h.step];
     const refs = L.refs(d, step.reason);
+    if (!done) hintCount++;
     overlay = { hint: new Set(h.marks.map(([r, c]) => L.idx(d, r, c))), ref: refs.units, refcell: refs.cells };
     const head = el("p", "");
     head.append(chip(step), " ", el("span", "muted", `Schritt ${h.step + 1} des Lösungswegs`));
@@ -572,8 +603,18 @@ function boot() {
     renderPlay();
   };
   $("reset").onclick = () => {
+    elapsed = 0;
+    hintCount = 0;
+    done = false;
+    runningSince = null;
+    clockRun(!document.hidden);
     if (marks.some((v) => v !== L.FREE)) setMarks(new Uint8Array(n * n));
+    else renderPlay();
   };
+  document.addEventListener("visibilitychange", () => { clockRun(!document.hidden); store(); });
+  window.addEventListener("pagehide", store);
+  setInterval(() => { if (runningSince !== null) { drawClock(); store(); } }, 1000);
+  clockRun(!document.hidden);
   $("hint").onclick = toggleHint;
   $("check").onclick = checkMistakes;
   $("autocross").onchange = () => renderPlay();
