@@ -48,6 +48,28 @@ func TestGenerateDeterministic(t *testing.T) {
 	}
 }
 
+// TestWorkersSameResult: the number of parallel attempts changes only the
+// speed, not which puzzle a seed gives (the CLI and serve rely on this).
+func TestWorkersSameResult(t *testing.T) {
+	for n := 6; n <= 11; n++ {
+		for seed := range uint64(4) {
+			var want string
+			for _, w := range []int{1, 3, 16} {
+				// MinRegionSize 3 makes failed attempts (and so races) common.
+				p, _, err := Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), Options{MinRegionSize: 3, Workers: w})
+				if err != nil {
+					t.Fatalf("n=%d seed=%d workers=%d: %v", n, seed, w, err)
+				}
+				if w == 1 {
+					want = p.String()
+				} else if p.String() != want {
+					t.Fatalf("n=%d seed=%d: workers=%d gives a different puzzle", n, seed, w)
+				}
+			}
+		}
+	}
+}
+
 // TestRepairMoves: on fresh layouts a repair move always exists and keeps the
 // layout valid (connected regions) and the intended solution valid.
 func TestRepairMoves(t *testing.T) {

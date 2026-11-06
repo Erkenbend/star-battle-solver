@@ -1,4 +1,4 @@
-# starbattle generate -n 14 -seed 24 (MinRegionSize 2); needs lookahead even with all rules
+# generate -n 14 -seed 24 at commit 48ea102 (sequential attempts, MinRegionSize 2); needs lookahead even with all rules
 DIIIAAAAAAHHBB
 DIIIAIAAIIBBBB
 DIIIIIAAAIKKBB

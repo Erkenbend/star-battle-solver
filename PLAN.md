@@ -62,7 +62,7 @@ Alle 35 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 ### Entscheidungen
 - Erklärungen sind deutsch; Koordinaten (Zeile, Spalte), beginnend bei 0.
 - Probeläufe im Lookahead immer mit `RunSync`, damit die gewählte Erklärung reproduzierbar ist.
-- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`). Die Dateien in `testdata/hard` stammen vom alten Generator (bis Commit `def8c05`, z. B. `generate -n 5 -seed 29` → `n05_s029.txt`); mit dem neuen Generator ergeben dieselben Seeds andere Puzzles. Die Dateien gelten als feste Testdaten. Ausnahme: die `n14_*` stammen vom aktuellen Generator mit `MinRegionSize` 2 (`generate -n 14 -seed 2` usw.).
+- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`). Die Dateien in `testdata/hard` stammen vom alten Generator (bis Commit `def8c05`, z. B. `generate -n 5 -seed 29` → `n05_s029.txt`); mit dem neuen Generator ergeben dieselben Seeds andere Puzzles. Die Dateien gelten als feste Testdaten. Ausnahme: die `n14_*` stammen von Commit `48ea102` (`generate -n 14 -seed 2` usw., `MinRegionSize` 2, Versuche noch nacheinander).
 
 ## Nächste Schritte
 
@@ -71,6 +71,13 @@ Alle 35 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
+
+- ~~**Generator: Versuche parallel**~~ umgesetzt: `Options.Workers` (Standard 4, höchstens GOMAXPROCS) Versuche laufen gleichzeitig, begrenzt über einen gepufferten Kanal. Jeder Versuch zieht der Reihe nach einen eigenen Zufallsgenerator aus `rng`; es gewinnt der erfolgreiche Versuch mit dem **kleinsten Index**, spätere werden nicht mehr gestartet bzw. brechen in der Reparatur ab. Das Ergebnis hängt also nur vom Seed ab, nicht von der Zahl der Worker (`TestWorkersSameResult`); gegenüber vorher ergeben aber alle Seeds andere Puzzles.
+   - Folge der Reproduzierbarkeit: Gelingt Versuch 0 (die Mehrheit), muss trotzdem auf ihn gewartet werden; Gewinn gibt es nur, wenn er scheitert. Dann laufen die nächsten Versuche schon parallel.
+   - Messung (Wandzeit pro Puzzle, Puzzles nacheinander, Seeds 1000 ff., 3:40 min), 1 Worker → 4 Worker, Summe über alle Puzzles: N = 12 (30 Puzzles, Versuch 0 scheitert bei 8) 1,12×; N = 13 (20, 5) 1,10×; N = 14 (17, 7) 1,32×, Maximum 17,7 → 10,9 s; N = 15 (4, 1) 1,23×. Nur die Puzzles mit gescheitertem Versuch 0: 1,3× bis 1,5× (N = 15: 1,9×, ein Puzzle).
+   - 16 Worker sind schlechter als 4 (N = 12 bis 14: 1,02× / 0,99× / 1,27×): Die zusätzlichen Versuche bremsen Versuch 0 um ca. 14 % (bei 4 Workern ca. 3 %), und mehr als 4 Versuche braucht kaum ein Puzzle.
+   - Nebenbefund: Die Zeiten der Messung zur Mindestgröße (unten) liefen mit 14 Puzzles gleichzeitig und sind dadurch zu hoch; allein dauert N = 15 im Median ca. 5 s statt 22 s.
+   - Offen: Ein gescheiterter Versuch läuft bis zum Abbruch nach 6·N Reparaturschritten und blockiert so den Gewinner dahinter. Früher abbrechen (z. B. wenn die Zahl der Alternativen nicht sinkt) würde gerade diese Fälle beschleunigen.
 
 - ~~**Mindestgröße 2 für Regionen ab N = 10**~~ umgesetzt: `generator.DefaultMinRegionSize(n)`, verwendet von `generate` (überschreibbar mit `-min-region K`) und `serve`. Gleiche Seeds ergeben ab N = 10 also andere Puzzles als vorher. Messung mit je 50 Puzzles für N = 12 bis 15, Mindestgröße 1 → 2:
    - **Erzeugen:** Kaum mehr verworfene Layouts (Median 1 bis 2 Versuche, max. 5), aber die Reparatur dauert länger: Median 0,07 → 0,13 s (N = 12), 0,23 → 0,56 s (13), 1,1 → 2,8 s (14), 10 → 22 s (15); 90 %-Quantil bei N = 15 41 → 100 s. N = 15 ist also für `serve` zu langsam, egal mit welcher Mindestgröße.

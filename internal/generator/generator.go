@@ -4,7 +4,10 @@ package generator
 import (
 	"errors"
 	"math/rand/v2"
+	"runtime"
 	"slices"
+	"sync"
+	"sync/atomic"
 
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/puzzle"
@@ -13,7 +16,8 @@ import (
 // Options tune the generator.
 type Options struct {
 	// Accept is an optional extra filter (e.g. "solvable by logic alone"). Puzzles
-	// for which it returns false are discarded.
+	// for which it returns false are discarded. It is called from several
+	// goroutines at once unless Workers is 1.
 	Accept func(p *puzzle.Puzzle, solution []int) bool
 	// MaxAttempts bounds the number of fresh layouts tried (default 1000).
 	MaxAttempts int
@@ -23,6 +27,12 @@ type Options struct {
 	// MinRegionSize rejects puzzles with a smaller region, and repair moves never
 	// shrink a region below it (default 1, i.e. no limit).
 	MinRegionSize int
+	// Workers is how many attempts run at the same time (default 4, at most
+	// GOMAXPROCS). It does not change the result, only how soon it is found.
+	// Only a failed attempt is worth overlapping, and with N = 12 to 14 at
+	// most every third first attempt fails; more workers mostly slow the
+	// first attempt down by competing for the CPU.
+	Workers int
 }
 
 // DefaultMinRegionSize is the MinRegionSize the CLI and the web server use for
@@ -59,16 +69,55 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 		k = 8
 	}
 	minSize := max(o.MinRegionSize, 1)
-	for range attempts {
-		sol := randomSolution(n, rng)
-		p := growRegions(n, sol, rng)
-		if !makeUnique(p, sol, rng, k, minSize) || smallestRegion(p) < minSize {
-			continue
+	workers := o.Workers
+	if workers <= 0 {
+		workers = min(4, runtime.GOMAXPROCS(0))
+	}
+
+	// Attempt i draws its own generator from rng, in order, and the successful
+	// attempt with the lowest index wins. So the result depends only on rng,
+	// not on the number of workers or on scheduling. Once attempt i has
+	// succeeded, attempts after i are not started and running ones give up.
+	type result struct {
+		p   *puzzle.Puzzle
+		sol []int
+	}
+	results := make([]result, attempts)
+	var best atomic.Int64 // lowest successful index so far
+	best.Store(int64(attempts))
+	slots := make(chan struct{}, workers) // at most workers attempts at a time
+	var wg sync.WaitGroup
+	for i := range attempts {
+		slots <- struct{}{}
+		if int64(i) > best.Load() {
+			<-slots
+			break
 		}
-		if o.Accept != nil && !o.Accept(p, sol) {
-			continue
-		}
-		return p, sol, nil
+		arng := rand.New(rand.NewPCG(rng.Uint64(), rng.Uint64()))
+		wg.Add(1)
+		go func() {
+			defer func() { <-slots; wg.Done() }()
+			stop := func() bool { return int64(i) > best.Load() }
+			sol := randomSolution(n, arng)
+			p := growRegions(n, sol, arng)
+			if !makeUnique(p, sol, arng, k, minSize, stop) || smallestRegion(p) < minSize {
+				return
+			}
+			if o.Accept != nil && !o.Accept(p, sol) {
+				return
+			}
+			results[i] = result{p, sol}
+			for {
+				b := best.Load()
+				if int64(i) >= b || best.CompareAndSwap(b, int64(i)) {
+					break
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if b := best.Load(); b < int64(attempts) {
+		return results[b].p, results[b].sol, nil
 	}
 	return nil, nil, errors.New("no puzzle found within attempt limit")
 }
@@ -147,10 +196,14 @@ func growRegions(n int, sol []int, rng *rand.Rand) *puzzle.Puzzle {
 
 // makeUnique repairs the layout until sol is its only solution. Each step looks
 // at up to k alternative solutions and moves one piece of a region into a
-// neighboring region (see bestMove). Returns false if it gives up.
-func makeUnique(p *puzzle.Puzzle, sol []int, rng *rand.Rand, k, minSize int) bool {
+// neighboring region (see bestMove). Returns false if it gives up, or as soon
+// as stop (if not nil) returns true.
+func makeUnique(p *puzzle.Puzzle, sol []int, rng *rand.Rand, k, minSize int, stop func() bool) bool {
 	var removed [][]int // alternatives destroyed so far; moves that revive them are penalized
 	for range 6 * p.N { // successful repairs need well under 6n steps; failing ones would loop
+		if stop != nil && stop() {
+			return false
+		}
 		var alts [][]int
 		for _, s := range bruteforce.Solve(p, k+1) {
 			if !equal(s, sol) {
