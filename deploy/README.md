@@ -49,7 +49,11 @@ sudo rm /usr/local/bin/starbattle /etc/systemd/system/starbattle.service   # uni
   the system and at `Nice=5`, so the Pi stays responsive while a puzzle is
   generated.
 - Generating 13×13 and 14×14 puzzles takes a few seconds on a desktop CPU
-  (worst case ~10 s); expect several times that on a Pi.
+  (worst case ~10 s); expect several times that on a Pi. So the server keeps
+  one puzzle of every size ready and generates the next one in the background
+  (`journalctl` shows "14×14 bereit …"). Only someone asking for the same size
+  again before that is done, or right after a restart, has to wait.
+  `STARBATTLE_OPTS=-no-pregen` turns this off.
 - There is no login and no HTTPS. Fine for the home network; to expose it to
   the internet, put a reverse proxy with TLS in front (e.g. Caddy:
   `caddy reverse-proxy --from puzzles.example.org --to localhost:8080`) and

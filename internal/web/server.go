@@ -29,10 +29,13 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 // via the page's local storage, the progress):
 //
 //	/?n=8&seed=42   generated puzzle (same seeding as `starbattle generate`)
-//	/?n=8           new random seed, redirects to the URL above
+//	/?n=8           new seed, redirects to the URL above
 //	/play?p=AAB...  pasted puzzle in the text format (rows separated by
 //	                newlines, '/' or ',')
-func Handler(solve SolveFunc) http.Handler {
+//
+// With a pool (may be nil), /?n=8 hands out the seed of the puzzle the pool
+// has ready, so the page appears without waiting for the generator.
+func Handler(solve SolveFunc, pool *Pool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -47,7 +50,10 @@ func Handler(solve SolveFunc) http.Handler {
 		}
 		seedStr := q.Get("seed")
 		if seedStr == "" {
-			seed := rand.IntN(999_999) + 1 // short enough for the title; never 0 (the CLI's "time based")
+			seed, ok := pool.Take(n)
+			if !ok {
+				seed = newSeed()
+			}
 			http.Redirect(w, r, fmt.Sprintf("/?n=%d&seed=%d", n, seed), http.StatusFound)
 			return
 		}
@@ -56,12 +62,17 @@ func Handler(solve SolveFunc) http.Handler {
 			http.Error(w, "ungültiger Seed", http.StatusBadRequest)
 			return
 		}
-		p, sol, err := generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n)})
+		title := fmt.Sprintf("Star Battle %d×%d · Nr. %d", n, n, seed)
+		if e := pool.Lookup(n, seed); e != nil {
+			write(w, title, e.p, e.sol, e.res)
+			return
+		}
+		p, sol, err := generate(n, seed)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		page(w, solve, fmt.Sprintf("Star Battle %d×%d · Nr. %d", n, n, seed), p, sol)
+		page(w, solve, title, p, sol)
 	})
 	mux.HandleFunc("GET /play", func(w http.ResponseWriter, r *http.Request) {
 		text := r.URL.Query().Get("p")
@@ -88,13 +99,27 @@ func Handler(solve SolveFunc) http.Handler {
 	return mux
 }
 
-// page solves p and writes the page, marked as served so it shows the forms.
+// newSeed returns a random seed, short enough for the title and never 0 (the
+// CLI's "time based").
+func newSeed() uint64 { return uint64(rand.IntN(999_999) + 1) }
+
+// generate gives the puzzle of /?n=n&seed=seed (same as `starbattle generate`).
+func generate(n int, seed uint64) (*puzzle.Puzzle, []int, error) {
+	return generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n)})
+}
+
+// page solves p and writes the page.
 func page(w http.ResponseWriter, solve SolveFunc, title string, p *puzzle.Puzzle, sol []int) {
 	res, err := solve(p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	write(w, title, p, sol, res)
+}
+
+// write writes the page for a solved puzzle, marked as served so it shows the forms.
+func write(w http.ResponseWriter, title string, p *puzzle.Puzzle, sol []int, res solver.Result) {
 	d := Build(title, p, sol, res)
 	d.Served = true
 	d.Text = p.String()

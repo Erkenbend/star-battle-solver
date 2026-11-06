@@ -6,7 +6,7 @@
 //	                 [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
 //	                 [-step] [-verbose] [-nocolor] [p.txt]
 //	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
-//	starbattle serve [-addr localhost:8080] [solver flags]   generate and solve in the browser
+//	starbattle serve [-addr localhost:8080] [-no-pregen] [solver flags]   generate and solve in the browser
 package main
 
 import (
@@ -64,7 +64,7 @@ func usage() {
                    [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
                    [-step] [-verbose] [-nocolor] [file]
   starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
-  starbattle serve [-addr localhost:8080] [solver flags as for solve]`)
+  starbattle serve [-addr localhost:8080] [-no-pregen] [solver flags as for solve]`)
 	os.Exit(2)
 }
 
@@ -254,15 +254,25 @@ func cmdHTML(args []string) error {
 }
 
 // cmdServe serves the interactive page with forms to generate a new puzzle or
-// paste one; each puzzle is solved on request.
+// paste one; each puzzle is solved on request. Unless -no-pregen is given, one
+// puzzle of every size is generated ahead in the background.
 func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "localhost:8080", "listen address")
+	noPregen := fs.Bool("no-pregen", false, "do not keep a generated puzzle of every size ready")
 	solve := solverFlags(fs, "sync") // sync: reproducible explanations, as for html
 	fs.Parse(args)
 
+	var pool *web.Pool
+	if !*noPregen {
+		var sizes []int
+		for n := web.MinN; n <= web.MaxN; n++ {
+			sizes = append(sizes, n)
+		}
+		pool = web.NewPool(solve, sizes)
+	}
 	fmt.Fprintf(os.Stderr, "Star Battle auf http://%s/\n", *addr)
-	return http.ListenAndServe(*addr, web.Handler(solve))
+	return http.ListenAndServe(*addr, web.Handler(solve, pool))
 }
 
 // describeMarks lists the crosses of one step. Steps that place a star name it

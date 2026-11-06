@@ -2,12 +2,15 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
@@ -41,7 +44,7 @@ func pageData(t *testing.T, body string) Data {
 }
 
 func TestServer(t *testing.T) {
-	h := Handler(testSolve)
+	h := Handler(testSolve, nil)
 
 	// Without a seed: redirect to a stable URL with a fresh seed.
 	rec := get(h, "/?n=6")
@@ -90,5 +93,64 @@ func TestServer(t *testing.T) {
 		if rec := get(h, bad); rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: status %d, want 400", bad, rec.Code)
 		}
+	}
+}
+
+// waitReady waits until the pool has an n×n puzzle ready.
+func waitReady(t *testing.T, pl *Pool, n int) {
+	t.Helper()
+	for range 500 {
+		pl.mu.Lock()
+		ok := pl.ready[n] != nil
+		pl.mu.Unlock()
+		if ok {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("no %d×%d puzzle ready", n, n)
+}
+
+func TestPool(t *testing.T) {
+	var onRequest atomic.Int32 // solver calls by the handler itself
+	pl := NewPool(testSolve, []int{5, 6})
+	h := Handler(func(p *puzzle.Puzzle) (solver.Result, error) {
+		onRequest.Add(1)
+		return testSolve(p)
+	}, pl)
+	plain := Handler(testSolve, nil)
+
+	for _, n := range []int{5, 6} {
+		waitReady(t, pl, n)
+		pl.mu.Lock()
+		want := pl.ready[n].seed
+		pl.mu.Unlock()
+
+		// "New puzzle" hands out the ready one's seed ...
+		loc := get(h, fmt.Sprintf("/?n=%d", n)).Header().Get("Location")
+		if loc != fmt.Sprintf("/?n=%d&seed=%d", n, want) {
+			t.Fatalf("n=%d: redirect to %q, want seed %d", n, loc, want)
+		}
+		// ... and its page comes from the pool, without solving on request,
+		// identical to the page the seed gives without a pool.
+		got := pageData(t, get(h, loc).Body.String())
+		if c := onRequest.Load(); c != 0 {
+			t.Fatalf("n=%d: handler solved %d times", n, c)
+		}
+		ref := pageData(t, get(plain, loc).Body.String())
+		if got.Text != ref.Text || got.Title != ref.Title || len(got.Steps) != len(ref.Steps) || !got.Served {
+			t.Fatalf("n=%d: pooled page differs from generated one:\n%s\n%s", n, got.Text, ref.Text)
+		}
+
+		// The size is refilled.
+		waitReady(t, pl, n)
+	}
+
+	// Sizes outside the pool and other seeds are generated on request.
+	if rec := get(h, "/?n=7&seed=3"); rec.Code != http.StatusOK || onRequest.Load() != 1 {
+		t.Fatalf("unpooled: %d, %d solver calls", rec.Code, onRequest.Load())
+	}
+	if loc := get(h, "/?n=7").Header().Get("Location"); !strings.HasPrefix(loc, "/?n=7&seed=") {
+		t.Fatalf("unpooled size: %q", loc)
 	}
 }
