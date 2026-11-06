@@ -6,7 +6,7 @@
 //	                 [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
 //	                 [-step] [-verbose] [-nocolor] [p.txt]
 //	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
-//	starbattle serve [-addr localhost:8080] [-no-pregen] [solver flags]   generate and solve in the browser
+//	starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags]   generate and solve in the browser
 package main
 
 import (
@@ -64,7 +64,7 @@ func usage() {
                    [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
                    [-step] [-verbose] [-nocolor] [file]
   starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
-  starbattle serve [-addr localhost:8080] [-no-pregen] [solver flags as for solve]`)
+  starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]`)
 	os.Exit(2)
 }
 
@@ -258,7 +258,7 @@ func cmdHTML(args []string) error {
 // puzzle of every size is generated ahead in the background.
 func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	addr := fs.String("addr", "localhost:8080", "listen address")
+	addr := fs.String("addr", "localhost:6369", "listen address")
 	noPregen := fs.Bool("no-pregen", false, "do not keep a generated puzzle of every size ready")
 	solve := solverFlags(fs, "sync") // sync: reproducible explanations, as for html
 	fs.Parse(args)

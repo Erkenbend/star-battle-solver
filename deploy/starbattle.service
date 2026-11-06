@@ -2,7 +2,7 @@
 # /etc/systemd/system/starbattle.service. Address and solver options can be
 # changed in /etc/default/starbattle, e.g.
 #
-#   STARBATTLE_ADDR=:8080
+#   STARBATTLE_ADDR=:6369
 #   STARBATTLE_OPTS=-search lookahead
 [Unit]
 Description=Star Battle puzzle server
@@ -10,7 +10,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Environment=STARBATTLE_ADDR=:8080
+Environment=STARBATTLE_ADDR=:6369
 EnvironmentFile=-/etc/default/starbattle
 ExecStart=/usr/local/bin/starbattle serve -addr ${STARBATTLE_ADDR} $STARBATTLE_OPTS
 Restart=on-failure

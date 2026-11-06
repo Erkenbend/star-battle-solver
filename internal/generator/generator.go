@@ -27,8 +27,10 @@ type Options struct {
 	// MinRegionSize rejects puzzles with a smaller region, and repair moves never
 	// shrink a region below it (default 1, i.e. no limit).
 	MinRegionSize int
-	// Workers is how many attempts run at the same time (default 4, at most
-	// GOMAXPROCS). It does not change the result, only how soon it is found.
+	// Workers is how many attempts of this call run at the same time (default
+	// 4, at most one less than the available cores). It does not change the
+	// result, only how soon it is found. All calls together are also limited
+	// to one less than the available cores, see cpuSlots.
 	// Only a failed attempt is worth overlapping, and with N = 12 to 14 at
 	// most every third first attempt fails; more workers mostly slow the
 	// first attempt down by competing for the CPU.
@@ -45,6 +47,12 @@ func DefaultMinRegionSize(n int) int {
 	}
 	return 1
 }
+
+// cpuSlots limits the attempts running at once across all Generate calls of
+// the process (e.g. serve's background pool and a request) to one less than
+// the available cores, so generating always leaves a core free when there is
+// more than one. An attempt runs on a single goroutine.
+var cpuSlots = make(chan struct{}, max(1, runtime.GOMAXPROCS(0)-1))
 
 var orth = [4]puzzle.Pos{{Row: -1, Col: 0}, {Row: 1, Col: 0}, {Row: 0, Col: -1}, {Row: 0, Col: 1}}
 
@@ -71,7 +79,7 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 	minSize := max(o.MinRegionSize, 1)
 	workers := o.Workers
 	if workers <= 0 {
-		workers = min(4, runtime.GOMAXPROCS(0))
+		workers = min(4, cap(cpuSlots))
 	}
 
 	// Attempt i draws its own generator from rng, in order, and the successful
@@ -89,14 +97,16 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 	var wg sync.WaitGroup
 	for i := range attempts {
 		slots <- struct{}{}
+		cpuSlots <- struct{}{}
 		if int64(i) > best.Load() {
+			<-cpuSlots
 			<-slots
 			break
 		}
 		arng := rand.New(rand.NewPCG(rng.Uint64(), rng.Uint64()))
 		wg.Add(1)
 		go func() {
-			defer func() { <-slots; wg.Done() }()
+			defer func() { <-cpuSlots; <-slots; wg.Done() }()
 			stop := func() bool { return int64(i) > best.Load() }
 			sol := randomSolution(n, arng)
 			p := growRegions(n, sol, arng)

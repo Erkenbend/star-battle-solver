@@ -44,4 +44,4 @@ ssh -t "$host" "
 
 addr=$(ssh "$host" "sed -n 's/^STARBATTLE_ADDR=//p' /etc/default/starbattle 2>/dev/null" || true)
 port=${addr##*:}
-echo "running on http://${host#*@}:${port:-8080}/"
+echo "running on http://${host#*@}:${port:-6369}/"

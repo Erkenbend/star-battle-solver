@@ -21,14 +21,14 @@ The script asks the Pi for its CPU (`uname -m`: 64-bit `aarch64`, 32-bit
 `/usr/local/bin/starbattle` and `/etc/systemd/system/starbattle.service`, and
 (re)starts the service. Run it again after every change.
 
-The page is then at `http://raspberrypi.local:8080/`.
+The page is then at `http://raspberrypi.local:6369/`.
 
 ## Configuration
 
 Optional `/etc/default/starbattle` on the Pi:
 
 ```sh
-STARBATTLE_ADDR=:8080            # listen address; :80 works too
+STARBATTLE_ADDR=:6369            # listen address; :80 works too
 STARBATTLE_OPTS=-search lookahead   # any solver flags of `starbattle serve`
 ```
 
@@ -56,5 +56,5 @@ sudo rm /usr/local/bin/starbattle /etc/systemd/system/starbattle.service   # uni
   `STARBATTLE_OPTS=-no-pregen` turns this off.
 - There is no login and no HTTPS. Fine for the home network; to expose it to
   the internet, put a reverse proxy with TLS in front (e.g. Caddy:
-  `caddy reverse-proxy --from puzzles.example.org --to localhost:8080`) and
-  change `STARBATTLE_ADDR` to `localhost:8080`.
+  `caddy reverse-proxy --from puzzles.example.org --to localhost:6369`) and
+  change `STARBATTLE_ADDR` to `localhost:6369`.

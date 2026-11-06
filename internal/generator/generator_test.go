@@ -2,7 +2,11 @@ package generator
 
 import (
 	"math/rand/v2"
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
@@ -68,6 +72,44 @@ func TestWorkersSameResult(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestCPUSlots: concurrent Generate calls together never run more attempts at
+// once than one less than the available cores.
+func TestCPUSlots(t *testing.T) {
+	if want := max(1, runtime.GOMAXPROCS(0)-1); cap(cpuSlots) != want {
+		t.Fatalf("cpuSlots: %d, want %d", cap(cpuSlots), want)
+	}
+	var running, peak, calls atomic.Int32
+	accept := func(*puzzle.Puzzle, []int) bool { // runs inside an attempt
+		r := running.Add(1)
+		for {
+			p := peak.Load()
+			if r <= p || peak.CompareAndSwap(p, r) {
+				break
+			}
+		}
+		time.Sleep(2 * time.Millisecond)
+		running.Add(-1)
+		return calls.Add(1)%10 == 0 // reject most, so many attempts overlap
+	}
+	var wg sync.WaitGroup
+	for g := range 6 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for seed := range uint64(5) {
+				if _, _, err := Generate(6, rand.New(rand.NewPCG(seed, uint64(g))), Options{Workers: 16, Accept: accept}); err != nil {
+					t.Error(err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if p := int(peak.Load()); p > cap(cpuSlots) {
+		t.Fatalf("%d attempts at once, limit %d", p, cap(cpuSlots))
+	}
+	t.Logf("peak %d attempts at once, limit %d", peak.Load(), cap(cpuSlots))
 }
 
 // TestRepairMoves: on fresh layouts a repair move always exists and keeps the
