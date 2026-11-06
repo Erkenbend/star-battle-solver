@@ -400,14 +400,13 @@ function boot() {
   if (saved && typeof saved.auto === "boolean") $("autocross").checked = saved.auto;
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
-  let pendingHint = null;
+  const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
 
   function setMarks(next) {
     undoStack.push(marks);
     redoStack.length = 0;
     marks = next;
     overlay = null;
-    pendingHint = null;
     renderPlay();
   }
 
@@ -430,6 +429,7 @@ function boot() {
     list.replaceChildren(...probs.map((p) => elr("li", "", p.msg)));
     $("undo").disabled = undoStack.length === 0;
     $("redo").disabled = redoStack.length === 0;
+    $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
     if (L.solved(d, eff.cells)) banner("Gelöst! Alle Sterne sitzen richtig.", "good");
     else banner(null);
     save({ marks: [...marks], auto: $("autocross").checked });
@@ -437,6 +437,15 @@ function boot() {
 
   function message(...nodes) {
     $("play-msg").replaceChildren(...nodes);
+  }
+
+  // The hint button toggles: a second click hides the hint again.
+  function toggleHint() {
+    if (overlay && overlay.hint) {
+      overlay = null;
+      message(...intro.map((x) => x.cloneNode(true)));
+      renderPlay();
+    } else showHint();
   }
 
   function showHint() {
@@ -458,7 +467,6 @@ function boot() {
     }
     const step = d.steps[h.step];
     const refs = L.refs(d, step.reason);
-    pendingHint = h;
     overlay = { hint: new Set(h.marks.map(([r, c]) => L.idx(d, r, c))), ref: refs.units, refcell: refs.cells };
     const head = el("p", "");
     head.append(chip(step), " ", el("span", "muted", `Schritt ${h.step + 1} des Lösungswegs`));
@@ -522,7 +530,6 @@ function boot() {
       drag.moved = true;
       marks = Uint8Array.from(marks);
       overlay = null;
-      pendingHint = null;
     }
     L.paint(marks, L.line(d, drag.last, i), drag.erase);
     drag.last = i;
@@ -567,7 +574,7 @@ function boot() {
   $("reset").onclick = () => {
     if (marks.some((v) => v !== L.FREE)) setMarks(new Uint8Array(n * n));
   };
-  $("hint").onclick = showHint;
+  $("hint").onclick = toggleHint;
   $("check").onclick = checkMistakes;
   $("autocross").onchange = () => renderPlay();
 
