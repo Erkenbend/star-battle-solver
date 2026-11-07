@@ -1141,6 +1141,10 @@ function boot() {
   }
 
   // ---------- served by `starbattle serve`: new and pasted puzzles ----------
+  if (d.served) {
+    $("site-nav").hidden = false;
+    $(party ? "nav-party" : "nav-solo").setAttribute("aria-current", "page");
+  }
   if (d.served && !party) {
     const sizes = $("newgame-n");
     for (let k = 4; k <= 14; k++) {
