@@ -436,6 +436,7 @@ function boot() {
   const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
 
   function setMarks(next) {
+    if (done) return; // solved puzzles are frozen
     undoStack.push(marks);
     redoStack.length = 0;
     marks = next;
@@ -460,8 +461,14 @@ function boot() {
 
     const list = $("problems");
     list.replaceChildren(...probs.map((p) => elr("li", "", p.msg)));
-    $("undo").disabled = undoStack.length === 0;
-    $("redo").disabled = redoStack.length === 0;
+    // Once solved, the puzzle is frozen until "Neu beginnen": the board
+    // ignores input and scrolls on touch like the rest of the page.
+    const frozen = done || L.solved(d, eff.cells);
+    document.body.classList.toggle("frozen", frozen);
+    $("undo").disabled = frozen || undoStack.length === 0;
+    $("redo").disabled = frozen || redoStack.length === 0;
+    $("hint").disabled = frozen;
+    $("check").disabled = frozen;
     $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
     if (L.solved(d, eff.cells)) {
       if (!done) { clockRun(false); done = true; }
@@ -638,7 +645,7 @@ function boot() {
   };
   boardEl.addEventListener("pointerdown", (ev) => {
     const c = ev.target.closest(".cell");
-    if (!c || mode !== "play" || ev.button !== 0) return;
+    if (!c || mode !== "play" || done || ev.button !== 0) return;
     ev.preventDefault();
     const i = +c.dataset.i;
     drag = {
@@ -682,19 +689,19 @@ function boot() {
   document.addEventListener("pointercancel", endDrag);
   boardEl.addEventListener("contextmenu", (ev) => {
     const c = ev.target.closest(".cell");
-    if (!c || mode !== "play") return;
+    if (!c || mode !== "play" || done) return;
     ev.preventDefault();
     clickCell(+c.dataset.i, true);
   });
   $("undo").onclick = () => {
-    if (!undoStack.length) return;
+    if (done || !undoStack.length) return;
     redoStack.push(marks);
     marks = undoStack.pop();
     overlay = null;
     renderPlay();
   };
   $("redo").onclick = () => {
-    if (!redoStack.length) return;
+    if (done || !redoStack.length) return;
     undoStack.push(marks);
     marks = redoStack.pop();
     overlay = null;
