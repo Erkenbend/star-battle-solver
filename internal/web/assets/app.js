@@ -536,12 +536,7 @@ function boot() {
     const eff = L.effective(d, marks, $("autocross").checked);
     const wrong = L.mistakes(d, eff.cells);
     if (wrong.length) {
-      const show = el("button", "", "Fehler zeigen");
-      show.onclick = () => { overlay = { bad: new Set(wrong) }; renderPlay(); };
-      const p = el("p", "", wrong.length === 1 ? "Ein Feld passt nicht zur Lösung. Erst das korrigieren, dann gibt es den nächsten Hinweis." : `${wrong.length} Felder passen nicht zur Lösung. Erst das korrigieren, dann gibt es den nächsten Hinweis.`);
-      const a = el("div", "actions");
-      a.append(show);
-      message(p, a);
+      message(el("p", "", "Etwas passt nicht zur Lösung. Erst das korrigieren, dann gibt es den nächsten Hinweis."), showMistakesButton());
       return;
     }
     const h = L.nextHint(d, eff.cells);
@@ -579,15 +574,44 @@ function boot() {
     renderPlay();
   }
 
+  // Checking is free and only says whether the marks so far agree with the
+  // solution. Showing where they don't costs one hint per wrongly set field
+  // (auto-crosses next to a wrong star are shown for free); fields already
+  // paid for in their current state are not charged again.
+  const paid = new Set(); // "i:mark" of wrong fields already shown
   function checkMistakes() {
     if (!d.solution) {
       message(el("p", "", "Für dieses Puzzle ist keine eindeutige Lösung bekannt."));
       return;
     }
+    overlay = null;
+    const eff = L.effective(d, marks, $("autocross").checked);
+    if (!L.mistakes(d, eff.cells).length) message(el("p", "", L.solved(d, eff.cells) ? "Gelöst." : "Bisher alles richtig."));
+    else message(el("p", "", "Da stimmt etwas nicht: mindestens ein Feld passt nicht zur Lösung."), showMistakesButton());
+    renderPlay();
+  }
+
+  function showMistakesButton() {
+    const b = el("button", "", "Fehler zeigen");
+    b.title = "Kostet einen Hinweis pro falsch gesetztem Feld";
+    b.onclick = showMistakes;
+    const a = el("div", "actions");
+    a.append(b, " ", el("span", "muted", "kostet 1 Hinweis pro falschem Feld"));
+    return a;
+  }
+
+  function showMistakes() {
     const eff = L.effective(d, marks, $("autocross").checked);
     const wrong = L.mistakes(d, eff.cells);
+    let cost = 0;
+    for (const i of L.mistakes(d, marks)) {
+      const k = i + ":" + marks[i];
+      if (!paid.has(k)) { paid.add(k); cost++; }
+    }
+    if (!done) hintCount += cost;
     overlay = { bad: new Set(wrong) };
-    message(el("p", "", wrong.length ? `${wrong.length === 1 ? "Ein Feld ist" : wrong.length + " Felder sind"} falsch (rot markiert).` : "Bisher alles richtig."));
+    const what = `${wrong.length === 1 ? "Ein Feld ist" : wrong.length + " Felder sind"} falsch (rot markiert).`;
+    message(el("p", "", cost ? `${what} ${cost === 1 ? "1 Hinweis" : cost + " Hinweise"} angerechnet.` : what));
     renderPlay();
   }
 
@@ -679,6 +703,7 @@ function boot() {
   $("reset").onclick = () => {
     elapsed = 0;
     hintCount = 0;
+    paid.clear();
     done = false;
     runningSince = null;
     clockRun(!document.hidden);
