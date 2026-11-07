@@ -213,29 +213,15 @@ const Logic = (() => {
     return out;
   }
 
-  // Fat-finger guard for touch drags: snaps the finger's offset (dx, dy in
-  // pixels, from where it pressed cell start) to the nearest straight line —
-  // row, column or diagonal — and returns the cell that line reaches. Axis
-  // lines win unless the drag is clearly diagonal (minor/major ≥ 0.5, i.e.
-  // steeper than ~27°), since wobbling sideways is the typical slip.
+  // Fat-finger guard: snaps the drag offset (dx, dy in pixels, from where
+  // the press on cell start began) to the start cell's row or column,
+  // whichever the drag mostly follows, and returns the cell reached there
+  // (clipped to the board). Wobbling sideways never leaves the line.
   function snapTarget(d, start, dx, dy, cell) {
-    const r0 = Math.floor(start / d.n), c0 = start % d.n;
-    const ax = Math.abs(dx), ay = Math.abs(dy);
-    let dr = 0, dc = 0;
-    if (Math.min(ax, ay) < 0.5 * Math.max(ax, ay)) {
-      if (ax >= ay) dc = Math.round(dx / cell);
-      else dr = Math.round(dy / cell);
-    } else {
-      const k = Math.round((ax + ay) / 2 / cell);
-      dr = Math.sign(dy) * k;
-      dc = Math.sign(dx) * k;
-    }
-    // Stay on the board, shortening the line rather than bending it.
-    const lim = (v, at) => (v < 0 ? Math.max(v, -at) : Math.min(v, d.n - 1 - at));
-    let k = Math.max(Math.abs(dr), Math.abs(dc));
-    if (dr) k = Math.min(k, Math.abs(lim(dr, r0)));
-    if (dc) k = Math.min(k, Math.abs(lim(dc, c0)));
-    return idx(d, r0 + Math.sign(dr) * k, c0 + Math.sign(dc) * k);
+    const r = Math.floor(start / d.n), c = start % d.n;
+    const clip = (v) => Math.max(0, Math.min(d.n - 1, v));
+    if (Math.abs(dx) >= Math.abs(dy)) return idx(d, r, clip(c + Math.round(dx / cell)));
+    return idx(d, clip(r + Math.round(dy / cell)), c);
   }
 
   // Drag painting: crosses on free cells, or (erase) free on crossed cells.
@@ -608,8 +594,18 @@ function boot() {
   // Pointer input: a press without moving to another cell is a click (cycle
   // free → cross → star). Moving on paints crosses over every cell passed, or
   // removes them if the press started on a cross. One drag is one undo step.
-  // Touch and pen drags draw one straight line from the start cell instead,
-  // redrawn as the finger moves, so a slipping finger cannot hit neighbours.
+  // With the fat-finger guard on, a drag draws one straight line (row or
+  // column) from the start cell instead, redrawn as the finger moves, so a
+  // slipping finger cannot hit neighbours. The setting is per device; it is
+  // on by default for touch screens.
+  const straightKey = "starbattle.straight";
+  try {
+    const v = localStorage.getItem(straightKey);
+    $("straight").checked = v === null ? !!(window.matchMedia && matchMedia("(pointer: coarse)").matches) : v === "1";
+  } catch { /* private mode etc. */ }
+  $("straight").onchange = () => {
+    try { localStorage.setItem(straightKey, $("straight").checked ? "1" : "0"); } catch { /* ignore */ }
+  };
   let drag = null; // {start, last, erase, before, moved, straight, x, y, cell}
   const cellAt = (ev) => {
     const e = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : ev.target;
@@ -623,7 +619,7 @@ function boot() {
     const i = +c.dataset.i;
     drag = {
       start: i, last: i, erase: marks[i] === L.CROSS, before: marks, moved: false, shift: ev.shiftKey,
-      straight: ev.pointerType !== "mouse", x: ev.clientX, y: ev.clientY, cell: c.getBoundingClientRect().width,
+      straight: $("straight").checked, x: ev.clientX, y: ev.clientY, cell: c.getBoundingClientRect().width,
     };
   });
   document.addEventListener("pointermove", (ev) => {
