@@ -315,10 +315,6 @@ function boot() {
       const reg = d.regions[r][c];
       const e = el("div", "cell");
       regionColor(e, reg);
-      if (r === 0 || d.regions[r - 1][c] !== reg) e.classList.add("bt");
-      if (c === 0 || d.regions[r][c - 1] !== reg) e.classList.add("bl");
-      if (c === n - 1) e.classList.add("br");
-      if (r === n - 1) e.classList.add("bb");
       const sym = el("span", "sym");
       sym.innerHTML = SYM;
       e.append(sym);
@@ -327,6 +323,38 @@ function boot() {
       boardEl.append(e);
       cellEls.push(e);
     }
+  }
+
+  // Grid lines and region walls as one SVG layer over the cells, so every
+  // cell has the same size (borders on the cells made those at walls smaller,
+  // and their stars with them) and walls meet in clean corners: each wall is
+  // one path of maximal straight runs with square caps.
+  {
+    const wall = (r0, c0, r1, c1) => r0 < 0 || c0 < 0 || r1 >= n || c1 >= n || d.regions[r0][c0] !== d.regions[r1][c1];
+    let thin = "", thick = "";
+    for (let k = 0; k <= n; k++) {
+      if (k > 0 && k < n) thin += `M0 ${k}H${n}M${k} 0V${n}`;
+      // Horizontal line k (above row k), then vertical line k (left of column k).
+      for (const horiz of [true, false]) {
+        let from = -1;
+        for (let j = 0; j <= n; j++) {
+          const on = j < n && (horiz ? wall(k - 1, j, k, j) : wall(j, k - 1, j, k));
+          if (on && from < 0) from = j;
+          if (!on && from >= 0) {
+            thick += horiz ? `M${from} ${k}H${j}` : `M${k} ${from}V${j}`;
+            from = -1;
+          }
+        }
+      }
+    }
+    const walls = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    walls.setAttribute("class", "walls");
+    walls.setAttribute("viewBox", `0 0 ${n} ${n}`);
+    walls.setAttribute("preserveAspectRatio", "none");
+    walls.setAttribute("aria-hidden", "true");
+    walls.innerHTML = `<path class="thin" d="${thin}"/><path class="thick" d="${thick}"/>`;
+    walls.style.gridArea = `2 / 2 / ${n + 2} / ${n + 2}`;
+    boardEl.append(walls);
   }
 
   // view: {cells, auto?, marks: {new, hint, bad, refcell, ref} as Sets of indices}

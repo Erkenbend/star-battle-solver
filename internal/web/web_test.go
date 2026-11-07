@@ -97,7 +97,7 @@ func TestWrite(t *testing.T) {
 	if back.Title != d.Title || len(back.Steps) != len(d.Steps) {
 		t.Fatalf("data did not round-trip: %q, %d steps", back.Title, len(back.Steps))
 	}
-	for _, needle := range []string{`id="board"`, "function boot()", ".cell.bt"} {
+	for _, needle := range []string{`id="board"`, "function boot()", ".board .walls"} {
 		if !strings.Contains(page, needle) {
 			t.Errorf("page lacks %q", needle)
 		}
