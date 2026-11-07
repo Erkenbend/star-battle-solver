@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -58,6 +59,7 @@ func (p *Puzzle) Validate() error {
 		return errors.New("empty puzzle")
 	}
 	if p.N > MaxN {
+		//lint:ignore ST1005 N is the grid size
 		return fmt.Errorf("N=%d exceeds maximum %d", p.N, MaxN)
 	}
 	for r, row := range p.Regions {
@@ -74,53 +76,38 @@ func (p *Puzzle) Validate() error {
 		if len(cells) == 0 {
 			return fmt.Errorf("region %c is empty", alphabet[reg])
 		}
-		if !p.connected(reg, cells[0], Pos{-1, -1}) {
+		if !p.connected(reg, cells) {
 			return fmt.Errorf("region %c is not connected", alphabet[reg])
 		}
 	}
 	return nil
 }
 
-// RegionConnectedWithout reports whether region reg stays connected (and non-empty)
-// when cell skip is removed from it.
-func (p *Puzzle) RegionConnectedWithout(reg int, skip Pos) bool {
-	for _, c := range p.RegionCells()[reg] {
-		if c != skip {
-			return p.connected(reg, c, skip)
-		}
-	}
-	return false
-}
-
-func (p *Puzzle) connected(reg int, start, skip Pos) bool {
-	seen := map[Pos]bool{start: true}
-	stack := []Pos{start}
+// connected reports whether the cells of region reg (non-empty) are
+// orthogonally connected.
+func (p *Puzzle) connected(reg int, cells []Pos) bool {
+	seen := map[Pos]bool{cells[0]: true}
+	stack := []Pos{cells[0]}
 	for len(stack) > 0 {
 		cur := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		for _, d := range [4]Pos{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
 			n := Pos{cur.Row + d.Row, cur.Col + d.Col}
-			if n == skip || seen[n] || !p.In(n.Row, n.Col) || p.Regions[n.Row][n.Col] != reg {
+			if seen[n] || !p.In(n.Row, n.Col) || p.Regions[n.Row][n.Col] != reg {
 				continue
 			}
 			seen[n] = true
 			stack = append(stack, n)
 		}
 	}
-	want := 0
-	for _, c := range p.RegionCells()[reg] {
-		if c != skip {
-			want++
-		}
-	}
-	return len(seen) == want
+	return len(seen) == len(cells)
 }
 
 // Clone returns a deep copy.
 func (p *Puzzle) Clone() *Puzzle {
 	regs := make([][]int, p.N)
 	for r := range regs {
-		regs[r] = append([]int(nil), p.Regions[r]...)
+		regs[r] = slices.Clone(p.Regions[r])
 	}
 	return &Puzzle{N: p.N, Regions: regs}
 }

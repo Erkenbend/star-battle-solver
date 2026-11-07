@@ -215,7 +215,7 @@ func makeUnique(p *puzzle.Puzzle, sol []int, rng *rand.Rand, k, minSize int, sto
 		}
 		var alts [][]int
 		for _, s := range bruteforce.Solve(p, k+1) {
-			if !equal(s, sol) {
+			if !slices.Equal(s, sol) {
 				alts = append(alts, s)
 			}
 		}
@@ -429,13 +429,4 @@ func smallestRegion(p *puzzle.Puzzle) int {
 		m = min(m, len(cells))
 	}
 	return m
-}
-
-func equal(a, b []int) bool {
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

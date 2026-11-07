@@ -2,6 +2,7 @@ package observers
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -80,10 +81,4 @@ func cellsAnd(qs []puzzle.Pos) string {
 	return strings.Join(out[:len(out)-1], ", ") + " und " + out[len(out)-1]
 }
 
-func keys(m map[int]bool) []int {
-	out := make([]int, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
-}
+func keys(m map[int]bool) []int { return slices.Collect(maps.Keys(m)) }

@@ -5,6 +5,7 @@ package board
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"starbattle/internal/puzzle"
@@ -82,21 +83,11 @@ func (s *State) Set(r, c int, v Cell) (bool, error) {
 
 // Clone returns an independent copy (the puzzle layout is shared, it is immutable).
 func (s *State) Clone() *State {
-	return &State{P: s.P, cells: append([]Cell(nil), s.cells...)}
+	return &State{P: s.P, cells: slices.Clone(s.cells)}
 }
 
 // Equal reports whether two states have identical cells.
-func (s *State) Equal(o *State) bool {
-	if len(s.cells) != len(o.cells) {
-		return false
-	}
-	for i := range s.cells {
-		if s.cells[i] != o.cells[i] {
-			return false
-		}
-	}
-	return true
-}
+func (s *State) Equal(o *State) bool { return slices.Equal(s.cells, o.cells) }
 
 // Implied returns the cells that must be crosses if a star sits at (r, c): the rest of
 // its row, column and region, plus its 8 neighbors.

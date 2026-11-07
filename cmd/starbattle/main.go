@@ -10,15 +10,19 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"starbattle/internal/board"
@@ -241,16 +245,15 @@ func cmdHTML(args []string) error {
 	}
 	data := web.Build(t, p, sol, res)
 
-	var w io.Writer = os.Stdout
-	if *out != "" {
-		f, err := os.Create(*out)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		w = f
+	if *out == "" {
+		return web.Write(os.Stdout, data)
 	}
-	return web.Write(w, data)
+	f, err := os.Create(*out)
+	if err != nil {
+		return err
+	}
+	// Close reports write errors the OS deferred, so it must not be dropped.
+	return errors.Join(web.Write(f, data), f.Close())
 }
 
 // cmdServe serves the interactive page with forms to generate a new puzzle or
@@ -272,10 +275,29 @@ func cmdServe(args []string) error {
 		}
 		pool = web.NewPool(solve, sizes)
 	}
+	// Ctrl-C or SIGTERM (systemd stop) cancels ctx. Request contexts derive
+	// from it, so open event streams end too and Shutdown does not hang.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	parties := web.NewParties(solve, pool)
-	go parties.Run(5*time.Second, nil)
+	go parties.Run(5*time.Second, ctx.Done())
+	srv := &http.Server{
+		Addr:              *addr,
+		Handler:           web.Handler(solve, pool, parties),
+		ReadHeaderTimeout: 10 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
+	}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.ListenAndServe() }()
 	fmt.Fprintf(os.Stderr, "Star Battle auf http://%s/\n", *addr)
-	return http.ListenAndServe(*addr, web.Handler(solve, pool, parties))
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return srv.Shutdown(shutdownCtx)
 }
 
 // describeMarks lists the crosses of one step. Steps that place a star name it

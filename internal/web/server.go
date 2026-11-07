@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"net/http"
 	"strconv"
@@ -83,6 +84,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *Parties) http.Handler {
 		text = strings.NewReplacer("/", "\n", ",", "\n", ";", "\n").Replace(text)
 		p, err := puzzle.Parse(strings.NewReader(text))
 		if err == nil && (p.N < MinN || p.N > MaxN) {
+			//lint:ignore ST1005 German noun, shown to the user
 			err = fmt.Errorf("Größe %d×%d, erlaubt sind %d bis %d", p.N, p.N, MinN, MaxN)
 		}
 		if err != nil {
@@ -131,12 +133,19 @@ func write(w http.ResponseWriter, title string, p *puzzle.Puzzle, sol []int, res
 }
 
 func writePage(w http.ResponseWriter, d Data) {
+	writeHTML(w, http.StatusOK, func(b io.Writer) error { return Write(b, d) })
+}
+
+// writeHTML renders a page into a buffer first, so a rendering error still
+// gets a proper error response, and sends it with the given status.
+func writeHTML(w http.ResponseWriter, status int, render func(io.Writer) error) {
 	var buf bytes.Buffer
-	if err := Write(&buf, d); err != nil {
+	if err := render(&buf); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
 	buf.WriteTo(w)
 }

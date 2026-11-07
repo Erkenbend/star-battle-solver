@@ -83,15 +83,15 @@ func (pl *Pool) make(n int) (*pooled, error) {
 // Take hands out the seed of the ready n×n puzzle, if there is one, and
 // queues the size for refilling. The puzzle stays available via Lookup.
 func (pl *Pool) Take(n int) (uint64, bool) {
-	e := pl.TakePuzzle(n)
+	e := pl.takePuzzle(n)
 	if e == nil {
 		return 0, false
 	}
 	return e.seed, true
 }
 
-// TakePuzzle is Take returning the whole puzzle, or nil.
-func (pl *Pool) TakePuzzle(n int) *pooled {
+// takePuzzle is Take returning the whole puzzle, or nil.
+func (pl *Pool) takePuzzle(n int) *pooled {
 	if pl == nil {
 		return nil
 	}

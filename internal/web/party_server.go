@@ -1,9 +1,9 @@
 package web
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -156,15 +156,7 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 
 func writeParty(w http.ResponseWriter, status int, d PartyPage) {
 	d.MinN, d.MaxN = MinN, MaxN
-	var buf bytes.Buffer
-	if err := WriteParty(&buf, d); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	buf.WriteTo(w)
+	writeHTML(w, status, func(b io.Writer) error { return WriteParty(b, d) })
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

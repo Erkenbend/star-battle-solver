@@ -1,6 +1,7 @@
 package solver
 
 import (
+	"cmp"
 	"fmt"
 	"runtime"
 	"slices"
@@ -259,7 +260,7 @@ func candidates(s *board.State) []puzzle.Pos {
 			}
 		}
 	}
-	slices.SortStableFunc(cells, func(a, b puzzle.Pos) int { return tight(a) - tight(b) })
+	slices.SortStableFunc(cells, func(a, b puzzle.Pos) int { return cmp.Compare(tight(a), tight(b)) })
 	return cells
 }
 

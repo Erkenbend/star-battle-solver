@@ -3,7 +3,11 @@
 // observer-based solver.
 package bruteforce
 
-import "starbattle/internal/puzzle"
+import (
+	"slices"
+
+	"starbattle/internal/puzzle"
+)
 
 // Solve returns up to limit solutions. Each solution gives the star column per row.
 func Solve(p *puzzle.Puzzle, limit int) [][]int {
@@ -16,7 +20,7 @@ func Solve(p *puzzle.Puzzle, limit int) [][]int {
 	var rec func(r int) bool // returns true when limit reached
 	rec = func(r int) bool {
 		if r == n {
-			out = append(out, append([]int(nil), cols...))
+			out = append(out, slices.Clone(cols))
 			return len(out) >= limit
 		}
 		for c := range n {

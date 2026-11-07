@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -141,7 +142,7 @@ func NewParties(solve SolveFunc, pool *Pool) *Parties {
 		parties: map[string]*Party{},
 		now:     time.Now,
 		prepare: func(n int) (*RoundPuzzle, error) {
-			if e := pool.TakePuzzle(n); e != nil && e.sol != nil {
+			if e := pool.takePuzzle(n); e != nil && e.sol != nil {
 				return &RoundPuzzle{n, e.seed, e.p, e.sol, e.res}, nil
 			}
 			seed := newSeed()
@@ -772,17 +773,14 @@ func (p *Party) ranking() []RankEntry {
 	}
 	order := map[string]int{"solved": 0, "gaveup": 1, "playing": 2, "absent": 3, "left": 4}
 	slices.SortStableFunc(out, func(a, b RankEntry) int {
-		if d := order[a.Status] - order[b.Status]; d != 0 {
+		if d := cmp.Compare(order[a.Status], order[b.Status]); d != 0 {
 			return d
 		}
 		switch a.Status {
 		case "solved":
-			if a.Hints != b.Hints {
-				return a.Hints - b.Hints
-			}
-			return int(a.TimeMs - b.TimeMs)
+			return cmp.Or(cmp.Compare(a.Hints, b.Hints), cmp.Compare(a.TimeMs, b.TimeMs))
 		case "playing":
-			return b.Stars - a.Stars
+			return cmp.Compare(b.Stars, a.Stars)
 		}
 		return 0
 	})

@@ -3,6 +3,7 @@ package generator
 import (
 	"math/rand/v2"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -122,7 +123,7 @@ func TestRepairMoves(t *testing.T) {
 			for range 3 * n {
 				var alts [][]int
 				for _, s := range bruteforce.Solve(p, 9) {
-					if !equal(s, sol) {
+					if !slices.Equal(s, sol) {
 						alts = append(alts, s)
 					}
 				}
