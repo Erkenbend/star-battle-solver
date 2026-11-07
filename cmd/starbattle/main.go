@@ -1,6 +1,6 @@
 // Command starbattle generates and displays 1-star Star Battle puzzles.
 //
-//	starbattle generate -n 8 [-seed 42] [-min-region K] [-show]   > p.txt
+//	starbattle generate -n 8 [-seed 42] [-min-region K] [-show] [-nocolor]   > p.txt
 //	starbattle show [-solution] [-nocolor] [p.txt]   (reads stdin without file)
 //	starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
 //	                 [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
@@ -58,7 +58,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
-  starbattle generate -n N [-seed S] [-min-region K] [-show]
+  starbattle generate -n N [-seed S] [-min-region K] [-show] [-nocolor]
   starbattle show [-solution] [-nocolor] [file]
   starbattle solve [-runner concurrent|sync] [-search full|lookahead|none]
                    [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]

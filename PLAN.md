@@ -26,7 +26,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
 | `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS); `Handler` für `serve`, mit Vorrat (`Pool`) und Party-Modus (`Parties`) |
-| `cmd/starbattle` | `generate [-min-region]`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
+| `cmd/starbattle` | Befehle mit allen Optionen in `README.md`: `generate [-min-region]`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
 | `deploy` | Hosting auf dem Raspberry Pi: `deploy.sh [user@]host` (baut passend zu `uname -m`, installiert als systemd-Dienst), `starbattle.service`, Anleitung in `deploy/README.md` |
 | `testdata/hard` | 45 Puzzles, an denen die Basisregeln scheitern (14 davon brauchen auch mit allen Regeln Lookahead) |
 
@@ -72,6 +72,8 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
+
+- ~~**Aufräumen: README mit CLI-Befehlen**~~ umgesetzt: `README.md` (Puzzle-Format, alle Befehle mit Optionen, Aufbau). Betrieb auf dem Pi weiter in `deploy/README.md`, Hintergrund und Messungen hier.
 
 - ~~**Neue Testdaten, auch für die neuen Regeln schwer**~~: zehn Puzzles in `testdata/hard`, die auch mit allen Regeln Lookahead brauchen. Suche mit dem aktuellen Generator (Standardoptionen wie `generate`), Treffer pro durchsuchte Seeds ab 1:
    - N = 6 bis 9: 0 von je 400. N = 10: 3/400, N = 11: 4/400, N = 12: 3/400, N = 13: 2/250, N = 14: 4/120. Raten war nie nötig.
@@ -146,7 +148,6 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 3. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize` (ab N = 10 Standard 2, siehe „Erledigt“; das verhindert Inseln aus einem Feld, aber nicht aus zwei). Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
 4. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
 5. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-6. **Aufräumen:** README mit CLI-Befehlen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`
