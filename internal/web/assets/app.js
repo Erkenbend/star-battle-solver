@@ -449,7 +449,11 @@ function boot() {
   const saved = load();
   let marks = new Uint8Array(n * n);
   if (saved && Array.isArray(saved.marks) && saved.marks.length === n * n) marks = Uint8Array.from(saved.marks);
+  // Auto-cross: a puzzle with saved progress keeps its own setting; a new one
+  // (e.g. the next party round) starts with the last choice on this device.
+  const autoKey = "starbattle.autocross";
   if (saved && typeof saved.auto === "boolean") $("autocross").checked = saved.auto;
+  else try { $("autocross").checked = localStorage.getItem(autoKey) === "1"; } catch { /* private mode etc. */ }
 
   // Solving time and hints shown, saved with the marks. The clock runs only
   // while the page is visible and stops for good once the puzzle is solved.
@@ -799,7 +803,10 @@ function boot() {
   clockRun(!document.hidden);
   $("hint").onclick = toggleHint;
   $("check").onclick = checkMistakes;
-  $("autocross").onchange = () => renderPlay();
+  $("autocross").onchange = () => {
+    try { localStorage.setItem(autoKey, $("autocross").checked ? "1" : "0"); } catch { /* ignore */ }
+    renderPlay();
+  };
 
   // ---------- watch mode ----------
   const prefix = L.prefixStates(d, d.steps);
