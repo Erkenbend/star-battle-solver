@@ -96,6 +96,18 @@ const Logic = (() => {
     return out;
   }
 
+  // Star column per row (-1 for a row without a star), as the party server
+  // takes a solution.
+  function starColumns(d, cells) {
+    const out = [];
+    for (let r = 0; r < d.n; r++) {
+      let col = -1;
+      for (let c = 0; c < d.n; c++) if (cells[idx(d, r, c)] === STAR) col = c;
+      out.push(col);
+    }
+    return out;
+  }
+
   function solved(d, cells) {
     let stars = 0;
     for (const v of cells) if (v === STAR) stars++;
@@ -235,7 +247,7 @@ const Logic = (() => {
     return changed;
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -424,7 +436,8 @@ function boot() {
   $("summary").textContent = summary;
 
   // ---------- storage (per-viewer convenience only) ----------
-  const key = "starbattle:" + n + ":" + d.regions.map((row) => row.join(",")).join(";");
+  // A party round keeps its own progress, apart from solo play of the puzzle.
+  const key = (d.party ? `starbattle:party:${d.party.code}:${d.party.round}:` : "starbattle:") + n + ":" + d.regions.map((row) => row.join(",")).join(";");
   const load = () => {
     try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
   };
@@ -445,11 +458,19 @@ function boot() {
   let hintCount = num(saved && saved.hints);
   let done = !!(saved && saved.done);
   let runningSince = null;
-  const clockMs = () => elapsed + (runningSince === null ? 0 : Date.now() - runningSince);
+  const clockMs = () => elapsed + (runningSince === null ? 0 : Math.max(0, Date.now() - runningSince));
   function clockRun(on) {
+    if (party) return; // a party round runs on the server's clock (partySnap)
     if (on && runningSince === null && !done) runningSince = Date.now();
-    if (!on && runningSince !== null) { elapsed = clockMs(); runningSince = null; }
+    if (!on) clockStop();
   }
+  function clockStop() {
+    if (runningSince !== null) { elapsed = clockMs(); runningSince = null; }
+  }
+  // A round played together (d.party), see "party mode" below.
+  const party = d.party ? { gaveUp: !!(saved && saved.gaveUp), snap: null, startLocal: null, live: false, solving: false, sentStars: -1, sentHints: -1 } : null;
+  // No input: solved, or in a party round given up, not started or not ours.
+  const locked = () => done || (!!party && (party.gaveUp || !partyLive()));
   function fmtTime(ms) {
     const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
     const ss = String(s % 60).padStart(2, "0");
@@ -464,7 +485,7 @@ function boot() {
   const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
 
   function setMarks(next) {
-    if (done) return; // solved puzzles are frozen
+    if (locked()) return; // solved puzzles are frozen
     undoStack.push(marks);
     redoStack.length = 0;
     marks = next;
@@ -485,30 +506,48 @@ function boot() {
     const bad = new Set(probs.flatMap((p) => p.cells));
     const view = { cells: eff.cells, auto: eff.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
-    drawBoard(view);
+    drawBoard(party && party.gaveUp ? solutionView() : view);
 
     const list = $("problems");
     list.replaceChildren(...probs.map((p) => elr("li", "", p.msg)));
     // Once solved, the puzzle is frozen until "Neu beginnen": the board
     // ignores input and scrolls on touch like the rest of the page.
-    const frozen = done || L.solved(d, eff.cells);
+    const frozen = locked() || L.solved(d, eff.cells);
     document.body.classList.toggle("frozen", frozen);
+    if (party) {
+      document.body.classList.toggle("party-wait", !party.gaveUp && !done && !partyStarted());
+      $("giveup").disabled = frozen;
+      $("reset").disabled = frozen;
+    }
     $("undo").disabled = frozen || undoStack.length === 0;
     $("redo").disabled = frozen || redoStack.length === 0;
     $("hint").disabled = frozen;
     $("check").disabled = frozen;
     $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
-    if (L.solved(d, eff.cells)) {
-      if (!done) { clockRun(false); done = true; }
+    if (L.solved(d, eff.cells) && !(party && party.gaveUp)) {
+      if (!done) {
+        clockStop();
+        done = true;
+        if (party) partySolve();
+      }
       const with_ = !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
       banner(`Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
-      const share = el("button", "share", "Ergebnis kopieren");
-      share.title = "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
-      share.onclick = () => copyText(shareText(with_), share);
-      $("banner").append(" ", share);
+      if (!party) {
+        const share = el("button", "share", "Ergebnis kopieren");
+        share.title = "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
+        share.onclick = () => copyText(shareText(with_), share);
+        $("banner").append(" ", share);
+      }
+    } else if (party) {
+      const b = partyBanner();
+      banner(b && b[0], b && b[1]);
     } else banner(null);
     drawClock();
     store();
+    if (party) {
+      partyTabs();
+      partyReport();
+    }
   }
 
   // The text for sharing a result; with the page's link when it has a stable
@@ -551,7 +590,9 @@ function boot() {
   }
 
   function store() {
-    save({ marks: [...marks], auto: $("autocross").checked, time: Math.round(clockMs()), hints: hintCount, done });
+    const v = { marks: [...marks], auto: $("autocross").checked, time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
+    if (party) v.gaveUp = party.gaveUp;
+    save(v);
   }
 
   function message(...nodes) {
@@ -613,7 +654,7 @@ function boot() {
   // solution. Showing where they don't costs one hint per wrongly set field
   // (auto-crosses next to a wrong star are shown for free); fields already
   // paid for in their current state are not charged again.
-  const paid = new Set(); // "i:mark" of wrong fields already shown
+  const paid = new Set(saved && Array.isArray(saved.paid) ? saved.paid : []); // "i:mark" of wrong fields already shown
   function checkMistakes() {
     if (!d.solution) {
       message(el("p", "", "Für dieses Puzzle ist keine eindeutige Lösung bekannt."));
@@ -673,7 +714,7 @@ function boot() {
   };
   boardEl.addEventListener("pointerdown", (ev) => {
     const c = ev.target.closest(".cell");
-    if (!c || mode !== "play" || done || ev.button !== 0) return;
+    if (!c || mode !== "play" || locked() || ev.button !== 0) return;
     ev.preventDefault();
     const i = +c.dataset.i;
     drag = {
@@ -717,25 +758,29 @@ function boot() {
   document.addEventListener("pointercancel", endDrag);
   boardEl.addEventListener("contextmenu", (ev) => {
     const c = ev.target.closest(".cell");
-    if (!c || mode !== "play" || done) return;
+    if (!c || mode !== "play" || locked()) return;
     ev.preventDefault();
     clickCell(+c.dataset.i, true);
   });
   $("undo").onclick = () => {
-    if (done || !undoStack.length) return;
+    if (locked() || !undoStack.length) return;
     redoStack.push(marks);
     marks = undoStack.pop();
     overlay = null;
     renderPlay();
   };
   $("redo").onclick = () => {
-    if (done || !redoStack.length) return;
+    if (locked() || !redoStack.length) return;
     undoStack.push(marks);
     marks = redoStack.pop();
     overlay = null;
     renderPlay();
   };
   $("reset").onclick = () => {
+    if (party) { // only the marks: time and hints count on
+      if (!locked() && marks.some((v) => v !== L.FREE)) setMarks(new Uint8Array(n * n));
+      return;
+    }
     elapsed = 0;
     hintCount = 0;
     paid.clear();
@@ -747,7 +792,10 @@ function boot() {
   };
   document.addEventListener("visibilitychange", () => { clockRun(!document.hidden); store(); });
   window.addEventListener("pagehide", store);
-  setInterval(() => { if (runningSince !== null) { drawClock(); store(); } }, 1000);
+  setInterval(() => {
+    if (runningSince !== null) { drawClock(); store(); }
+    if (party && (!partyStarted() || party.live !== partyLive())) renderPlay(); // countdown, start
+  }, 1000);
   clockRun(!document.hidden);
   $("hint").onclick = toggleHint;
   $("check").onclick = checkMistakes;
@@ -957,8 +1005,143 @@ function boot() {
     }
   });
 
+  // ---------- party mode: a round played together (d.party) ----------
+  // The server's state arrives as events (Party.live, party.js): the common
+  // start, the clock, our result and everybody's progress. The board opens at
+  // the start; solving or giving up is reported, and so is progress (stars set,
+  // hints taken) while playing. A lost report is repeated with the next state.
+  let partyView = null;
+  function partyMe() {
+    const s = party.snap;
+    return s && s.you ? s.ranking.find((e) => e.id === s.you) : null;
+  }
+  function partyStarted() {
+    return party.startLocal !== null && Date.now() >= party.startLocal;
+  }
+  function partyLive() {
+    const me = partyMe();
+    return !!me && party.snap.phase === "playing" && partyStarted() && (me.status === "playing" || me.status === "absent");
+  }
+  function partyPost(action, body) {
+    return Party.post(d.party.code, action, { round: d.party.round, hints: hintCount, ...body });
+  }
+  function partyError(e) {
+    if (partyView) partyView.error(e.message);
+  }
+
+  // The solution with every other cell crossed, shown after giving up.
+  function solutionView() {
+    const cells = new Uint8Array(n * n).fill(L.CROSS), auto = new Uint8Array(n * n).fill(1);
+    if (d.solution) d.solution.forEach((c, r) => { cells[L.idx(d, r, c)] = L.STAR; auto[L.idx(d, r, c)] = 0; });
+    return { cells, auto, marks: {} };
+  }
+
+  // [text, class] for the banner while not solved, or null.
+  function partyBanner() {
+    const s = party.snap;
+    if (party.gaveUp) return ["Aufgegeben. Die Lösung ist eingeblendet.", "what-if"];
+    if (!s) return ["Verbinde mit der Party …", ""];
+    const me = partyMe();
+    if (!me) return ["Du spielst in dieser Runde nicht mit.", "what-if"];
+    if (!partyStarted()) return [`Gleich geht es los: ${Math.max(1, Math.ceil((party.startLocal - Date.now()) / 1000))} …`, ""];
+    if (s.phase !== "playing") return ["Die Runde ist vorbei.", "what-if"];
+    return null;
+  }
+
+  function partyTabs() {
+    const open = done || party.gaveUp;
+    $("tab-watch").hidden = !open;
+    if (!open && mode === "watch") setMode("play");
+  }
+
+  function partySolve() {
+    if (party.solving) return;
+    party.solving = true;
+    const eff = L.effective(d, marks, $("autocross").checked);
+    partyPost("solve", { stars: L.starColumns(d, eff.cells) })
+      .then((r) => {
+        elapsed = r.result.timeMs; // the server's time counts
+        runningSince = null;
+        hintCount = Math.max(hintCount, r.result.hints);
+        renderPlay();
+      })
+      .catch(partyError)
+      .finally(() => { party.solving = false; });
+  }
+
+  let partyTimer = null;
+  function partyReport() {
+    party.live = partyLive();
+    if (!party.live || partyTimer) return;
+    partyTimer = setTimeout(() => {
+      partyTimer = null;
+      if (!partyLive()) return;
+      let stars = 0;
+      for (const v of marks) if (v === L.STAR) stars++;
+      if (stars === party.sentStars && hintCount === party.sentHints) return;
+      party.sentStars = stars;
+      party.sentHints = hintCount;
+      partyPost("progress", { count: stars }).catch(() => { party.sentStars = -1; });
+    }, 700);
+  }
+
+  function partyGiveUp() {
+    if (locked() || !confirm("Wirklich aufgeben? Die Lösung wird angezeigt, und du landest hinter allen, die lösen.")) return;
+    party.gaveUp = true;
+    clockStop();
+    overlay = null;
+    message(...intro.map((x) => x.cloneNode(true)));
+    partyPost("giveup", {}).catch(partyError);
+    renderPlay();
+  }
+
+  function partySnap(s, at) {
+    party.snap = s;
+    if (s.round !== d.party.round) { // a new round: the lobby sends us on
+      location.href = "/party/" + d.party.code;
+      return;
+    }
+    party.startLocal = at + s.startInMs - s.elapsedMs;
+    const me = partyMe();
+    if (me) {
+      hintCount = Math.max(hintCount, me.hints);
+      if (me.status === "gaveup") party.gaveUp = true;
+      if (me.status === "solved") {
+        elapsed = me.timeMs;
+        runningSince = null;
+        if (!done && !party.gaveUp && d.solution) { // e.g. storage cleared
+          marks = new Uint8Array(n * n);
+          d.solution.forEach((c, r) => { marks[L.idx(d, r, c)] = L.STAR; });
+          done = true;
+        }
+      } else if (s.phase === "playing" && done && !party.gaveUp) {
+        partySolve(); // the report got lost
+      } else if (s.phase === "playing" && party.gaveUp && me.status !== "gaveup") {
+        partyPost("giveup", {}).catch(partyError);
+      } else if (!done && !party.gaveUp && s.phase === "playing") {
+        elapsed = 0;
+        runningSince = party.startLocal;
+      } else {
+        clockStop();
+      }
+    }
+    renderPlay();
+  }
+
+  if (party) {
+    $("party-box").hidden = false;
+    $("party-lobby").href = "/party/" + d.party.code;
+    $("giveup").hidden = false;
+    $("giveup").onclick = partyGiveUp;
+    $("reset").textContent = "Alles löschen";
+    $("reset").title = "Löscht deine Markierungen; Zeit und Hinweise zählen weiter";
+    elapsed = 0; // the server's clock; our result's time once it is known
+    if (location.hash === "#weg") history.replaceState(null, "", location.pathname);
+    partyView = Party.live(d.party.code, $("party-panel"), { onSnap: partySnap });
+  }
+
   // ---------- served by `starbattle serve`: new and pasted puzzles ----------
-  if (d.served) {
+  if (d.served && !party) {
     const sizes = $("newgame-n");
     for (let k = 4; k <= 14; k++) {
       const o = el("option", null, `${k}×${k}`);

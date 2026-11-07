@@ -376,3 +376,9 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .players li.you .name { font-weight: 650; }
 .players .ready { color: #2e9d58; white-space: nowrap; }
 .players .muted { white-space: nowrap; }
+
+/* A party round: the board stays hidden until the common start. */
+.party-wait .board-frame, .party-wait .legend { visibility: hidden; }
+.party-box { display: flex; flex-direction: column; gap: 8px; }
+.party-box > p { margin: 0; font-size: 14px; }
+.party-box a, .party-main a { color: var(--accent); }

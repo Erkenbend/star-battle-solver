@@ -10,6 +10,10 @@
 </head>
 <body>
 <header class="top">
+  <nav class="site-nav" id="site-nav" aria-label="Spielmodus" hidden>
+    <a href="/" id="nav-solo">Solo</a>
+    <a href="/party" id="nav-party">Zusammen spielen</a>
+  </nav>
   <div class="title">
     <h1>{{TITLE}}</h1>
     <p class="sub" id="summary"></p>
@@ -52,6 +56,7 @@
       <button id="redo" title="Wiederholen (Strg+Y)">↷ Vor</button>
       <button id="hint" class="primary">Hinweis</button>
       <button id="check" title="Prüft kostenlos, ob bisher alles zur Lösung passt">Prüfen</button>
+      <button id="giveup" class="quiet" hidden>Aufgeben</button>
       <button id="reset" class="quiet">Neu beginnen</button>
       <span class="clock" id="clock" title="Zeit (läuft nur, solange die Seite sichtbar ist) und gezeigte Hinweise"></span>
     </div>
@@ -62,6 +67,10 @@
       <p class="muted">Klick: frei → ✕ → ★ → frei. Rechtsklick oder Umschalt+Klick: direkt ★. Ziehen: viele ✕ setzen, auf einem ✕ begonnen: ✕ entfernen.</p>
     </div>
     <ul class="problems" id="problems"></ul>
+    <section class="party-box" id="party-box" hidden>
+      <div class="party-panel" id="party-panel"></div>
+      <p><a id="party-lobby">Zur Lobby</a></p>
+    </section>
   </section>
 
   <section class="panel" id="panel-watch" hidden>

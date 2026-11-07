@@ -24,6 +24,9 @@ for (const f of files) {
   assert.ok(L.solved(d, prefix.at(-1)), name + ": final state not solved");
   assert.equal(L.problems(d, prefix.at(-1)).length, 0);
   assert.equal(L.mistakes(d, prefix.at(-1)).length, 0);
+  // The solved board in the party server's format is the solution.
+  assert.deepEqual(L.starColumns(d, prefix.at(-1)), d.solution);
+  assert.deepEqual(L.starColumns(d, prefix[0]), new Array(d.n).fill(-1));
   // No state along the way breaks a rule or disagrees with the solution.
   prefix.forEach((s, k) => {
     assert.equal(L.problems(d, s).length, 0, `${name}: problem after step ${k}`);
