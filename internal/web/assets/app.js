@@ -302,8 +302,8 @@ function boot() {
   const SYM =
     '<svg viewBox="0 0 100 100" aria-hidden="true">' +
     '<polygon class="g-star" points="50,6 61.5,37.2 94.7,38.5 68.5,59 77.6,91 50,72.5 22.4,91 31.5,59 5.3,38.5 38.5,37.2"/>' +
-    '<path class="g-cross" d="M25 25L75 75M75 25L25 75"/>' +
-    '<circle class="g-auto" cx="50" cy="50" r="9"/></svg>';
+    '<path class="g-cross" d="M32 32L68 68M68 32L32 68"/>' +
+    '<circle class="g-auto" cx="50" cy="50" r="8"/></svg>';
   const boardEl = $("board");
   boardEl.style.setProperty("--n", n);
   boardEl.append(el("div", "axis"));

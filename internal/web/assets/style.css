@@ -8,10 +8,10 @@
   --accent-fg: #ffffff;
   --thin: rgba(0, 0, 0, 0.18);
   --thick: #1d1d1f;
-  --star: #1d1d1f;
-  --cross: rgba(0, 0, 0, 0.72);
+  --star: #f5b800;
+  --cross: rgba(0, 0, 0, 0.55);
   --auto: rgba(0, 0, 0, 0.38);
-  --star-edge: #1d1d1f;
+  --star-edge: #5c3d00;
   --new: #2f5bd3;
   --bad: #d23c2f;
   --hint: #e08a00;
@@ -30,8 +30,8 @@
     --accent-fg: #0f1530;
     --thin: rgba(255, 255, 255, 0.16);
     --thick: #d6d6dc;
-    --star: #fff7d6;
-    --cross: rgba(255, 255, 255, 0.78);
+    --star: #ffd23f;
+    --cross: rgba(255, 255, 255, 0.6);
     --auto: rgba(255, 255, 255, 0.42);
     --star-edge: #111114;
     --new: #8fb0ff;
@@ -52,8 +52,8 @@
   --accent-fg: #0f1530;
   --thin: rgba(255, 255, 255, 0.16);
   --thick: #d6d6dc;
-  --star: #fff7d6;
-  --cross: rgba(255, 255, 255, 0.78);
+  --star: #ffd23f;
+  --cross: rgba(255, 255, 255, 0.6);
   --auto: rgba(255, 255, 255, 0.42);
   --star-edge: #111114;
   --new: #8fb0ff;
@@ -200,13 +200,15 @@ dialog textarea {
 .cell { touch-action: none; } /* drag to paint crosses instead of scrolling */
 .watch .cell, .frozen .cell { cursor: default; touch-action: auto; }
 
-.cell .sym { width: 82%; height: 82%; pointer-events: none; display: flex; }
+/* Stars large and gold, crosses smaller, thinner and grey, so the two stay
+   easy to tell apart on small cells. */
+.cell .sym { width: 92%; height: 92%; pointer-events: none; display: flex; }
 .cell .sym svg { width: 100%; height: 100%; overflow: visible; }
 .sym .g-star, .sym .g-cross, .sym .g-auto { display: none; }
-.cell.star .g-star { display: inline; fill: var(--star); stroke: var(--star-edge); stroke-width: 3; stroke-linejoin: round; }
-.cell.cross .g-cross { display: inline; stroke: var(--cross); stroke-width: 11; stroke-linecap: round; fill: none; }
+.cell.star .g-star { display: inline; fill: var(--star); stroke: var(--star-edge); stroke-width: 5; stroke-linejoin: round; }
+.cell.cross .g-cross { display: inline; stroke: var(--cross); stroke-width: 7; stroke-linecap: round; fill: none; }
 .cell.auto .g-auto { display: inline; fill: var(--auto); }
-.cell.bad .g-star { fill: var(--bad); stroke: var(--bad); }
+.cell.bad .g-star { fill: var(--bad); stroke: var(--star-edge); }
 .cell.bad .g-cross { stroke: var(--bad); }
 
 /* Overlays: referenced units (tint), new marks, hints, problems. */
