@@ -166,6 +166,17 @@ console.log(`ok: ${files.length} puzzles`);
   assert.equal(L.paint(m, [0, 2, 4], true), true);
   assert.deepEqual([...m.slice(0, 5)], [0, 1, 2, 1, 0]);
   assert.equal(L.paint(m, [4], true), false);
+
+  // Touch drags snap to straight lines (cell size 10px, start at (2,2) = 12).
+  const snap = (dx, dy, start = 12) => L.snapTarget(d, start, dx, dy, 10);
+  assert.equal(snap(3, 2), 12); // jitter stays on the start cell
+  assert.equal(snap(20, 8), 14); // sideways wobble ignored: row
+  assert.equal(snap(-7, -18), 2); // column upwards
+  assert.equal(snap(12, 10), 18); // clearly diagonal
+  assert.equal(snap(18, 16), 24); // two steps diagonal
+  assert.equal(snap(-14, 12), 16); // anti-diagonal
+  assert.equal(snap(80, 3), 14); // clipped at the board edge
+  assert.equal(snap(40, 40, 3), 9); // diagonal from (0,3) stops at (1,4)
 }
 console.log("drag ok");
 

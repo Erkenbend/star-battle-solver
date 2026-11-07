@@ -213,6 +213,31 @@ const Logic = (() => {
     return out;
   }
 
+  // Fat-finger guard for touch drags: snaps the finger's offset (dx, dy in
+  // pixels, from where it pressed cell start) to the nearest straight line —
+  // row, column or diagonal — and returns the cell that line reaches. Axis
+  // lines win unless the drag is clearly diagonal (minor/major ≥ 0.5, i.e.
+  // steeper than ~27°), since wobbling sideways is the typical slip.
+  function snapTarget(d, start, dx, dy, cell) {
+    const r0 = Math.floor(start / d.n), c0 = start % d.n;
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    let dr = 0, dc = 0;
+    if (Math.min(ax, ay) < 0.5 * Math.max(ax, ay)) {
+      if (ax >= ay) dc = Math.round(dx / cell);
+      else dr = Math.round(dy / cell);
+    } else {
+      const k = Math.round((ax + ay) / 2 / cell);
+      dr = Math.sign(dy) * k;
+      dc = Math.sign(dx) * k;
+    }
+    // Stay on the board, shortening the line rather than bending it.
+    const lim = (v, at) => (v < 0 ? Math.max(v, -at) : Math.min(v, d.n - 1 - at));
+    let k = Math.max(Math.abs(dr), Math.abs(dc));
+    if (dr) k = Math.min(k, Math.abs(lim(dr, r0)));
+    if (dc) k = Math.min(k, Math.abs(lim(dc, c0)));
+    return idx(d, r0 + Math.sign(dr) * k, c0 + Math.sign(dc) * k);
+  }
+
   // Drag painting: crosses on free cells, or (erase) free on crossed cells.
   // Stars are never touched. Changes marks in place, returns whether anything changed.
   function paint(marks, cells, erase) {
@@ -224,7 +249,7 @@ const Logic = (() => {
     return changed;
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, paint, colorSegments };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -583,7 +608,9 @@ function boot() {
   // Pointer input: a press without moving to another cell is a click (cycle
   // free → cross → star). Moving on paints crosses over every cell passed, or
   // removes them if the press started on a cross. One drag is one undo step.
-  let drag = null; // {start, last, erase, before, moved}
+  // Touch and pen drags draw one straight line from the start cell instead,
+  // redrawn as the finger moves, so a slipping finger cannot hit neighbours.
+  let drag = null; // {start, last, erase, before, moved, straight, x, y, cell}
   const cellAt = (ev) => {
     const e = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : ev.target;
     const c = e && e.closest ? e.closest(".cell") : null;
@@ -594,18 +621,26 @@ function boot() {
     if (!c || mode !== "play" || ev.button !== 0) return;
     ev.preventDefault();
     const i = +c.dataset.i;
-    drag = { start: i, last: i, erase: marks[i] === L.CROSS, before: marks, moved: false, shift: ev.shiftKey };
+    drag = {
+      start: i, last: i, erase: marks[i] === L.CROSS, before: marks, moved: false, shift: ev.shiftKey,
+      straight: ev.pointerType !== "mouse", x: ev.clientX, y: ev.clientY, cell: c.getBoundingClientRect().width,
+    };
   });
   document.addEventListener("pointermove", (ev) => {
     if (!drag) return;
-    const i = cellAt(ev);
+    const i = drag.straight ? L.snapTarget(d, drag.start, ev.clientX - drag.x, ev.clientY - drag.y, drag.cell) : cellAt(ev);
     if (i < 0 || i === drag.last) return;
     if (!drag.moved) {
       drag.moved = true;
-      marks = Uint8Array.from(marks);
       overlay = null;
     }
-    L.paint(marks, L.line(d, drag.last, i), drag.erase);
+    if (drag.straight) {
+      marks = Uint8Array.from(drag.before);
+      L.paint(marks, L.line(d, drag.start, i), drag.erase);
+    } else {
+      if (marks === drag.before) marks = Uint8Array.from(marks);
+      L.paint(marks, L.line(d, drag.last, i), drag.erase);
+    }
     drag.last = i;
     renderPlay();
   });
