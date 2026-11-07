@@ -83,19 +83,28 @@ func (pl *Pool) make(n int) (*pooled, error) {
 // Take hands out the seed of the ready n×n puzzle, if there is one, and
 // queues the size for refilling. The puzzle stays available via Lookup.
 func (pl *Pool) Take(n int) (uint64, bool) {
-	if pl == nil {
+	e := pl.TakePuzzle(n)
+	if e == nil {
 		return 0, false
+	}
+	return e.seed, true
+}
+
+// TakePuzzle is Take returning the whole puzzle, or nil.
+func (pl *Pool) TakePuzzle(n int) *pooled {
+	if pl == nil {
+		return nil
 	}
 	pl.mu.Lock()
 	defer pl.mu.Unlock()
 	e := pl.ready[n]
 	if e == nil {
-		return 0, false
+		return nil
 	}
 	delete(pl.ready, n)
 	pl.handed[n] = e
 	pl.queue <- n // cannot block: n was not queued while it was ready
-	return e.seed, true
+	return e
 }
 
 // Lookup returns the handed-out n×n puzzle with this seed, or nil.

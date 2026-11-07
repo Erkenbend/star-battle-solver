@@ -44,6 +44,15 @@ type Data struct {
 	// Set by the server (starbattle serve): the page shows forms for new puzzles.
 	Served bool   `json:"served,omitempty"`
 	Text   string `json:"text,omitempty"` // the puzzle in the text format
+
+	// Set for a round of a party (see party.go).
+	Party *PartyInfo `json:"party,omitempty"`
+}
+
+// PartyInfo identifies the party round a page belongs to.
+type PartyInfo struct {
+	Code  string `json:"code"`
+	Round int    `json:"round"`
 }
 
 // Stats summarizes the search effort.
