@@ -256,6 +256,7 @@ func cmdHTML(args []string) error {
 // cmdServe serves the interactive page with forms to generate a new puzzle or
 // paste one; each puzzle is solved on request. Unless -no-pregen is given, one
 // puzzle of every size is generated ahead in the background.
+// /party serves the party mode: playing the same puzzles together in rounds.
 func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "localhost:6369", "listen address")
@@ -271,8 +272,10 @@ func cmdServe(args []string) error {
 		}
 		pool = web.NewPool(solve, sizes)
 	}
+	parties := web.NewParties(solve, pool)
+	go parties.Run(5*time.Second, nil)
 	fmt.Fprintf(os.Stderr, "Star Battle auf http://%s/\n", *addr)
-	return http.ListenAndServe(*addr, web.Handler(solve, pool))
+	return http.ListenAndServe(*addr, web.Handler(solve, pool, parties))
 }
 
 // describeMarks lists the crosses of one step. Steps that place a star name it

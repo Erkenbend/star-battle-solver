@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+/*{{STYLE}}*/
+</style>
+</head>
+<body>
+<header class="top">
+  <nav class="site-nav" aria-label="Spielmodus">
+    <a href="/">Solo</a>
+    <a href="/party" aria-current="page">Zusammen spielen</a>
+  </nav>
+  <div class="title">
+    <h1 id="party-title">Zusammen spielen</h1>
+    <p class="sub">Alle lösen gleichzeitig dasselbe Puzzle. Wertung pro Runde: wenigste Hinweise, dann schnellste Zeit.</p>
+  </div>
+</header>
+
+<main class="party-main">
+  <div class="banner what-if" id="party-error" hidden></div>
+
+  <div class="party-start" id="start" hidden>
+    <form class="card" method="post" action="/party" id="create">
+      <h2>Neue Party</h2>
+      <p class="muted">Welche Größen dürfen vorkommen? Jede Runde wird zufällig eine davon gespielt.</p>
+      <div class="sizes" id="sizes"></div>
+      <div class="actions"><button type="submit" class="primary">Party starten</button></div>
+    </form>
+    <form class="card" id="goto">
+      <h2>Beitreten</h2>
+      <p class="muted">Code der Party, z.&nbsp;B. von der Person, die sie gestartet hat.</p>
+      <div class="actions">
+        <input id="goto-code" class="code-input" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD" aria-label="Party-Code" required>
+        <button type="submit" class="primary">Beitreten</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="party-lobby" id="lobby" hidden>
+    <div class="card share">
+      <span class="muted">Party-Code</span>
+      <strong class="code" id="code"></strong>
+      <button id="copy-link" title="Link zur Party in die Zwischenablage">Link kopieren</button>
+    </div>
+    <form class="card" id="join" hidden>
+      <h2>Mitspielen</h2>
+      <div class="actions">
+        <input id="join-name" maxlength="20" autocomplete="nickname" placeholder="Dein Name" aria-label="Dein Name" required>
+        <button type="submit" class="primary">Mitspielen</button>
+      </div>
+    </form>
+    <section id="party-panel" class="party-panel"></section>
+    <div class="toolbar"><button id="leave" class="quiet" hidden>Party verlassen</button></div>
+  </div>
+</main>
+
+<script id="data" type="application/json">/*{{DATA}}*/null</script>
+<script>
+/*{{PARTY}}*/
+/*{{APP}}*/
+</script>
+</body>
+</html>

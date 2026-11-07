@@ -29,6 +29,12 @@ var styleCSS string
 //go:embed assets/app.js
 var appJS string
 
+//go:embed assets/party.html
+var partyHTML string
+
+//go:embed assets/party.js
+var partyJS string
+
 // Data is everything the page needs, serialized as JSON.
 type Data struct {
 	Title    string  `json:"title"`
@@ -134,18 +140,45 @@ func steps(trace []solver.Step) []Step {
 	return out
 }
 
-// Write renders the page for d to w.
+// Write renders the page for d to w. Party rounds get the party script too.
 func Write(w io.Writer, d Data) error {
+	party := ""
+	if d.Party != nil {
+		party = partyJS
+	}
+	return render(w, pageHTML, d.Title, d, appJS, party)
+}
+
+// PartyPage is the data of the party page: creating or joining a party
+// (Code empty), or its lobby.
+type PartyPage struct {
+	Code  string `json:"code,omitempty"`
+	Error string `json:"error,omitempty"`
+	MinN  int    `json:"minN"`
+	MaxN  int    `json:"maxN"`
+}
+
+// WriteParty renders the party page for d to w.
+func WriteParty(w io.Writer, d PartyPage) error {
+	title := "Star Battle · Zusammen spielen"
+	if d.Code != "" {
+		title = "Star Battle · Party " + d.Code
+	}
+	return render(w, partyHTML, title, d, "", partyJS)
+}
+
+func render(w io.Writer, tmpl, title string, d any, app, party string) error {
 	data, err := json.Marshal(d) // escapes <, > and &, so it is safe inside <script>
 	if err != nil {
 		return err
 	}
 	page := strings.NewReplacer(
-		"{{TITLE}}", html.EscapeString(d.Title),
+		"{{TITLE}}", html.EscapeString(title),
 		"/*{{STYLE}}*/", styleCSS,
 		"/*{{DATA}}*/null", string(data),
-		"/*{{APP}}*/", appJS,
-	).Replace(pageHTML)
+		"/*{{PARTY}}*/", party,
+		"/*{{APP}}*/", app,
+	).Replace(tmpl)
 	if strings.Contains(page, "/*{{") {
 		return fmt.Errorf("web: unreplaced placeholder in page template")
 	}

@@ -34,9 +34,13 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 //	                newlines, '/' or ',')
 //
 // With a pool (may be nil), /?n=8 hands out the seed of the puzzle the pool
-// has ready, so the page appears without waiting for the generator.
-func Handler(solve SolveFunc, pool *Pool) http.Handler {
+// has ready, so the page appears without waiting for the generator. With
+// parties (may be nil), /party and below serve the party mode (party_server.go).
+func Handler(solve SolveFunc, pool *Pool, parties *Parties) http.Handler {
 	mux := http.NewServeMux()
+	if parties != nil {
+		partyRoutes(mux, parties)
+	}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		n := DefaultN
@@ -123,6 +127,10 @@ func write(w http.ResponseWriter, title string, p *puzzle.Puzzle, sol []int, res
 	d := Build(title, p, sol, res)
 	d.Served = true
 	d.Text = p.String()
+	writePage(w, d)
+}
+
+func writePage(w http.ResponseWriter, d Data) {
 	var buf bytes.Buffer
 	if err := Write(&buf, d); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
