@@ -58,6 +58,10 @@ sudo rm /usr/local/bin/starbattle /etc/systemd/system/starbattle.service   # uni
   (`journalctl` shows "14×14 bereit …"). Only someone asking for the same size
   again before that is done, or right after a restart, has to wait.
   `STARBATTLE_OPTS=-no-pregen` turns this off.
+- "Zusammen spielen" (`/party`) keeps parties in memory only: a restart
+  (e.g. by `deploy.sh`) ends all running parties. Its live updates are
+  server-sent events; a reverse proxy in front must not buffer them (nginx:
+  the server already sends `X-Accel-Buffering: no`).
 - There is no login and no HTTPS. Fine for the home network; to expose it to
   the internet, put a reverse proxy with TLS in front (e.g. Caddy:
   `caddy reverse-proxy --from puzzles.example.org --to localhost:6369`) and

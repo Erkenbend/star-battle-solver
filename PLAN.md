@@ -25,7 +25,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Regionsstücken zerstören (siehe „Erledigt“) |
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
-| `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS); `Handler` für `serve` |
+| `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS); `Handler` für `serve`, mit Vorrat (`Pool`) und Party-Modus (`Parties`) |
 | `cmd/starbattle` | `generate [-min-region]`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
 | `deploy` | Hosting auf dem Raspberry Pi: `deploy.sh [user@]host` (baut passend zu `uname -m`, installiert als systemd-Dienst), `starbattle.service`, Anleitung in `deploy/README.md` |
 | `testdata/hard` | 35 Puzzles, an denen die Basisregeln scheitern (4 davon brauchen auch mit allen Regeln Lookahead) |
@@ -72,6 +72,14 @@ Alle 35 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
+
+- ~~**Zusammen spielen (Party-Modus)**~~ umgesetzt unter `/party` (Navigation „Solo | Zusammen spielen“ auf allen Seiten von `serve`; Solo bleibt die Startseite).
+   - **Ablauf:** Party anlegen mit erlaubten Größen → Code aus 4 Buchstaben (ohne I/O), Link `/party/ABCD`. Mitspielen mit Namen; die nächste Runde startet, sobald alle Anwesenden „Bereit“ geklickt haben (3 s Countdown, das Brett ist bis dahin verdeckt). Jede Runde zufällig eine der erlaubten Größen. Die Runde endet, wenn alle anwesenden Teilnehmenden gelöst oder aufgegeben haben.
+   - **Wertung pro Runde:** wenigste Hinweise, dann kürzeste Zeit; Zeit misst der Server ab dem gemeinsamen Start (läuft auch bei verstecktem Tab). Hinweise und „Fehler zeigen“ kosten wie solo, „Prüfen“ ist gratis. „Lösungsweg“ erst nach Lösen oder Aufgeben. Aufgeben zeigt die Lösung und reiht hinter allen Lösenden ein.
+   - **Server (`web.Parties`, `party.go`):** alles im Speicher hinter einem Mutex; das nächste Puzzle wird bei Rundenstart im Hintergrund vorbereitet (zuerst aus dem Vorrat, sonst erzeugt). Der Server prüft eingereichte Lösungen, Hinweise zählen nur aufwärts. Abwesend ist, wer 60 s keinen Event-Stream offen hat; Abwesende blockieren weder Rundenende noch Start. Wer während des Countdowns beitritt, spielt mit, später Kommende ab der nächsten Runde. Partys verfallen nach 2 h ohne Aktivität (höchstens 50 Partys, 16 Personen).
+   - **Transport (`party_server.go`):** Zustand als Server-Sent Events (`/party/{code}/events`), Aktionen als JSON-POST (`join`, `ready`, `progress`, `solve`, `giveup`, `leave`); Token pro Party im `localStorage`, Neuladen führt zurück in die Runde. Seiten: `party.html` (Anlegen/Beitreten/Lobby) und die Rundenseite `/party/{code}/round/{n}` (die Puzzle-Seite mit `Data.Party`), beide mit `party.js`.
+   - Tests: Zustandsmaschine mit Fake-Uhr, HTTP und SSE in `internal/web`; die Oberfläche wurde mit jsdom gegen einen laufenden Server durchgespielt (zwei Spieler, Hinweis, Lösen, Aufgeben, Neuladen, zweite Runde), das Skript liegt nicht im Repo.
+   - Offen: Gesamtwertung über alle Runden; Fortschritt der anderen nur als Zahl der Sterne.
 
 - ~~**Generator: Versuche parallel**~~ umgesetzt: `Options.Workers` (Standard 4, höchstens GOMAXPROCS) Versuche laufen gleichzeitig, begrenzt über einen gepufferten Kanal. Jeder Versuch zieht der Reihe nach einen eigenen Zufallsgenerator aus `rng`; es gewinnt der erfolgreiche Versuch mit dem **kleinsten Index**, spätere werden nicht mehr gestartet bzw. brechen in der Reparatur ab. Das Ergebnis hängt also nur vom Seed ab, nicht von der Zahl der Worker (`TestWorkersSameResult`); gegenüber vorher ergeben aber alle Seeds andere Puzzles.
    - **Ein Kern bleibt frei:** Über alle `Generate`-Aufrufe des Prozesses hinweg (z. B. Vorrat und Anfrage in `serve`) laufen höchstens GOMAXPROCS − 1 Versuche gleichzeitig (mindestens 1, `cpuSlots`); der Standard für `Workers` ist entsprechend min(4, GOMAXPROCS − 1). Auf dem Raspberry Pi (4 Kerne) also 3. Der Solver (Lookahead parallel) ist davon nicht erfasst.
