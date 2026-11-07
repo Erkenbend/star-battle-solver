@@ -126,8 +126,7 @@ func steps(trace []solver.Step) []Step {
 			hy := &Hypothesis{Steps: steps(h.Steps)}
 			if h.Contradiction != nil {
 				hy.Contradiction = h.Contradiction.Error()
-				var ce *board.ContradictionError
-				if errors.As(h.Contradiction, &ce) {
+				if ce, ok := errors.AsType[*board.ContradictionError](h.Contradiction); ok {
 					for _, q := range ce.Cells {
 						hy.Cells = append(hy.Cells, [2]int{q.Row, q.Col})
 					}

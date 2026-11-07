@@ -799,8 +799,7 @@ func (p *Party) ranking() []RankEntry {
 
 // errorStatus returns the HTTP status for an error of the manager.
 func errorStatus(err error) int {
-	var pe *PartyError
-	if errors.As(err, &pe) {
+	if pe, ok := errors.AsType[*PartyError](err); ok {
 		return pe.Status
 	}
 	return http.StatusInternalServerError

@@ -53,11 +53,7 @@ func RunConcurrent(start *board.State, observers []Observer) Result {
 	for i, o := range observers {
 		boxes[i] = newMailbox()
 		local := s.Clone() // must happen here: once the runner loop starts, s changes
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			runObserver(i, o, local, boxes[i], out, quit)
-		}()
+		wg.Go(func() { runObserver(i, o, local, boxes[i], out, quit) })
 	}
 	// Stop all observers before returning so no goroutine outlives the call.
 	defer func() {

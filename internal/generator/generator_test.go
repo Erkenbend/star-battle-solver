@@ -95,15 +95,13 @@ func TestCPUSlots(t *testing.T) {
 	}
 	var wg sync.WaitGroup
 	for g := range 6 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for seed := range uint64(5) {
 				if _, _, err := Generate(6, rand.New(rand.NewPCG(seed, uint64(g))), Options{Workers: 16, Accept: accept}); err != nil {
 					t.Error(err)
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if p := int(peak.Load()); p > cap(cpuSlots) {

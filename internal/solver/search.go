@@ -180,9 +180,7 @@ func lookahead(s *board.State, observers []Observer) (refutation, bool) {
 	jobs := make(chan int)
 	var wg sync.WaitGroup
 	for range runtime.GOMAXPROCS(0) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range jobs {
 				trial := s.Clone()
 				delta, err := Apply(trial, Star(cells[i], HypothesisSource))
@@ -197,7 +195,7 @@ func lookahead(s *board.State, observers []Observer) (refutation, bool) {
 					hyps[i] = &Hypothesis{Steps: steps, Contradiction: err}
 				}
 			}
-		}()
+		})
 	}
 	for i := range cells {
 		jobs <- i

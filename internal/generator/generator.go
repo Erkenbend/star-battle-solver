@@ -104,9 +104,8 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 			break
 		}
 		arng := rand.New(rand.NewPCG(rng.Uint64(), rng.Uint64()))
-		wg.Add(1)
-		go func() {
-			defer func() { <-cpuSlots; <-slots; wg.Done() }()
+		wg.Go(func() {
+			defer func() { <-cpuSlots; <-slots }()
 			stop := func() bool { return int64(i) > best.Load() }
 			sol := randomSolution(n, arng)
 			p := growRegions(n, sol, arng)
@@ -123,7 +122,7 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 					break
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if b := best.Load(); b < int64(attempts) {

@@ -257,7 +257,7 @@ func (s *State) String() string {
 func Parse(p *puzzle.Puzzle, text string) (*State, error) {
 	s := New(p)
 	r := 0
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.ReplaceAll(strings.TrimSpace(line), " ", "")
 		if line == "" {
 			continue

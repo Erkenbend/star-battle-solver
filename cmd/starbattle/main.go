@@ -321,9 +321,8 @@ func printSteps(replay *board.State, trace []solver.Step, prefix, indent string,
 			printSteps(trial, h.Steps, num+".", indent+"    │ ", step, verbose, noColor)
 			fmt.Printf("%s    │ ⇒ Widerspruch: %v\n", indent, h.Contradiction)
 			if step {
-				var ce *board.ContradictionError
 				conflict := map[puzzle.Pos]bool{}
-				if errors.As(h.Contradiction, &ce) {
+				if ce, ok := errors.AsType[*board.ContradictionError](h.Contradiction); ok {
 					for _, q := range ce.Cells {
 						conflict[q] = true
 					}
