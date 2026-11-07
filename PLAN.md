@@ -28,7 +28,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS); `Handler` für `serve`, mit Vorrat (`Pool`) und Party-Modus (`Parties`) |
 | `cmd/starbattle` | `generate [-min-region]`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
 | `deploy` | Hosting auf dem Raspberry Pi: `deploy.sh [user@]host` (baut passend zu `uname -m`, installiert als systemd-Dienst), `starbattle.service`, Anleitung in `deploy/README.md` |
-| `testdata/hard` | 35 Puzzles, an denen die Basisregeln scheitern (4 davon brauchen auch mit allen Regeln Lookahead) |
+| `testdata/hard` | 45 Puzzles, an denen die Basisregeln scheitern (14 davon brauchen auch mit allen Regeln Lookahead) |
 
 ### Regeln
 | Regel | Inhalt |
@@ -50,7 +50,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 
 Ergebnis:
 - Basisregeln: ca. 96,5 % der generierten Puzzles (Stichprobe von 900 mit N = 4 bis 12).
-- Mit `ForcedPartner` und `DeadCells`: 31 der 32 alten Puzzles aus `testdata/hard` ohne Annahmen; nur `n11_s095` braucht noch Lookahead. Dazu kommen `n14_s002`, `n14_s024` und `n14_s029` (12, 1 und 1 Lookahead-Schritte).
+- Mit `ForcedPartner` und `DeadCells`: 31 der 32 alten Puzzles aus `testdata/hard` ohne Annahmen; nur `n11_s095` braucht noch Lookahead. Dazu kommen `n14_s002`, `n14_s024` und `n14_s029` (12, 1 und 1 Lookahead-Schritte) und die zehn neuen Testdaten (2 bis 25 Lookahead-Schritte, siehe „Erledigt“).
 - Mit `Pigeonhole` zusätzlich: `n11_s095` braucht 11 statt 14 Lookahead-Schritte.
 
 ### Suche (`solver.Solve`)
@@ -58,12 +58,12 @@ Ergebnis:
 2. **Lookahead:** Für jedes freie Feld parallel „Stern hier“ annehmen und `RunSync` laufen lassen. Von den Widersprüchen wird der mit der **kürzesten Kette** übernommen (dann weniger gesetzte Felder, dann enge Einheiten zuerst). Das Feld wird X, danach geht es zurück zu 1. Die ganze Kette steht im Trace und wird mit `-verbose`/`-step` verschachtelt angezeigt.
 3. **Raten:** Stern im engsten offenen Feld setzen und rekursiv lösen; scheitert das, ist das Feld bewiesenermaßen X, zurück zu 1.
 
-Alle 35 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nötig. Der Preis der kürzesten Ketten: 119 Annahmen mit Ø 2,6 Schritten statt 46 mit Ø 4,9 Schritten bei „erstes widerlegtes Feld“.
+Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nötig. Der Preis der kürzesten Ketten: 119 Annahmen mit Ø 2,6 Schritten statt 46 mit Ø 4,9 Schritten bei „erstes widerlegtes Feld“.
 
 ### Entscheidungen
 - Erklärungen sind deutsch; Koordinaten (Zeile, Spalte), beginnend bei 0.
 - Probeläufe im Lookahead immer mit `RunSync`, damit die gewählte Erklärung reproduzierbar ist.
-- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`). Die Dateien in `testdata/hard` stammen vom alten Generator (bis Commit `def8c05`, z. B. `generate -n 5 -seed 29` → `n05_s029.txt`); mit dem neuen Generator ergeben dieselben Seeds andere Puzzles. Die Dateien gelten als feste Testdaten. Ausnahme: die `n14_*` stammen von Commit `48ea102` (`generate -n 14 -seed 2` usw., `MinRegionSize` 2, Versuche noch nacheinander).
+- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`). Die Dateien in `testdata/hard` stammen vom alten Generator (bis Commit `def8c05`, z. B. `generate -n 5 -seed 29` → `n05_s029.txt`); mit dem neuen Generator ergeben dieselben Seeds andere Puzzles. Die Dateien gelten als feste Testdaten. Ausnahmen: `n14_s002/024/029` stammen von Commit `48ea102` (`generate -n 14 -seed 2` usw., `MinRegionSize` 2, Versuche noch nacheinander); die zehn neuesten (`n10_s396` bis `n14_s025`) von Commit `46ab527` (Versuche parallel, Kopfzeile nennt jeweils den Befehl).
 
 ## Nächste Schritte
 
@@ -72,6 +72,12 @@ Alle 35 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
+
+- ~~**Neue Testdaten, auch für die neuen Regeln schwer**~~: zehn Puzzles in `testdata/hard`, die auch mit allen Regeln Lookahead brauchen. Suche mit dem aktuellen Generator (Standardoptionen wie `generate`), Treffer pro durchsuchte Seeds ab 1:
+   - N = 6 bis 9: 0 von je 400. N = 10: 3/400, N = 11: 4/400, N = 12: 3/400, N = 13: 2/250, N = 14: 4/120. Raten war nie nötig.
+   - Übernommen nur Treffer mit mindestens 2 Lookahead-Schritten: `n10_s396` (9), `n11_s251` (8), `n11_s348` (8), `n12_s082` (2), `n12_s194` (17), `n13_s146` (2), `n13_s181` (4), `n14_s009` (25), `n14_s021` (9), `n14_s025` (13). Verworfen (1 Schritt): N = 10 Seeds 22, 225; N = 11 Seeds 142, 248; N = 12 Seed 379; N = 14 Seed 19.
+   - Jetzt brauchen 14 von 45 Puzzles Lookahead mit allen Regeln. `TestPriorityOrder` sieht dadurch erstmals deutlich mehr Stufe 6 (`DeadCells` 40 statt 2 Schritte), weiterhin 0 Verletzungen.
+   - Kosten: `observers`-Tests 30 → 58 s, `web`-Tests 5 → 16 s.
 
 - ~~**Zusammen spielen (Party-Modus)**~~ umgesetzt unter `/party` (Navigation „Solo | Zusammen spielen“ auf allen Seiten von `serve`; Solo bleibt die Startseite).
    - **Ablauf:** Party anlegen mit erlaubten Größen → Code aus 4 Buchstaben (ohne I/O), Link `/party/ABCD`. Mitspielen mit Namen; die nächste Runde startet, sobald alle Anwesenden „Bereit“ geklickt haben (3 s Countdown, das Brett ist bis dahin verdeckt). Jede Runde zufällig eine der erlaubten Größen. Die Runde endet, wenn alle anwesenden Teilnehmenden gelöst oder aufgegeben haben.
@@ -135,13 +141,12 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Später
 
-1. **Neue Testdaten**, die auch für die neuen Regeln schwer sind (bisher `n11_s095` und drei `n14_*`; mit Mindestgröße 2 bei N = 14 etwa jedes 17. Puzzle).
-2. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und beim zusammenhängenden `Confinement`.
-3. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
-4. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize` (ab N = 10 Standard 2, siehe „Erledigt“; das verhindert Inseln aus einem Feld, aber nicht aus zwei). Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
-5. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
-6. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
-7. **Aufräumen:** README mit CLI-Befehlen.
+1. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und beim zusammenhängenden `Confinement`.
+2. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
+3. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize` (ab N = 10 Standard 2, siehe „Erledigt“; das verhindert Inseln aus einem Feld, aber nicht aus zwei). Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
+4. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
+5. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.
+6. **Aufräumen:** README mit CLI-Befehlen.
 
 ## Verifikation
 - `go test ./...` und `go test -race ./...`
