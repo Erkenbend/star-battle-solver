@@ -68,14 +68,6 @@ func verb(singular bool, s, p string) string {
 
 func cell(q puzzle.Pos) string { return fmt.Sprintf("(%d,%d)", q.Row, q.Col) }
 
-func cells(qs []puzzle.Pos) string {
-	out := make([]string, len(qs))
-	for i, q := range qs {
-		out[i] = cell(q)
-	}
-	return strings.Join(out, " ")
-}
-
 // cellsAnd lists cells as "(1,2)", "(1,2) und (3,4)", "(1,2), (3,4) und (5,6)".
 func cellsAnd(qs []puzzle.Pos) string {
 	out := make([]string, len(qs))
