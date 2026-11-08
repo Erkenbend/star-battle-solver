@@ -45,7 +45,7 @@ $ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
 
 ## Online spielen
 
-Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.de)**. Die Seite ist allerdings mit Basic Auth geschützt: Wer mich kennt, kann gerne nach einem Zugang fragen. Wer mich nicht kennt, kann das Ganze ebenso gerne selbst hosten; es ist nur eine einzelne Datei ohne Abhängigkeiten (siehe [Herunterladen](#herunterladen) und [deploy/README.md](deploy/README.md)).
+Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.de)**, und zwar auf meinem Raspberry Pi 3B zu Hause. Weil der hinter NAT steht, ist sie **nur über IPv6** erreichbar; ohne IPv6-Anschluss lädt die Seite nicht. Außerdem ist sie mit Basic Auth geschützt: Wer mich kennt, kann gerne nach einem Zugang fragen. Wer mich nicht kennt, kann das Ganze ebenso gerne selbst hosten; es ist nur eine einzelne Datei ohne Abhängigkeiten (siehe [Herunterladen](#herunterladen) und [deploy/README.md](deploy/README.md)).
 
 Neben dem bestehenden Party-Modus (alle lösen dieselben Puzzles gegeneinander) entsteht gerade ein zweiter Mehrspielermodus, in dem alle **gemeinsam am selben Brett** lösen.
 
