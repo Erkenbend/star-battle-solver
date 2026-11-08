@@ -12,10 +12,11 @@ import (
 // partyRoutes adds the party mode to mux:
 //
 //	GET  /party                    create or join a party
-//	POST /party                    create one (form: n=6&n=7...), redirects to its lobby
+//	POST /party                    create one (form: n=6&n=7...&mode=coop), redirects to its lobby
 //	GET  /party/{code}             lobby: players, results, ready
 //	GET  /party/{code}/round/{num} the puzzle page of a round
-//	POST /party/{code}/{action}    join, ready, progress, solve, giveup, leave (JSON)
+//	POST /party/{code}/{action}    join, ready, progress, solve, giveup, leave,
+//	                               and in coop mode mark, vote (JSON)
 //	GET  /party/{code}/events      the party's state as server-sent events
 func partyRoutes(mux *http.ServeMux, pm *Parties) {
 	mux.HandleFunc("GET /party", func(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +33,7 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 				sizes = append(sizes, n)
 			}
 		}
-		code, err := pm.Create(sizes)
+		code, err := pm.Create(sizes, r.Form.Get("mode"))
 		if err != nil {
 			writeParty(w, errorStatus(err), PartyPage{Error: err.Error()})
 			return
@@ -66,15 +67,18 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 	})
 	mux.HandleFunc("POST /party/{code}/{action}", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Token string `json:"token"`
-			Name  string `json:"name"`
-			Ready bool   `json:"ready"`
-			Round int    `json:"round"`
-			Stars []int  `json:"stars"` // solve: star column per row
-			Count int    `json:"count"` // progress: stars set
-			Hints int    `json:"hints"`
+			Token  string   `json:"token"`
+			Name   string   `json:"name"`
+			Ready  bool     `json:"ready"`
+			Round  int      `json:"round"`
+			Stars  []int    `json:"stars"` // solve: star column per row
+			Count  int      `json:"count"` // progress: stars set
+			Hints  int      `json:"hints"`
+			Ops    [][4]int `json:"ops"`    // mark: [num, cell, from, to] each
+			GiveUp bool     `json:"giveUp"` // vote
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		// A coop reset of a 14×14 board is ~200 operations.
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384)).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Ungültige Anfrage."})
 			return
 		}
@@ -93,6 +97,10 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 			out["result"], err = pm.Solve(code, req.Token, req.Round, req.Stars, req.Hints)
 		case "giveup":
 			err = pm.GiveUp(code, req.Token, req.Round, req.Hints)
+		case "mark":
+			out["rejected"], err = pm.Mark(code, req.Token, req.Round, req.Ops)
+		case "vote":
+			err = pm.Vote(code, req.Token, req.Round, req.GiveUp)
 		case "leave":
 			err = pm.Leave(code, req.Token)
 			req.Token = ""

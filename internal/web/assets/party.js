@@ -115,13 +115,38 @@ const Party = (() => {
         p.textContent = s > 0
           ? `Runde ${snap.round} (${snap.n}×${snap.n}) beginnt in ${Math.ceil(s / 1000)} …`
           : `Runde ${snap.round} (${snap.n}×${snap.n}) läuft · ${fmtTime(Math.max(0, elapsed()))}`;
+        if (s <= 0 && snap.coop && snap.coop.votes.length) p.textContent += ` · ${snap.coop.votes.length} wollen aufgeben`;
+      } else if (snap.coop) {
+        const t = snap.ranking.length ? fmtTime(snap.ranking[0].timeMs) : "";
+        p.textContent = snap.coop.solved
+          ? `Runde ${snap.round} (${snap.n}×${snap.n}): gemeinsam gelöst in ${t}! Die nächste beginnt, sobald alle bereit sind.`
+          : `Runde ${snap.round} (${snap.n}×${snap.n}): gemeinsam aufgegeben nach ${t}. Die nächste beginnt, sobald alle bereit sind.`;
       } else {
         p.textContent = `Runde ${snap.round} (${snap.n}×${snap.n}) ist vorbei. Die nächste beginnt, sobald alle bereit sind.`;
       }
       return p;
     }
 
+    // Coop: one result for all; the table shows who took part and their
+    // changes to the shared board.
+    function coopTable() {
+      const t = el("table", "ranking coop");
+      const head = el("tr");
+      for (const h of ["Name", "", "Beiträge"]) head.append(el("th", "", h));
+      t.append(el("thead"), el("tbody"));
+      t.tHead.append(head);
+      const votes = snap.coop ? snap.coop.votes : [];
+      for (const e of snap.ranking) {
+        const tr = el("tr", e.status + (e.id === snap.you ? " you" : ""));
+        const what = e.status === "playing" && votes.includes(e.id) ? "will aufgeben" : e.status === "playing" ? "spielt mit" : STATUS[e.status];
+        tr.append(el("td", "name", e.name), el("td", "status", what), el("td", "num", String(e.moves || 0)));
+        t.tBodies[0].append(tr);
+      }
+      return t;
+    }
+
     function rankingTable() {
+      if (snap.mode === "coop") return coopTable();
       const t = el("table", "ranking");
       const head = el("tr");
       for (const h of ["#", "Name", "", "Hinweise", "Zeit"]) head.append(el("th", "", h));
@@ -185,6 +210,9 @@ const Party = (() => {
       const nodes = [];
       if (errText) nodes.push(el("p", "party-error", errText));
       if (snap) {
+        nodes.push(el("p", "muted party-mode", snap.mode === "coop"
+          ? "Miteinander: alle auf demselben Brett, ohne Hinweise."
+          : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit."));
         nodes.push(statusLine());
         if (snap.prepErr) nodes.push(el("p", "party-error", snap.prepErr));
         if (snap.round) nodes.push(rankingTable());

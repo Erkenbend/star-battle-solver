@@ -138,7 +138,7 @@ func TestPartyEvents(t *testing.T) {
 	pm, _ := newTestParties(t)
 	srv := httptest.NewServer(Handler(testSolve, nil, pm))
 	defer srv.Close()
-	code, err := pm.Create([]int{5})
+	code, err := pm.Create([]int{5}, "")
 	must(t, err)
 	tok := mustJoin(t, pm, code, "Anna")
 
@@ -181,4 +181,49 @@ func TestPartyEvents(t *testing.T) {
 		p := pm.parties[code]
 		return len(p.subs) == 0 && p.players[0].conns == 0
 	})
+}
+
+func TestCoopServer(t *testing.T) {
+	pm, clk := newTestParties(t)
+	h := Handler(testSolve, nil, pm)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/party", strings.NewReader("n=5&mode=coop"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	h.ServeHTTP(rec, req)
+	loc := rec.Header().Get("Location")
+	code := strings.TrimPrefix(loc, "/party/")
+	if rec.Code != http.StatusSeeOther || snap(t, pm, code, "").Mode != ModeCoop {
+		t.Fatalf("create: %d %q", rec.Code, loc)
+	}
+	waitPrepared(t, pm, code)
+	var joined struct{ Token string }
+	postJSON(t, h, loc+"/join", map[string]any{"name": "Anna"}, &joined)
+	postJSON(t, h, loc+"/ready", map[string]any{"token": joined.Token, "ready": true}, nil)
+	if d := pageData(t, get(h, loc+"/round/1").Body.String()); d.Party == nil || d.Party.Mode != ModeCoop {
+		t.Fatalf("round page data: %+v", d.Party)
+	}
+	clk.add(partyCountdown)
+
+	var marked struct {
+		Rejected []int
+		Snapshot Snapshot
+	}
+	ops := [][4]int{{1, 0, 0, 1}, {2, 0, 2, 0}}
+	if c := postJSON(t, h, loc+"/mark", map[string]any{"token": joined.Token, "round": 1, "ops": ops}, &marked); c != http.StatusOK ||
+		len(marked.Rejected) != 1 || marked.Rejected[0] != 2 || marked.Snapshot.Coop == nil || marked.Snapshot.Coop.Board[0] != '1' || marked.Snapshot.Coop.Acked != 2 {
+		t.Fatalf("mark: %d %+v %+v", c, marked, marked.Snapshot.Coop)
+	}
+	// A whole board's worth of operations fits into one request.
+	big := make([][4]int, 50)
+	for i := range big {
+		big[i] = [4]int{100 + i, i % 25, 0, 1}
+	}
+	if c := postJSON(t, h, loc+"/mark", map[string]any{"token": joined.Token, "round": 1, "ops": big}, nil); c != http.StatusOK {
+		t.Fatalf("big mark: %d", c)
+	}
+	var voted struct{ Snapshot Snapshot }
+	if c := postJSON(t, h, loc+"/vote", map[string]any{"token": joined.Token, "round": 1, "giveUp": true}, &voted); c != http.StatusOK || voted.Snapshot.Phase != PhaseResults {
+		t.Fatalf("vote: %d %+v", c, voted.Snapshot)
+	}
 }

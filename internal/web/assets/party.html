@@ -16,7 +16,7 @@
   </nav>
   <div class="title">
     <h1 id="party-title">Zusammen spielen</h1>
-    <p class="sub">Alle lösen gleichzeitig dasselbe Puzzle. Wertung pro Runde: wenigste Hinweise, dann schnellste Zeit.</p>
+    <p class="sub" id="party-sub">Alle lösen gleichzeitig dasselbe Puzzle: gegeneinander oder miteinander am selben Brett.</p>
   </div>
 </header>
 
@@ -28,6 +28,11 @@
       <h2>Neue Party</h2>
       <p class="muted">Welche Größen dürfen vorkommen? Jede Runde wird zufällig eine davon gespielt.</p>
       <div class="sizes" id="sizes"></div>
+      <p class="muted">Wie wird gespielt?</p>
+      <div class="modes">
+        <label class="mode"><input type="radio" name="mode" value="versus" checked> <span><strong>Gegeneinander</strong> <span class="muted">– jede Person auf ihrem eigenen Brett; Wertung: wenigste Hinweise, dann schnellste Zeit.</span></span></label>
+        <label class="mode"><input type="radio" name="mode" value="coop"> <span><strong>Miteinander</strong> <span class="muted">– alle markieren auf demselben Brett, gemeinsame Zeit, ohne Hinweise.</span></span></label>
+      </div>
       <div class="actions"><button type="submit" class="primary">Party starten</button></div>
     </form>
     <form class="card" id="goto">

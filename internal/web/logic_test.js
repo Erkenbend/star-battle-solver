@@ -192,3 +192,25 @@ console.log("drag ok");
   assert.deepEqual(L.colorSegments(d, ""), []);
 }
 console.log("swatches ok");
+
+// Coop: operations on the shared board, as the server applies them.
+{
+  const { FREE: F, CROSS: X, STAR: S } = L;
+  const before = Uint8Array.from([F, X, S, F]);
+  const after = Uint8Array.from([X, X, F, S]);
+  const ops = L.diffOps(before, after);
+  assert.deepEqual(ops, [[0, F, X], [2, S, F], [3, F, S]]);
+  const numbered = ops.map((o, k) => [k + 1, ...o]);
+  assert.deepEqual(L.applyOps(before, numbered), { cells: after, rejected: [] });
+  assert.deepEqual([...before], [F, X, S, F], "applyOps must not change its input");
+
+  // Rebase: my pending ops on a newer server board where somebody else set
+  // a star on cell 0 and the same star on cell 3.
+  const server = Uint8Array.from([S, X, S, S]);
+  const r = L.applyOps(server, numbered);
+  assert.deepEqual([...r.cells], [S, X, F, S]); // their star stays, mine on 3 agrees
+  assert.deepEqual(r.rejected, [1]);
+
+  assert.deepEqual([...L.decodeBoard("0120")], [F, X, S, F]);
+}
+console.log("coop ops ok");

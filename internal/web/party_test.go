@@ -116,7 +116,13 @@ func snap(t *testing.T, pm *Parties, code, tok string) Snapshot {
 // moves the clock past the countdown.
 func startRound(t *testing.T, pm *Parties, clk *testClock, names ...string) (string, []string) {
 	t.Helper()
-	code, err := pm.Create([]int{5})
+	return startRoundMode(t, pm, clk, ModeVersus, names...)
+}
+
+// startRoundMode is startRound for a party in the given mode.
+func startRoundMode(t *testing.T, pm *Parties, clk *testClock, mode string, names ...string) (string, []string) {
+	t.Helper()
+	code, err := pm.Create([]int{5}, mode)
 	must(t, err)
 	waitPrepared(t, pm, code)
 	var toks []string
@@ -135,7 +141,7 @@ func startRound(t *testing.T, pm *Parties, clk *testClock, names ...string) (str
 
 func TestPartyRound(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create([]int{5, 5, 3, 99})
+	code, err := pm.Create([]int{5, 5, 3, 99}, "")
 	must(t, err)
 	waitPrepared(t, pm, code)
 	a := mustJoin(t, pm, code, "  Anna   Lena ")
@@ -299,7 +305,7 @@ func TestPartyAllAbsent(t *testing.T) {
 
 func TestPartyLateJoin(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create([]int{5})
+	code, err := pm.Create([]int{5}, "")
 	must(t, err)
 	waitPrepared(t, pm, code)
 	a := mustJoin(t, pm, code, "A")
@@ -351,9 +357,9 @@ func TestPartyLeave(t *testing.T) {
 
 func TestPartyRejoinAndLimits(t *testing.T) {
 	pm, _ := newTestParties(t)
-	_, err := pm.Create([]int{2, 15})
+	_, err := pm.Create([]int{2, 15}, "")
 	wantStatus(t, err, http.StatusBadRequest)
-	code, err := pm.Create([]int{6})
+	code, err := pm.Create([]int{6}, "")
 	must(t, err)
 	_, err = pm.Snapshot("nope", "")
 	wantStatus(t, err, http.StatusNotFound)
@@ -381,7 +387,7 @@ func TestPartyRejoinAndLimits(t *testing.T) {
 
 func TestPartyExpiry(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create([]int{5})
+	code, err := pm.Create([]int{5}, "")
 	must(t, err)
 	tok := mustJoin(t, pm, code, "A")
 	ch, cancel, err := pm.Subscribe(code, tok)
@@ -405,7 +411,7 @@ func TestPartyPrepareAfterReady(t *testing.T) {
 		<-gate
 		return testPuzzle(t, n), nil
 	}
-	code, err := pm.Create([]int{5})
+	code, err := pm.Create([]int{5}, "")
 	must(t, err)
 	a := mustJoin(t, pm, code, "A")
 	must(t, pm.SetReady(code, a, true))
@@ -430,7 +436,7 @@ func TestPartyPrepareRetries(t *testing.T) {
 		}
 		return testPuzzle(t, n), nil
 	}
-	code, err := pm.Create([]int{5})
+	code, err := pm.Create([]int{5}, "")
 	must(t, err)
 	waitPrepared(t, pm, code)
 	if s := snap(t, pm, code, ""); s.PrepErr != "" || s.Preparing {
@@ -440,7 +446,7 @@ func TestPartyPrepareRetries(t *testing.T) {
 
 func TestPartySubscribe(t *testing.T) {
 	pm, _ := newTestParties(t)
-	code, err := pm.Create([]int{5})
+	code, err := pm.Create([]int{5}, "")
 	must(t, err)
 	ch, cancel, err := pm.Subscribe(code, "")
 	must(t, err)

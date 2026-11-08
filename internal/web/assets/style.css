@@ -225,6 +225,13 @@ dialog textarea {
 .cell.new .sym { animation: pop 0.25s ease-out; }
 @keyframes pop { from { transform: scale(0.4); opacity: 0.2; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cell.new .sym { animation: none; } }
+/* Coop rounds: a cell changed by somebody else glows briefly; our own change
+   that lost against an earlier one blinks red. */
+.cell.remote::after { animation: remote 1.1s ease-out; }
+.cell.conflict::after { animation: conflict 1.1s ease-out; }
+@keyframes remote { from { box-shadow: inset 0 0 0 3px var(--new); } to { box-shadow: inset 0 0 0 3px transparent; } }
+@keyframes conflict { 0%, 40% { box-shadow: inset 0 0 0 3px var(--bad); background: color-mix(in srgb, var(--bad) 25%, transparent); } to { box-shadow: inset 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: reduce) { .cell.remote::after, .cell.conflict::after { animation-duration: 0.01s; } }
 
 .legend { color: var(--muted); font-size: 13px; margin: 10px 0 0; max-width: 560px; }
 /* Color swatch standing in for a region letter in explanations ("Farbe ■"). */
@@ -349,12 +356,15 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .party-start, .party-lobby { display: flex; flex-direction: column; gap: 14px; }
 .sizes { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .size { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.modes { display: grid; gap: 6px; margin-top: 8px; }
+.mode { display: flex; align-items: baseline; gap: 6px; }
 .code-input { width: 6.5em; text-transform: uppercase; letter-spacing: 0.2em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .share { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .share .code { font: 700 26px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.18em; }
 .share button { margin-left: auto; }
 
 .party-panel { display: flex; flex-direction: column; gap: 10px; }
+.party-panel .party-mode { margin: 0; font-size: 13px; }
 .party-panel h3 { margin: 4px 0 0; font-size: 14px; color: var(--muted); font-weight: 600; }
 .party-panel .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .party-status { margin: 0; font-weight: 550; font-variant-numeric: tabular-nums; }
@@ -364,7 +374,7 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ranking th, .ranking td { padding: 6px 10px; text-align: left; border-top: 1px solid var(--border); }
 .ranking th { border-top: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
 .ranking .num, .ranking .rank { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ranking th:nth-child(4), .ranking th:nth-child(5) { text-align: right; }
+.ranking:not(.coop) th:nth-child(4), .ranking:not(.coop) th:nth-child(5), .ranking.coop th:nth-child(3) { text-align: right; }
 .ranking .name { overflow-wrap: anywhere; }
 .ranking .status { color: var(--muted); white-space: nowrap; }
 .ranking tr.solved .status { color: #2e9d58; }

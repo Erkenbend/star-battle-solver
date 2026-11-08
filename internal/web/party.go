@@ -20,10 +20,17 @@ import (
 )
 
 // Party mode ("Zusammen spielen"): several players solve the same puzzles in
-// rounds. A round starts when every present player is ready, ends when every
-// present participant has solved or given up, and ranks by fewest hints, then
-// shortest time (server wall clock from the common start). The next puzzle is
-// prepared in the background while a round runs.
+// rounds. A round starts when every present player is ready. The next puzzle
+// is prepared in the background while a round runs.
+//
+// The party's creator picks one of two modes for all its rounds:
+//   - versus (default): everybody solves on their own board. The round ends
+//     when every present participant has solved or given up and ranks by
+//     fewest hints, then shortest time (server wall clock from the common
+//     start).
+//   - coop: everybody marks the same board, kept on the server (coop.go),
+//     without hints. The round ends when the board is solved or all present
+//     participants vote to give up.
 //
 // Everything lives in memory behind one mutex; parties expire when idle.
 
@@ -36,6 +43,12 @@ const (
 	partyAbsentAfter = 60 * time.Second // without an event stream: absent
 	partyIdleExpire  = 2 * time.Hour    // without any activity: removed
 	partyCountdown   = 3 * time.Second  // between "all ready" and the start
+)
+
+// Party modes.
+const (
+	ModeVersus = "versus" // each on their own board, ranked
+	ModeCoop   = "coop"   // all on the same board
 )
 
 // Party phases.
@@ -88,6 +101,7 @@ type Parties struct {
 type Party struct {
 	Code     string
 	Sizes    []int
+	Mode     string
 	Phase    string
 	Round    *Round // current or last round, nil in the lobby
 	players  []*Player
@@ -125,6 +139,7 @@ type Round struct {
 	Results      map[string]*Result
 	names        map[string]string // participant names, also after they left
 	data         *Data             // page data, built on first request
+	coop         *coopBoard        // the shared board in coop mode, else nil
 }
 
 // Result of one participant.
@@ -178,8 +193,12 @@ func (pm *Parties) Run(interval time.Duration, stop <-chan struct{}) {
 	}
 }
 
-// Create starts a new party with the allowed sizes and returns its code.
-func (pm *Parties) Create(sizes []int) (string, error) {
+// Create starts a new party with the allowed sizes and mode (ModeVersus if
+// unknown) and returns its code.
+func (pm *Parties) Create(sizes []int, mode string) (string, error) {
+	if mode != ModeCoop {
+		mode = ModeVersus
+	}
 	var ok []int
 	for _, n := range sizes {
 		if n >= MinN && n <= MaxN && !slices.Contains(ok, n) {
@@ -206,6 +225,7 @@ func (pm *Parties) Create(sizes []int) (string, error) {
 	p := &Party{
 		Code:    code,
 		Sizes:   ok,
+		Mode:    mode,
 		Phase:   PhaseLobby,
 		byToken: map[string]*Player{},
 		subs:    map[chan struct{}]bool{},
@@ -443,7 +463,7 @@ func (pm *Parties) RoundData(code string, num int) (Data, error) {
 		r.data = &d
 	}
 	d := *r.data
-	d.Party = &PartyInfo{Code: p.Code, Round: r.Num}
+	d.Party = &PartyInfo{Code: p.Code, Round: r.Num, Mode: p.Mode}
 	return d, nil
 }
 
@@ -523,9 +543,14 @@ func (pm *Parties) refresh(p *Party) bool {
 		}
 	}
 	phase, round := p.Phase, p.Round
+	n := 0
+	if round != nil {
+		n = len(round.Participants)
+	}
+	p.coopEnroll()
 	pm.maybeEnd(p)
 	pm.maybeStart(p)
-	return changed || p.Phase != phase || p.Round != round
+	return changed || p.Phase != phase || p.Round != round || (round != nil && len(round.Participants) != n)
 }
 
 func (pm *Parties) broadcast(p *Party) {
@@ -577,6 +602,9 @@ func (pm *Parties) maybeStart(p *Party) {
 		Results:      map[string]*Result{},
 		names:        map[string]string{},
 	}
+	if p.Mode == ModeCoop {
+		r.coop = newCoopBoard(p.next.N)
+	}
 	for _, pl := range p.players {
 		pl.Ready = false
 		pl.Stars, pl.Hints = 0, 0
@@ -595,6 +623,10 @@ func (pm *Parties) maybeStart(p *Party) {
 func (pm *Parties) maybeEnd(p *Party) {
 	r := p.Round
 	if p.Phase != PhasePlaying || pm.now().Before(r.Start) {
+		return
+	}
+	if r.coop != nil {
+		pm.coopMaybeEnd(p)
 		return
 	}
 	waiting := false
@@ -664,6 +696,7 @@ func (pm *Parties) startPrep(p *Party) {
 // Snapshot is the state of a party as sent to the players.
 type Snapshot struct {
 	Code      string       `json:"code"`
+	Mode      string       `json:"mode"`
 	Phase     string       `json:"phase"`
 	Sizes     []int        `json:"sizes"`
 	Round     int          `json:"round"` // 0 in the lobby
@@ -674,7 +707,8 @@ type Snapshot struct {
 	PrepErr   string       `json:"prepErr,omitempty"`
 	You       string       `json:"you,omitempty"` // the viewer's player ID
 	Players   []SnapPlayer `json:"players"`
-	Ranking   []RankEntry  `json:"ranking"` // of the current or last round
+	Ranking   []RankEntry  `json:"ranking"`        // of the current or last round
+	Coop      *CoopSnap    `json:"coop,omitempty"` // the shared board in coop mode
 	Version   int          `json:"version"`
 }
 
@@ -696,6 +730,7 @@ type RankEntry struct {
 	Hints  int    `json:"hints"`
 	TimeMs int64  `json:"timeMs"`
 	Stars  int    `json:"stars"`
+	Moves  int    `json:"moves,omitempty"` // coop: changes to the shared board
 }
 
 // Snapshot returns the state of the party as seen by the player with this
@@ -710,6 +745,7 @@ func (pm *Parties) Snapshot(code, token string) (Snapshot, error) {
 	now := pm.now()
 	s := Snapshot{
 		Code:      p.Code,
+		Mode:      p.Mode,
 		Phase:     p.Phase,
 		Sizes:     p.Sizes,
 		Preparing: p.next == nil,
@@ -738,6 +774,9 @@ func (pm *Parties) Snapshot(code, token string) (Snapshot, error) {
 		}
 	}
 	s.Ranking = p.ranking()
+	if r.coop != nil {
+		s.Coop = r.coopSnap(s.You)
+	}
 	return s, nil
 }
 
@@ -756,6 +795,9 @@ func (p *Party) ranking() []RankEntry {
 		pl := byID[id]
 		if pl != nil {
 			e.Name, e.Stars, e.Hints = pl.Name, pl.Stars, pl.Hints
+		}
+		if r.coop != nil {
+			e.Stars, e.Hints, e.Moves = 0, 0, r.coop.moves[id]
 		}
 		switch res := r.Results[id]; {
 		case res != nil && res.Solved:
@@ -784,6 +826,9 @@ func (p *Party) ranking() []RankEntry {
 		}
 		return 0
 	})
+	if r.coop != nil {
+		return out // one result for all, no ranks
+	}
 	for i := range out {
 		if s := out[i].Status; s == "solved" || s == "gaveup" {
 			out[i].Rank = i + 1

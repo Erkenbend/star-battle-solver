@@ -247,7 +247,33 @@ const Logic = (() => {
     return changed;
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments };
+  // Coop rounds share one board on the server. A change is an operation
+  // [num, i, from, to]: cell i, seen as from, becomes to. It applies if the
+  // cell still is from, is fine if it already is to, and is rejected
+  // otherwise, so a change never overwrites one made meanwhile by somebody
+  // else (the same rule as the server, coop.go).
+  // applyOps returns a copy of cells with ops applied and the numbers of the
+  // rejected ones.
+  function applyOps(cells, ops) {
+    const out = Uint8Array.from(cells), rejected = [];
+    for (const [num, i, from, to] of ops) {
+      if (out[i] === from) out[i] = to;
+      else if (out[i] !== to) rejected.push(num);
+    }
+    return { cells: out, rejected };
+  }
+
+  // The changes from before to after as [i, from, to].
+  function diffOps(before, after) {
+    const out = [];
+    for (let i = 0; i < after.length; i++) if (before[i] !== after[i]) out.push([i, before[i], after[i]]);
+    return out;
+  }
+
+  // The server's board string ("0120…") as cells.
+  const decodeBoard = (str) => Uint8Array.from(str, (ch) => ch.charCodeAt(0) - 48);
+
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -473,6 +499,15 @@ function boot() {
   }
   // A round played together (d.party), see "party mode" below.
   const party = d.party ? { gaveUp: !!(saved && saved.gaveUp), snap: null, startLocal: null, live: false, solving: false, sentStars: -1, sentHints: -1 } : null;
+  // A coop round (all on one board, kept by the server), see "coop mode" below.
+  const coop = party && d.party.mode === "coop"
+    ? { server: new Uint8Array(n * n), version: -1, pending: [], nextNum: 0, ready: false, sending: false, voted: false, lost: new Set() }
+    : null;
+  if (coop) { // the board comes from the server, nothing from storage
+    marks = new Uint8Array(n * n);
+    done = party.gaveUp = false;
+    hintCount = 0;
+  }
   // No input: solved, or in a party round given up, not started or not ours.
   const locked = () => done || (!!party && (party.gaveUp || !partyLive()));
   function fmtTime(ms) {
@@ -482,7 +517,7 @@ function boot() {
   }
   const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
   function drawClock() {
-    $("clock").textContent = `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
+    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
   }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
@@ -490,6 +525,10 @@ function boot() {
 
   function setMarks(next) {
     if (locked()) return; // solved puzzles are frozen
+    if (coop) {
+      coopCommit(L.diffOps(marks, next));
+      return;
+    }
     undoStack.push(marks);
     redoStack.length = 0;
     marks = next;
@@ -522,20 +561,25 @@ function boot() {
       document.body.classList.toggle("party-wait", !party.gaveUp && !done && !partyStarted());
       $("giveup").disabled = frozen;
       $("reset").disabled = frozen;
+      if (coop) {
+        $("giveup").textContent = coop.voted ? "Doch nicht aufgeben" : "Aufgeben";
+        $("giveup").classList.toggle("voted", coop.voted);
+      }
     }
     $("undo").disabled = frozen || undoStack.length === 0;
     $("redo").disabled = frozen || redoStack.length === 0;
     $("hint").disabled = frozen;
     $("check").disabled = frozen;
     $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
-    if (L.solved(d, eff.cells) && !(party && party.gaveUp)) {
+    // In a coop round the server says when the board is solved.
+    if (L.solved(d, eff.cells) && !(party && party.gaveUp) && (!coop || done)) {
       if (!done) {
         clockStop();
         done = true;
         if (party) partySolve();
       }
       const with_ = !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
-      banner(`Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
+      banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
       if (!party) {
         const share = el("button", "share", "Ergebnis kopieren");
         share.title = "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
@@ -594,6 +638,10 @@ function boot() {
   }
 
   function store() {
+    if (coop) { // the board lives on the server
+      save({ auto: $("autocross").checked });
+      return;
+    }
     const v = { marks: [...marks], auto: $("autocross").checked, time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
     if (party) v.gaveUp = party.gaveUp;
     save(v);
@@ -752,6 +800,10 @@ function boot() {
       if (ev.type === "pointerup") clickCell(dr.start, dr.shift || ev.shiftKey);
       return;
     }
+    if (coop) { // one drag is one bundle of changes
+      coopCommit(L.diffOps(dr.before, marks));
+      return;
+    }
     if (marks.some((v, i) => v !== dr.before[i])) {
       undoStack.push(dr.before);
       redoStack.length = 0;
@@ -768,6 +820,7 @@ function boot() {
   });
   $("undo").onclick = () => {
     if (locked() || !undoStack.length) return;
+    if (coop) return coopUndo(undoStack, redoStack);
     redoStack.push(marks);
     marks = undoStack.pop();
     overlay = null;
@@ -775,6 +828,7 @@ function boot() {
   };
   $("redo").onclick = () => {
     if (locked() || !redoStack.length) return;
+    if (coop) return coopUndo(redoStack, undoStack);
     undoStack.push(marks);
     marks = redoStack.pop();
     overlay = null;
@@ -782,7 +836,9 @@ function boot() {
   };
   $("reset").onclick = () => {
     if (party) { // only the marks: time and hints count on
-      if (!locked() && marks.some((v) => v !== L.FREE)) setMarks(new Uint8Array(n * n));
+      if (locked() || !marks.some((v) => v !== L.FREE)) return;
+      if (coop && !confirm("Das Brett für alle löschen?")) return;
+      setMarks(new Uint8Array(n * n));
       return;
     }
     elapsed = 0;
@@ -1046,12 +1102,16 @@ function boot() {
   // [text, class] for the banner while not solved, or null.
   function partyBanner() {
     const s = party.snap;
-    if (party.gaveUp) return ["Aufgegeben. Die Lösung ist eingeblendet.", "what-if"];
+    if (party.gaveUp) return [coop ? "Gemeinsam aufgegeben. Die Lösung ist eingeblendet." : "Aufgegeben. Die Lösung ist eingeblendet.", "what-if"];
     if (!s) return ["Verbinde mit der Party …", ""];
     const me = partyMe();
     if (!me) return ["Du spielst in dieser Runde nicht mit.", "what-if"];
     if (!partyStarted()) return [`Gleich geht es los: ${Math.max(1, Math.ceil((party.startLocal - Date.now()) / 1000))} …`, ""];
     if (s.phase !== "playing") return ["Die Runde ist vorbei.", "what-if"];
+    if (coop && s.coop && s.coop.votes.length) {
+      const k = s.coop.votes.length, m = s.ranking.filter((e) => e.status === "playing").length;
+      return [`${k} von ${m} wollen aufgeben. Die Runde endet, wenn alle dafür sind.`, ""];
+    }
     return null;
   }
 
@@ -1079,7 +1139,7 @@ function boot() {
   let partyTimer = null;
   function partyReport() {
     party.live = partyLive();
-    if (!party.live || partyTimer) return;
+    if (coop || !party.live || partyTimer) return;
     partyTimer = setTimeout(() => {
       partyTimer = null;
       if (!partyLive()) return;
@@ -1093,6 +1153,7 @@ function boot() {
   }
 
   function partyGiveUp() {
+    if (coop) return coopVote();
     if (locked() || !confirm("Wirklich aufgeben? Die Lösung wird angezeigt, und du landest hinter allen, die lösen.")) return;
     party.gaveUp = true;
     clockStop();
@@ -1103,12 +1164,17 @@ function boot() {
   }
 
   function partySnap(s, at) {
+    if (coop) { // event stream and replies may overtake each other
+      if (s.version < coop.version) return;
+      coop.version = s.version;
+    }
     party.snap = s;
     if (s.round !== d.party.round) { // a new round: the lobby sends us on
       location.href = "/party/" + d.party.code;
       return;
     }
     party.startLocal = at + s.startInMs - s.elapsedMs;
+    if (coop) return coopSnap(s);
     const me = partyMe();
     if (me) {
       hintCount = Math.max(hintCount, me.hints);
@@ -1135,13 +1201,144 @@ function boot() {
     renderPlay();
   }
 
+  // ---------- coop mode: one board for all (d.party.mode "coop") ----------
+  // The server keeps the board and orders everybody's changes (coop.go). We
+  // show its board plus our own changes not yet confirmed (pending), so input
+  // never waits for the network. Changes are operations [num, i, from, to]
+  // (L.applyOps): a change based on an outdated view of a cell is rejected
+  // instead of overwriting what somebody else did. One request at a time
+  // keeps our operations in order; repeating one after a lost reply is
+  // harmless, the server skips numbers it has seen (acked).
+  function coopShow() {
+    marks = L.applyOps(coop.server, coop.pending).cells;
+    renderPlay();
+  }
+
+  // ops: [i, from, to] as seen on the board now; one undo step.
+  function coopCommit(ops, undoable = true) {
+    overlay = null;
+    if (ops.length && undoable) {
+      undoStack.push(ops);
+      redoStack.length = 0;
+    }
+    for (const op of ops) coop.pending.push([++coop.nextNum, ...op]);
+    coopShow();
+    coopFlush();
+  }
+
+  // Undo and redo take back only our own changes: a cell somebody else
+  // changed since is left alone (and blinks).
+  function coopUndo(from, to) {
+    const ops = from.pop().map(([i, a, b]) => [i, b, a]);
+    const ok = ops.filter(([i, a]) => marks[i] === a);
+    flash(ops.filter(([i, a]) => marks[i] !== a).map(([i]) => i), "conflict");
+    if (ok.length) to.push(ok.map(([i, a, b]) => [i, b, a]));
+    coopCommit(ok, false);
+  }
+
+  function coopFlush() {
+    if (coop.sending || !coop.pending.length || !partyLive()) return;
+    coop.sending = true;
+    partyPost("mark", { ops: coop.pending.slice() })
+      .then((r) => {
+        coop.sending = false;
+        partySnap(r.snapshot, Date.now());
+        coopFlush();
+      })
+      .catch((e) => {
+        coop.sending = false;
+        if (e.status === 0) { // no connection: try again
+          setTimeout(coopFlush, 1500);
+          return;
+        }
+        coop.pending = []; // e.g. the round is over: the server's board counts
+        partyError(e);
+        coopShow();
+      });
+  }
+
+  // A new state from the server: its board replaces ours, our confirmed
+  // operations drop out and the rest is replayed on top.
+  function coopSnap(s) {
+    const c = s.coop;
+    if (c) {
+      const first = !coop.ready;
+      coop.server = L.decodeBoard(c.board);
+      if (first) coop.nextNum = Math.max(coop.nextNum, c.acked);
+      coop.ready = true;
+      // Our own changes that did not make it (somebody was faster) blink red,
+      // once each: as soon as the new board shows they cannot apply any more,
+      // or when the server confirms that (only a cell's last change counts).
+      const last = new Map();
+      for (const op of coop.pending) if (op[0] <= c.acked) last.set(op[1], op);
+      const lostOps = [...last.values()].filter((op) => coop.server[op[1]] !== op[3]);
+      coop.pending = coop.pending.filter((op) => op[0] > c.acked);
+      const doomed = new Set(L.applyOps(coop.server, coop.pending).rejected);
+      lostOps.push(...coop.pending.filter((op) => doomed.has(op[0])));
+      const lost = [];
+      for (const op of lostOps) {
+        if (!coop.lost.has(op[0])) lost.push(op[1]);
+        coop.lost.add(op[0]);
+      }
+      coop.voted = !!s.you && c.votes.includes(s.you);
+      if (c.solved) done = true;
+      if (!drag) { // a drag in progress keeps its view until it ends
+        const before = marks;
+        marks = L.applyOps(coop.server, coop.pending).cells;
+        if (!first) flash(L.diffOps(before, marks).map(([i]) => i).filter((i) => !lost.includes(i)), "remote");
+      }
+      flash(lost, "conflict");
+    }
+    const end = s.ranking.length ? s.ranking[0].timeMs : 0;
+    if (c && c.solved) {
+      elapsed = end;
+      runningSince = null;
+    } else if (s.phase === "playing") {
+      elapsed = 0;
+      runningSince = party.startLocal;
+    } else { // given up together
+      party.gaveUp = true;
+      elapsed = end;
+      runningSince = null;
+    }
+    renderPlay();
+    coopFlush();
+  }
+
+  function coopVote() {
+    if (locked()) return;
+    if (!coop.voted && !confirm("Für Aufgeben stimmen? Die Runde endet, wenn alle dafür sind. Bis dahin geht es weiter.")) return;
+    coop.voted = !coop.voted;
+    renderPlay();
+    partyPost("vote", { giveUp: coop.voted })
+      .then((r) => partySnap(r.snapshot, Date.now()))
+      .catch(partyError);
+  }
+
+  // Lets cells blink briefly: "remote" for changes by others, "conflict"
+  // for our own changes that lost.
+  function flash(cells, cls) {
+    for (const i of cells) {
+      const e = cellEls[i];
+      e.classList.remove(cls);
+      void e.offsetWidth; // restarts the animation
+      e.classList.add(cls);
+      clearTimeout(e[cls]);
+      e[cls] = setTimeout(() => e.classList.remove(cls), 1200);
+    }
+  }
+
   if (party) {
     $("party-box").hidden = false;
     $("party-lobby").href = "/party/" + d.party.code;
     $("giveup").hidden = false;
     $("giveup").onclick = partyGiveUp;
     $("reset").textContent = "Alles löschen";
-    $("reset").title = "Löscht deine Markierungen; Zeit und Hinweise zählen weiter";
+    $("reset").title = coop ? "Löscht das Brett für alle; die Zeit läuft weiter" : "Löscht deine Markierungen; Zeit und Hinweise zählen weiter";
+    if (coop) { // no hints when playing together
+      $("hint").hidden = $("check").hidden = true;
+      $("giveup").title = "Stimme fürs Aufgeben; die Runde endet, wenn alle dafür sind";
+    }
     elapsed = 0; // the server's clock; our result's time once it is known
     if (location.hash === "#weg") history.replaceState(null, "", location.pathname);
     partyView = Party.live(d.party.code, $("party-panel"), { onSnap: partySnap });

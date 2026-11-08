@@ -59,6 +59,7 @@ type Data struct {
 type PartyInfo struct {
 	Code  string `json:"code"`
 	Round int    `json:"round"`
+	Mode  string `json:"mode"` // ModeVersus or ModeCoop
 }
 
 // Stats summarizes the search effort.
