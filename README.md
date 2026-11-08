@@ -2,6 +2,8 @@
 
 Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) und erklärt jeden Lösungsschritt auf Deutsch.
 
+> **Hinweis:** Die gesamte Implementierung wurde von Claude Opus 5.5 geschrieben, das Projekt ist also auch ein **Vibe-Coding-Experiment**. Von Menschenhand stammt nur [grober_plan.md](grober_plan.md), die Idee ganz am Anfang. Alles andere, Code, Tests, Dokumentation und auch diese README, ist nach und nach in Chats mit Claude entstanden.
+
 **Regeln des Puzzles:** NxN-Brett mit N Farben. In jeder Zeile, jeder Spalte und jeder Farbe steht genau **ein Stern**. Sterne berühren sich nicht, auch nicht diagonal.
 
 ## Worum es geht
