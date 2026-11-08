@@ -4,7 +4,64 @@ Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) un
 
 **Regeln des Puzzles:** NxN-Brett mit N Farben. In jeder Zeile, jeder Spalte und jeder Farbe steht genau **ein Stern**. Sterne berühren sich nicht, auch nicht diagonal.
 
-Der Solver arbeitet mit logischen Regeln, die als nebenläufige Observer laufen. Bleiben die Regeln stecken, sucht er mit Lookahead weiter und rät nur als letzten Ausweg. Hintergrund, Regeln und Messungen stehen in [PLAN.md](PLAN.md).
+## Worum es geht
+
+Ein Star Battle per Brute Force zu lösen ist einfach: Backtracking über die Zeilen, fertig in Millisekunden. Das ist aber weder spannend noch hilfreich, wenn man selbst vor einem Puzzle sitzt und nicht weiterkommt.
+
+Dieses Repo ist ein **Experiment**: Lässt sich ein Star Battle so lösen, **wie ein Mensch es tun würde**? Also Schritt für Schritt mit Regeln, die man nachvollziehen kann („Farbe H liegt nur noch in Zeile 7 → alle anderen Felder der Zeile 7 X“), und mit einer Begründung für jedes einzelne Kreuz und jeden Stern?
+
+- **Logische Regeln statt Suche.** Jede Regel ist ein Muster, das man auch auf Papier erkennt: letztes freies Feld, eingesperrte Farben, Felder, die eine ganze Zeile blockieren, Schubfachprinzip … Einfache Regeln haben Vorrang, so wie man selbst auch zuerst nach dem Offensichtlichen sucht.
+- **Gedankenexperiment statt Raten.** Kommen die Regeln nicht weiter, probiert der Solver „Was wäre, wenn hier ein Stern stünde?“ und übernimmt den Widerspruch mit der kürzesten Kette, also den, den ein Mensch am ehesten findet. Echtes Raten mit Backtracking gibt es nur als allerletzten Ausweg.
+- **Erklärungen auf Deutsch.** Jeder Schritt wird in Worten erklärt, im Terminal und auf einer interaktiven Seite, wo man den Lösungsweg abspielen oder sich beim eigenen Lösen einen Hinweis holen kann.
+- **Brute Force nur als Schiedsrichter.** Der Referenz-Solver in `internal/bruteforce` prüft im Generator, dass jedes Puzzle genau eine Lösung hat, und in den Tests, dass die Regeln nichts Falsches folgern.
+
+Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer (eine Goroutine pro Regel), die ihre Folgerungen über Channels austauschen. Die ursprüngliche Idee steht in [grober_plan.md](grober_plan.md), Regeln, Messungen und Entscheidungen in [PLAN.md](PLAN.md). Schon die drei Basisregeln lösen etwa 96,5 % der erzeugten Puzzles ohne Gedankenexperiment; die hartnäckigen Fälle liegen in `testdata/hard`.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Lösungsweg](docs/screenshots/loesungsweg.png) | ![Gedankenexperiment](docs/screenshots/annahme.png) |
+| **Lösungsweg:** jeder Schritt mit Regel und Begründung, die betroffenen Felder sind hervorgehoben. | **Gedankenexperiment:** Bei schweren Puzzles zeigt der Solver die ganze Kette bis zum Widerspruch. |
+| ![Selbst lösen](docs/screenshots/spielen.png) | ![Zusammen spielen](docs/screenshots/party-runde.png) |
+| **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Zusammen spielen:** mehrere lösen dieselben Puzzles um die Wette und sehen den Fortschritt der anderen live. |
+
+Im Terminal sieht derselbe Lösungsweg so aus:
+
+```
+$ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
+1. In Farbe C ist nur noch das Feld (5,3) frei → Stern
+2. In Farbe D ist nur noch das Feld (0,2) frei → Stern
+3. Spalte 1 hat nur noch freie Felder der Farbe B → alle anderen Felder der Farbe B X
+    X: (3,0) (3,4) (4,0) (4,5) (6,0) (7,0)
+4. Farbe H liegt nur noch in Zeile 7 → alle anderen Felder der Zeile 7 X
+    X: (7,1) (7,6) (7,7)
+…
+7. Die markierten Felder berühren jeweils alle freien Felder von Zeile 6 → X
+    X: (7,5)
+8. In Zeile 7 ist nur noch das Feld (7,4) frei → Stern
+…
+```
+
+## Online spielen
+
+Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.de)**. Die Seite ist allerdings mit Basic Auth geschützt: Wer mich kennt, kann gerne nach einem Zugang fragen. Wer mich nicht kennt, kann das Ganze ebenso gerne selbst hosten; es ist nur eine einzelne Datei ohne Abhängigkeiten (siehe [Herunterladen](#herunterladen) und [deploy/README.md](deploy/README.md)).
+
+Neben dem bestehenden Party-Modus (alle lösen dieselben Puzzles gegeneinander) entsteht gerade ein zweiter Mehrspielermodus, in dem alle **gemeinsam am selben Brett** lösen.
+
+## Herunterladen
+
+Bei jedem Push laufen auf GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) alle Tests, danach werden die Programme gebaut. Sie hängen als Artefakte am jeweiligen Lauf: unter [Actions](../../actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess) den letzten erfolgreichen Lauf auf `main` öffnen und unten bei „Artifacts“ das passende herunterladen. Das geht nur mit GitHub-Konto, und GitHub löscht Artefakte nach 90 Tagen.
+
+| Artefakt | für |
+|---|---|
+| `starbattle-linux-amd64` | Linux auf PC/Server (x86-64) |
+| `starbattle-linux-arm64` | Raspberry Pi 3/4/5 mit 64-Bit-OS (Standard bei aktuellem Raspberry Pi OS) |
+| `starbattle-linux-armv7` | Raspberry Pi 2/3/4 mit 32-Bit-OS |
+| `starbattle-macos-arm64` / `starbattle-macos-amd64` | Mac mit Apple-Chip / mit Intel-Chip |
+| `starbattle-windows-amd64` / `starbattle-windows-arm64` | Windows auf PC / auf ARM |
+
+Für Linux und macOS steckt im Artefakt ein `.tar.gz` (damit das Programm ausführbar bleibt): entpacken, `./starbattle serve` starten und `http://localhost:6369/` im Browser öffnen. Auf dem Mac ist das Programm nicht signiert; einmal `xattr -d com.apple.quarantine starbattle` lässt es starten. Für den Raspberry Pi gibt es außerdem [deploy/deploy.sh](deploy/README.md), das passend baut und als Dienst installiert.
 
 ## Bauen und testen
 
@@ -139,3 +196,9 @@ Dazu die Solver-Optionen wie bei `solve`. Für den Betrieb auf einem Raspberry P
 | `internal/web` | HTML-Seite, Server, Party-Modus |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi |
 | `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern |
+| `docs/screenshots` | Bilder für diese README |
+| `.github/workflows` | Tests und Builds auf GitHub Actions |
+
+## Lizenz
+
+[MIT](LICENSE): Alles ist erlaubt, auch kommerziell und in veränderter Form, solange der Copyright-Hinweis und der Lizenztext erhalten bleiben.

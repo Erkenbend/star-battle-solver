@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # Node für internal/web/logic_test.js (TestJSLogic), auf ubuntu-latest vorinstalliert.
+      - run: node --version
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+      - name: go test -race
+        run: go test -race -short ./...
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: linux-amd64, goos: linux, goarch: amd64 }
+          - { name: linux-arm64, goos: linux, goarch: arm64 } # Raspberry Pi 3/4/5 mit 64-Bit-OS
+          - { name: linux-armv7, goos: linux, goarch: arm, goarm: "7" } # Raspberry Pi 2/3/4 mit 32-Bit-OS
+          - { name: macos-amd64, goos: darwin, goarch: amd64 }
+          - { name: macos-arm64, goos: darwin, goarch: arm64 }
+          - { name: windows-amd64, goos: windows, goarch: amd64 }
+          - { name: windows-arm64, goos: windows, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Cross-Compile
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          set -euo pipefail
+          exe=starbattle; [[ $GOOS == windows ]] && exe=starbattle.exe
+          dir=starbattle-${{ matrix.name }}
+          mkdir -p "$dir" dist
+          go build -trimpath -ldflags="-s -w" -o "$dir/$exe" ./cmd/starbattle
+          cp README.md LICENSE "$dir/"
+          # Artefakte werden als zip ausgeliefert und verlieren dabei das
+          # Ausführbar-Bit; darum für Linux/macOS ein tar.gz hinein.
+          if [[ $GOOS == windows ]]; then
+            mv "$dir"/* dist/
+          else
+            tar -czf "dist/$dir.tar.gz" "$dir"
+          fi
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starbattle-${{ matrix.name }}
+          path: dist/
+          if-no-files-found: error
