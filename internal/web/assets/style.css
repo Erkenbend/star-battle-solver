@@ -403,10 +403,12 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .lib-main { max-width: 1180px; margin: 0 auto; padding: 8px 16px 32px; display: flex; flex-direction: column; gap: 18px; }
 .lib-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
 .lib-progress { margin: 0; font-weight: 550; font-variant-numeric: tabular-nums; }
-#groups { display: flex; flex-direction: column; gap: 24px; }
+/* Groups flow side by side, so the small sizes (1 to 3 puzzles) share a row. */
+#groups { display: flex; flex-wrap: wrap; gap: 24px 32px; }
 .lib-group h2 { margin: 0 0 8px; font-size: 16px; color: var(--muted); font-weight: 600; }
-.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 12px; }
+.lib-grid { display: flex; flex-wrap: wrap; gap: 12px; }
 .lib-tile {
+  width: 120px;
   display: flex; flex-direction: column; gap: 6px; padding: 8px;
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;
   color: var(--fg); text-decoration: none;

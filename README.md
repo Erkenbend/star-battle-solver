@@ -15,6 +15,7 @@ Dieses Repo ist ein **Experiment**: Lässt sich ein Star Battle so lösen, **wie
 - **Logische Regeln statt Suche.** Jede Regel ist ein Muster, das man auch auf Papier erkennt: letztes freies Feld, eingesperrte Farben, Felder, die eine ganze Zeile blockieren, Schubfachprinzip … Einfache Regeln haben Vorrang, so wie man selbst auch zuerst nach dem Offensichtlichen sucht.
 - **Gedankenexperiment statt Raten.** Kommen die Regeln nicht weiter, probiert der Solver „Was wäre, wenn hier ein Stern stünde?“ und übernimmt den Widerspruch mit der kürzesten Kette, also den, den ein Mensch am ehesten findet. Echtes Raten mit Backtracking gibt es nur als allerletzten Ausweg.
 - **Erklärungen auf Deutsch.** Jeder Schritt wird in Worten erklärt, im Terminal und auf einer interaktiven Seite, wo man den Lösungsweg abspielen oder sich beim eigenen Lösen einen Hinweis holen kann.
+- **Eine Bibliothek der härtesten Fälle.** Die Puzzles, an denen die einfachen Regeln scheitern, lassen sich im Browser ohne jede Hilfe lösen. Den Lösungsweg des Solvers gibt es zum Vergleich erst danach.
 - **Brute Force nur als Schiedsrichter.** Der Referenz-Solver in `internal/bruteforce` prüft im Generator, dass jedes Puzzle genau eine Lösung hat, und in den Tests, dass die Regeln nichts Falsches folgern.
 
 Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer (eine Goroutine pro Regel), die ihre Folgerungen über Channels austauschen. Die ursprüngliche Idee steht in [grober_plan.md](grober_plan.md), Regeln, Messungen und Entscheidungen in [PLAN.md](PLAN.md). Schon die drei Basisregeln lösen etwa 96,5 % der erzeugten Puzzles ohne Gedankenexperiment; die hartnäckigen Fälle liegen in `testdata/hard`.
@@ -29,6 +30,8 @@ Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer 
 | **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Zusammen spielen:** Party anlegen, Größen und Spielweise wählen, Code oder Link weitergeben. |
 | ![Gegeneinander](docs/screenshots/party-runde.png) | ![Miteinander](docs/screenshots/party-gemeinsam.png) |
 | **Gegeneinander:** alle lösen dasselbe Puzzle auf dem eigenen Brett und sehen den Fortschritt der anderen live. | **Miteinander:** alle markieren gemeinsam auf demselben Brett, mit gemeinsamer Zeit. |
+| ![Bibliothek](docs/screenshots/bibliothek.png) | ![Bibliothek: gelöst](docs/screenshots/bibliothek-geloest.png) |
+| **Bibliothek:** besonders schwere Puzzles zum Stöbern, an denen die einfachen Regeln scheitern. Der Browser merkt sich, welche gelöst sind und in welcher Zeit. | **Ohne Hilfe lösen:** keine Hinweise, kein Prüfen. Danach gibt es den Lösungsweg des Solvers, einen Link zum Teilen und das nächste ungelöste Puzzle. |
 
 Im Terminal sieht derselbe Lösungsweg so aus:
 
@@ -51,7 +54,7 @@ $ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
 
 Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.de)**, und zwar auf meinem Raspberry Pi 3B zu Hause. Weil der hinter NAT steht, ist sie **nur über IPv6** erreichbar; ohne IPv6-Anschluss lädt die Seite nicht. Außerdem ist sie mit Basic Auth geschützt: Wer mich kennt, kann gerne nach einem Zugang fragen. Wer mich nicht kennt, kann das Ganze ebenso gerne selbst hosten; es ist nur eine einzelne Datei ohne Abhängigkeiten (siehe [Herunterladen](#herunterladen) und [deploy/README.md](deploy/README.md)).
 
-Unter „Bibliothek“ liegen die schweren Puzzles aus `testdata/hard` zum Stöbern und Lösen, **ohne Hinweise und ohne Prüfen**. Der Browser merkt sich, welche gelöst sind.
+Unter „Bibliothek“ liegen die besonders schweren Puzzles aus `testdata/hard` zum Stöbern und Lösen, **ohne Hinweise und ohne Prüfen**. Der Browser merkt sich, welche gelöst sind.
 
 Unter „Zusammen spielen“ lassen sich Partys mit mehreren Leuten spielen, wahlweise **gegeneinander** (jede Person auf ihrem eigenen Brett, Wertung nach Hinweisen und Zeit) oder **miteinander** (alle auf demselben Brett, ohne Hinweise).
 
