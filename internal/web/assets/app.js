@@ -270,14 +270,40 @@ const Logic = (() => {
     return out;
   }
 
+  // Region colors: 12 hand-tuned colors [hue, saturation, lightness] for the
+  // light theme (dark: same hue, less saturation, low lightness). Fewer regions
+  // use an evenly spread subset; more regions fall back to computed hues. The
+  // stride shuffles the order, so regions with consecutive letters (often
+  // neighbors on the board) do not get neighboring colors.
+  const PALETTE = [
+    [0, 72, 82], [28, 85, 76], [50, 85, 70], [85, 50, 72], [140, 40, 76], [176, 45, 68],
+    [202, 70, 80], [228, 65, 83], [266, 55, 84], [305, 40, 80], [35, 28, 72], [0, 0, 80],
+  ];
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const regionHSL = (n, reg) => {
+    let stride = Math.max(1, Math.round(n * 0.382));
+    while (gcd(stride, n) !== 1) stride++;
+    const rank = (reg * stride) % n;
+    if (n <= PALETTE.length) return PALETTE[Math.floor((rank * PALETTE.length) / n)];
+    return [Math.round(rank * (360 / n) + 25) % 360, 60, rank % 2 ? 74 : 82];
+  };
+
+  // The library puzzle after number nr (wrapping around) that is not in
+  // solved (an object keyed by ID), or null if all are solved.
+  function nextUnsolved(entries, solved, nr) {
+    const sorted = [...entries].sort((a, b) => a.nr - b.nr);
+    const after = sorted.filter((e) => e.nr > nr).concat(sorted.filter((e) => e.nr <= nr));
+    return after.find((e) => e.nr !== nr && !(solved && Object.hasOwn(solved, e.id))) || null;
+  }
+
   // The server's board string ("0120…") as cells.
   const decodeBoard = (str) => Uint8Array.from(str, (ch) => ch.charCodeAt(0) - 48);
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
-if (typeof document !== "undefined") boot();
+if (typeof document !== "undefined" && document.getElementById("board")) boot();
 
 function boot() {
   const L = Logic;
@@ -291,25 +317,8 @@ function boot() {
     return e;
   };
 
-  // Region colors: 12 hand-tuned colors [hue, saturation, lightness] for the
-  // light theme (dark: same hue, less saturation, low lightness). Fewer regions
-  // use an evenly spread subset; more regions fall back to computed hues. The
-  // stride shuffles the order, so regions with consecutive letters (often
-  // neighbors on the board) do not get neighboring colors.
-  const PALETTE = [
-    [0, 72, 82], [28, 85, 76], [50, 85, 70], [85, 50, 72], [140, 40, 76], [176, 45, 68],
-    [202, 70, 80], [228, 65, 83], [266, 55, 84], [305, 40, 80], [35, 28, 72], [0, 0, 80],
-  ];
-  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
-  let stride = Math.max(1, Math.round(n * 0.382));
-  while (gcd(stride, n) !== 1) stride++;
-  const regionHSL = (reg) => {
-    const rank = (reg * stride) % n;
-    if (n <= PALETTE.length) return PALETTE[Math.floor((rank * PALETTE.length) / n)];
-    return [Math.round(rank * (360 / n) + 25) % 360, 60, rank % 2 ? 74 : 82];
-  };
   const regionColor = (e, reg) => {
-    const [h, s, l] = regionHSL(reg);
+    const [h, s, l] = L.regionHSL(n, reg);
     e.style.setProperty("--h", h);
     e.style.setProperty("--s", s + "%");
     e.style.setProperty("--l", l + "%");
@@ -462,8 +471,11 @@ function boot() {
   $("summary").textContent = summary;
 
   // ---------- storage (per-viewer convenience only) ----------
-  // A party round keeps its own progress, apart from solo play of the puzzle.
-  const key = (d.party ? `starbattle:party:${d.party.code}:${d.party.round}:` : "starbattle:") + n + ":" + d.regions.map((row) => row.join(",")).join(";");
+  // A party round and a library puzzle keep their own progress, apart from
+  // solo play of the puzzle. Library puzzles go by their stable ID.
+  const key = d.library
+    ? "starbattle:library:" + d.library.id
+    : (d.party ? `starbattle:party:${d.party.code}:${d.party.round}:` : "starbattle:") + n + ":" + d.regions.map((row) => row.join(",")).join(";");
   const load = () => {
     try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
   };
@@ -508,6 +520,29 @@ function boot() {
     done = party.gaveUp = false;
     hintCount = 0;
   }
+  // A library puzzle is solved without help: no hints, no checks, and the
+  // solver's way only once it is solved. Solved IDs are kept on this device
+  // for the overview (/bibliothek), with the best time.
+  const lib = d.library || null;
+  const libSolvedKey = "starbattle:library:solved";
+  function libSolved() {
+    try {
+      const v = JSON.parse(localStorage.getItem(libSolvedKey) || "{}");
+      return v && typeof v === "object" ? v : {};
+    } catch { return {}; }
+  }
+  function libRecord(ms) {
+    const all = libSolved();
+    const prev = all[lib.id];
+    if (prev && Number.isFinite(prev.time) && prev.time <= ms) return;
+    all[lib.id] = { time: Math.round(ms), at: new Date().toISOString().slice(0, 10) };
+    try { localStorage.setItem(libSolvedKey, JSON.stringify(all)); } catch { /* private mode etc. */ }
+  }
+  if (lib) {
+    $("hint").hidden = true;
+    $("check").hidden = true;
+    $("play-msg").append(el("p", "muted", "Bibliothek: Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast."));
+  }
   // No input: solved, or in a party round given up, not started or not ours.
   const locked = () => done || (!!party && (party.gaveUp || !partyLive()));
   function fmtTime(ms) {
@@ -517,7 +552,7 @@ function boot() {
   }
   const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
   function drawClock() {
-    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
+    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : lib ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
   }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
@@ -578,13 +613,20 @@ function boot() {
         done = true;
         if (party) partySolve();
       }
-      const with_ = !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
+      if (lib) libRecord(clockMs());
+      const with_ = lib ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
       banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
       if (!party) {
         const share = el("button", "share", "Ergebnis kopieren");
-        share.title = "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
+        share.title = lib ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
         share.onclick = () => copyText(shareText(with_), share);
         $("banner").append(" ", share);
+      }
+      if (lib) {
+        const next = L.nextUnsolved(lib.entries, libSolved(), lib.nr);
+        const a = el("a", "next", next ? `Weiter: Nr. ${next.nr} (${next.n}×${next.n})` : "Alle gelöst: zur Bibliothek");
+        a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek";
+        $("banner").append(" ", a);
       }
     } else if (party) {
       const b = partyBanner();
@@ -596,13 +638,20 @@ function boot() {
       partyTabs();
       partyReport();
     }
+    if (lib) $("tab-watch").hidden = !done;
   }
 
   // The text for sharing a result; with the page's link when it has a stable
   // one (served pages: /?n=8&seed=42 or /play?p=...), not for a local file.
   function shareText(with_) {
+    const web = d.served && /^https?:$/.test(location.protocol);
+    if (lib) {
+      let t = `Schweres Star Battle Nr. ${lib.nr} (${n}×${n}) aus der Bibliothek in ${fmtTime(clockMs())} gelöst, ${with_}!`;
+      if (web) t += " " + location.origin + "/bibliothek?id=" + encodeURIComponent(lib.id);
+      return t;
+    }
     let t = `Star Battle ${n}×${n} in ${fmtTime(clockMs())} gelöst (${with_})!`;
-    if (d.served && /^https?:$/.test(location.protocol)) t += " " + location.href.split("#")[0];
+    if (web) t += " " + location.href.split("#")[0];
     return t;
   }
 
@@ -1044,7 +1093,7 @@ function boot() {
     document.body.classList.toggle("watch", m === "watch");
     $("legend").textContent =
       m === "play"
-        ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt · rot: Regelverstoß · orange: Hinweis"
+        ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt · rot: Regelverstoß" + (lib ? "" : " · orange: Hinweis")
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
     else render();
@@ -1347,7 +1396,7 @@ function boot() {
   // ---------- served by `starbattle serve`: new and pasted puzzles ----------
   if (d.served) {
     $("site-nav").hidden = false;
-    $(party ? "nav-party" : "nav-solo").setAttribute("aria-current", "page");
+    $(party ? "nav-party" : lib ? "nav-library" : "nav-solo").setAttribute("aria-current", "page");
   }
   if (d.served && !party) {
     const sizes = $("newgame-n");
@@ -1374,5 +1423,5 @@ function boot() {
 
   buildPositions();
   buildList();
-  setMode(location.hash === "#weg" ? "watch" : "play");
+  setMode(location.hash === "#weg" && !(lib && !done) ? "watch" : "play");
 }

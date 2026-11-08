@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+/*{{STYLE}}*/
+</style>
+</head>
+<body>
+<header class="top">
+  <nav class="site-nav" aria-label="Spielmodus">
+    <a href="/">Solo</a>
+    <a href="/party">Zusammen spielen</a>
+    <a href="/bibliothek" aria-current="page">Bibliothek</a>
+  </nav>
+  <div class="title">
+    <h1>Bibliothek</h1>
+    <p class="sub">Schwere Puzzles, an denen die einfachen Regeln scheitern. Gelöst wird ohne Hinweise und ohne Prüfen.</p>
+  </div>
+</header>
+
+<main class="lib-main">
+  <div class="lib-bar">
+    <p class="lib-progress" id="progress"></p>
+    <label class="toggle"><input type="checkbox" id="hide-solved"> Gelöste ausblenden</label>
+  </div>
+  <div id="groups"></div>
+</main>
+
+<script id="data" type="application/json">/*{{DATA}}*/null</script>
+<script>
+/*{{APP}}*/
+/*{{PARTY}}*/
+</script>
+</body>
+</html>

@@ -51,6 +51,8 @@ $ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
 
 Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.de)**, und zwar auf meinem Raspberry Pi 3B zu Hause. Weil der hinter NAT steht, ist sie **nur über IPv6** erreichbar; ohne IPv6-Anschluss lädt die Seite nicht. Außerdem ist sie mit Basic Auth geschützt: Wer mich kennt, kann gerne nach einem Zugang fragen. Wer mich nicht kennt, kann das Ganze ebenso gerne selbst hosten; es ist nur eine einzelne Datei ohne Abhängigkeiten (siehe [Herunterladen](#herunterladen) und [deploy/README.md](deploy/README.md)).
 
+Unter „Bibliothek“ liegen die schweren Puzzles aus `testdata/hard` zum Stöbern und Lösen, **ohne Hinweise und ohne Prüfen**. Der Browser merkt sich, welche gelöst sind.
+
 Unter „Zusammen spielen“ lassen sich Partys mit mehreren Leuten spielen, wahlweise **gegeneinander** (jede Person auf ihrem eigenen Brett, Wertung nach Hinweisen und Zeit) oder **miteinander** (alle auf demselben Brett, ohne Hinweise).
 
 ## Herunterladen
@@ -180,6 +182,8 @@ starbattle serve -addr :6369            # im ganzen Netz erreichbar
 
 Dieselbe Seite wie bei `html`, dazu „Neues Puzzle“ (Größe 4 bis 14), eigene Puzzles einfügen und der Party-Modus unter `/party`: mehrere spielen dieselben Runden, wahlweise gegeneinander (jede Person auf ihrem eigenen Brett, Wertung nach Hinweisen und Zeit) oder miteinander (alle markieren auf demselben Brett, gemeinsame Zeit, ohne Hinweise; gleichzeitige Änderungen derselben Zelle entscheidet der Server: wer zuerst ankommt, gewinnt). Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `generate -n 8 -seed 42`.
 
+Unter `/bibliothek` liegen die Puzzles aus `testdata/hard`, nach Größe sortiert und mit Vorschau. Gelöst wird dort ohne Hilfe: Es gibt keine Hinweise, kein Prüfen und den Lösungsweg erst nach dem Lösen. Welche Puzzles gelöst sind (und die beste Zeit), merkt sich der Browser. Nach dem Lösen geht es mit „Weiter“ zum nächsten ungelösten Puzzle, und „Ergebnis kopieren“ gibt einen Link der Form `/bibliothek?id=14cd642742` mit. Die ID wird aus den Regionen berechnet. Links und gespeicherte Ergebnisse bleiben deshalb gültig, auch wenn sich der Generator ändert (die Seeds in den Dateien erzeugen heute schon andere Puzzles). Die angezeigte Nummer ergibt sich aus der Reihenfolge in `testdata/hard/bibliothek.idx`. Neue Puzzles werden dort nur unten angehängt.
+
 | Option | Bedeutung |
 |---|---|
 | `-addr` | Adresse (Standard `localhost:6369`) |
@@ -199,9 +203,9 @@ Dazu die Solver-Optionen wie bei `solve`. Für den Betrieb auf einem Raspberry P
 | `internal/bruteforce` | Referenz-Solver für Generator und Tests |
 | `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen |
 | `internal/render` | Ausgabe im Terminal |
-| `internal/web` | HTML-Seite, Server, Party-Modus |
+| `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi |
-| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern |
+| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern; zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`) |
 | `docs/screenshots` | Bilder für diese README |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |
 

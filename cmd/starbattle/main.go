@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"starbattle"
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/generator"
@@ -260,6 +261,7 @@ func cmdHTML(args []string) error {
 // paste one; each puzzle is solved on request. Unless -no-pregen is given, one
 // puzzle of every size is generated ahead in the background.
 // /party serves the party mode: playing the same puzzles together in rounds.
+// /bibliothek offers the hard puzzles of testdata/hard to solve without help.
 func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "localhost:6369", "listen address")
@@ -279,11 +281,18 @@ func cmdServe(args []string) error {
 	// from it, so open event streams end too and Shutdown does not hang.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	lib, err := web.LoadLibrary(starbattle.Hard, "testdata/hard", solve)
+	if err != nil {
+		return err
+	}
+	if !*noPregen {
+		lib.WarmUp()
+	}
 	parties := web.NewParties(solve, pool)
 	go parties.Run(5*time.Second, ctx.Done())
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           web.Handler(solve, pool, parties),
+		Handler:           web.Handler(solve, pool, parties, lib),
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

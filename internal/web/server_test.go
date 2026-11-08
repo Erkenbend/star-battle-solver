@@ -44,7 +44,7 @@ func pageData(t *testing.T, body string) Data {
 }
 
 func TestServer(t *testing.T) {
-	h := Handler(testSolve, nil, nil)
+	h := Handler(testSolve, nil, nil, nil)
 
 	// Without a seed: redirect to a stable URL with a fresh seed.
 	rec := get(h, "/?n=6")
@@ -117,8 +117,8 @@ func TestPool(t *testing.T) {
 	h := Handler(func(p *puzzle.Puzzle) (solver.Result, error) {
 		onRequest.Add(1)
 		return testSolve(p)
-	}, pl, nil)
-	plain := Handler(testSolve, nil, nil)
+	}, pl, nil, nil)
+	plain := Handler(testSolve, nil, nil, nil)
 
 	for _, n := range []int{5, 6} {
 		waitReady(t, pl, n)

@@ -35,6 +35,12 @@ var partyHTML string
 //go:embed assets/party.js
 var partyJS string
 
+//go:embed assets/library.html
+var libraryHTML string
+
+//go:embed assets/library.js
+var libraryJS string
+
 // Data is everything the page needs, serialized as JSON.
 type Data struct {
 	Title    string  `json:"title"`
@@ -53,6 +59,9 @@ type Data struct {
 
 	// Set for a round of a party (see party.go).
 	Party *PartyInfo `json:"party,omitempty"`
+
+	// Set for a puzzle of the library (see library.go): no help while solving.
+	Library *LibraryInfo `json:"library,omitempty"`
 }
 
 // PartyInfo identifies the party round a page belongs to.
