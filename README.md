@@ -58,8 +58,10 @@ Bei jedem Push laufen auf GitHub Actions ([`.github/workflows/ci.yml`](.github/w
 | `starbattle-linux-amd64` | Linux auf PC/Server (x86-64) |
 | `starbattle-linux-arm64` | Raspberry Pi 3/4/5 mit 64-Bit-OS (Standard bei aktuellem Raspberry Pi OS) |
 | `starbattle-linux-armv7` | Raspberry Pi 2/3/4 mit 32-Bit-OS |
-| `starbattle-macos-arm64` / `starbattle-macos-amd64` | Mac mit Apple-Chip / mit Intel-Chip |
-| `starbattle-windows-amd64` / `starbattle-windows-arm64` | Windows auf PC / auf ARM |
+| `starbattle-macos-arm64` | Mac mit Apple-Chip |
+| `starbattle-windows-amd64` | Windows |
+
+Für andere Systeme (z. B. Mac mit Intel-Chip) einfach selbst bauen, siehe [Bauen und testen](#bauen-und-testen); Go kann für jede Plattform von jeder Plattform aus bauen, z. B. `GOOS=darwin GOARCH=amd64 go build ./cmd/starbattle`.
 
 Für Linux und macOS steckt im Artefakt ein `.tar.gz` (damit das Programm ausführbar bleibt): entpacken, `./starbattle serve` starten und `http://localhost:6369/` im Browser öffnen. Auf dem Mac ist das Programm nicht signiert; einmal `xattr -d com.apple.quarantine starbattle` lässt es starten. Für den Raspberry Pi gibt es außerdem [deploy/deploy.sh](deploy/README.md), das passend baut und als Dienst installiert.
 
