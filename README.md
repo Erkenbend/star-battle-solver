@@ -55,19 +55,19 @@ Unter „Zusammen spielen“ lassen sich Partys mit mehreren Leuten spielen, wah
 
 ## Herunterladen
 
-Bei jedem Push laufen auf GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) alle Tests, danach werden die Programme gebaut. Sie hängen als Artefakte am jeweiligen Lauf: unter [Actions](../../actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess) den letzten erfolgreichen Lauf auf `main` öffnen und unten bei „Artifacts“ das passende herunterladen. Das geht nur mit GitHub-Konto, und GitHub löscht Artefakte nach 90 Tagen.
+Bei jedem Push laufen auf GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) alle Tests, danach werden die Programme gebaut. Sie hängen als Artefakte am jeweiligen Lauf: unter [Actions](../../actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess) den letzten erfolgreichen Lauf auf `main` öffnen und unten bei „Artifacts“ die passende Datei herunterladen. Das geht nur mit GitHub-Konto, und GitHub löscht Artefakte nach 90 Tagen.
 
-| Artefakt | für |
+| Datei | für |
 |---|---|
-| `starbattle-linux-amd64` | Linux auf PC/Server (x86-64) |
-| `starbattle-linux-arm64` | Raspberry Pi 3/4/5 mit 64-Bit-OS (Standard bei aktuellem Raspberry Pi OS) |
-| `starbattle-linux-armv7` | Raspberry Pi 2/3/4 mit 32-Bit-OS |
-| `starbattle-macos-arm64` | Mac mit Apple-Chip |
-| `starbattle-windows-amd64` | Windows |
+| `starbattle-linux-amd64.tar.gz` | Linux auf PC/Server (x86-64) |
+| `starbattle-linux-arm64.tar.gz` | Raspberry Pi 3/4/5 mit 64-Bit-OS (Standard bei aktuellem Raspberry Pi OS) |
+| `starbattle-linux-armv7.tar.gz` | Raspberry Pi 2/3/4 mit 32-Bit-OS |
+| `starbattle-macos-arm64.tar.gz` | Mac mit Apple-Chip |
+| `starbattle-windows-amd64.zip` | Windows |
 
 Für andere Systeme (z. B. Mac mit Intel-Chip) einfach selbst bauen, siehe [Bauen und testen](#bauen-und-testen); Go kann für jede Plattform von jeder Plattform aus bauen, z. B. `GOOS=darwin GOARCH=amd64 go build ./cmd/starbattle`.
 
-Für Linux und macOS steckt im Artefakt ein `.tar.gz` (damit das Programm ausführbar bleibt): entpacken, `./starbattle serve` starten und `http://localhost:6369/` im Browser öffnen. Auf dem Mac ist das Programm nicht signiert; einmal `xattr -d com.apple.quarantine starbattle` lässt es starten. Für den Raspberry Pi gibt es außerdem [deploy/deploy.sh](deploy/README.md), das passend baut und als Dienst installiert.
+Archiv entpacken (`tar xzf …` bzw. unter Windows per Doppelklick), dann `./starbattle serve` starten und `http://localhost:6369/` im Browser öffnen. Auf dem Mac ist das Programm nicht signiert; einmal `xattr -d com.apple.quarantine starbattle` lässt es starten. Für den Raspberry Pi gibt es außerdem [deploy/deploy.sh](deploy/README.md), das passend baut und als Dienst installiert.
 
 ## Bauen und testen
 

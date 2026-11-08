@@ -57,16 +57,18 @@ jobs:
           mkdir -p "$dir" dist
           go build -trimpath -ldflags="-s -w" -o "$dir/$exe" ./cmd/starbattle
           cp README.md LICENSE "$dir/"
-          # Artefakte werden als zip ausgeliefert und verlieren dabei das
-          # Ausführbar-Bit; darum für Linux/macOS ein tar.gz hinein.
+          # Genau eine Datei pro Plattform; sie wird ohne zusätzliches zip
+          # hochgeladen (archive: false). tar.gz behält das Ausführbar-Bit.
           if [[ $GOOS == windows ]]; then
-            mv "$dir"/* dist/
+            zip -qr "dist/$dir.zip" "$dir"
           else
             tar -czf "dist/$dir.tar.gz" "$dir"
           fi
           ls -l dist
+      # Mit archive: false heißt das Artefakt wie die Datei, z. B.
+      # starbattle-linux-arm64.tar.gz.
       - uses: actions/upload-artifact@v7
         with:
-          name: starbattle-${{ matrix.name }}
-          path: dist/
+          path: dist/*
+          archive: false
           if-no-files-found: error
