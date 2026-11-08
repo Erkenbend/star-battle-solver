@@ -25,8 +25,10 @@ Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer 
 |---|---|
 | ![Lösungsweg](docs/screenshots/loesungsweg.png) | ![Gedankenexperiment](docs/screenshots/annahme.png) |
 | **Lösungsweg:** jeder Schritt mit Regel und Begründung, die betroffenen Felder sind hervorgehoben. | **Gedankenexperiment:** Bei schweren Puzzles zeigt der Solver die ganze Kette bis zum Widerspruch. |
-| ![Selbst lösen](docs/screenshots/spielen.png) | ![Zusammen spielen](docs/screenshots/party-runde.png) |
-| **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Zusammen spielen:** mehrere lösen dieselben Puzzles um die Wette und sehen den Fortschritt der anderen live. |
+| ![Selbst lösen](docs/screenshots/spielen.png) | ![Party anlegen](docs/screenshots/party-anlegen.png) |
+| **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Zusammen spielen:** Party anlegen, Größen und Spielweise wählen, Code oder Link weitergeben. |
+| ![Gegeneinander](docs/screenshots/party-runde.png) | ![Miteinander](docs/screenshots/party-gemeinsam.png) |
+| **Gegeneinander:** alle lösen dasselbe Puzzle auf dem eigenen Brett und sehen den Fortschritt der anderen live. | **Miteinander:** alle markieren gemeinsam auf demselben Brett, mit gemeinsamer Zeit. |
 
 Im Terminal sieht derselbe Lösungsweg so aus:
 
@@ -49,7 +51,7 @@ $ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
 
 Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.de)**, und zwar auf meinem Raspberry Pi 3B zu Hause. Weil der hinter NAT steht, ist sie **nur über IPv6** erreichbar; ohne IPv6-Anschluss lädt die Seite nicht. Außerdem ist sie mit Basic Auth geschützt: Wer mich kennt, kann gerne nach einem Zugang fragen. Wer mich nicht kennt, kann das Ganze ebenso gerne selbst hosten; es ist nur eine einzelne Datei ohne Abhängigkeiten (siehe [Herunterladen](#herunterladen) und [deploy/README.md](deploy/README.md)).
 
-Neben dem bestehenden Party-Modus (alle lösen dieselben Puzzles gegeneinander) entsteht gerade ein zweiter Mehrspielermodus, in dem alle **gemeinsam am selben Brett** lösen.
+Unter „Zusammen spielen“ lassen sich Partys mit mehreren Leuten spielen, wahlweise **gegeneinander** (jede Person auf ihrem eigenen Brett, Wertung nach Hinweisen und Zeit) oder **miteinander** (alle auf demselben Brett, ohne Hinweise).
 
 ## Herunterladen
 
