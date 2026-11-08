@@ -285,9 +285,6 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !*noPregen {
-		lib.WarmUp()
-	}
 	parties := web.NewParties(solve, pool)
 	go parties.Run(5*time.Second, ctx.Done())
 	srv := &http.Server{

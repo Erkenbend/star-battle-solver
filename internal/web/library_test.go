@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -70,6 +71,8 @@ func TestLibraryServer(t *testing.T) {
 		}
 	}
 
+	// The first request comes before the solver: the page has no solution
+	// and no trace yet, and starts the solver.
 	e := lib.entries[0]
 	rec = get(h, "/bibliothek?id="+e.id)
 	if rec.Code != http.StatusOK {
@@ -79,11 +82,33 @@ func TestLibraryServer(t *testing.T) {
 	if d.Library == nil || d.Library.ID != e.id || d.Library.Nr != 1 || len(d.Library.Entries) != lib.Len() {
 		t.Fatalf("library info: %+v", d.Library)
 	}
-	if !d.Served || d.Solution == nil || d.Status != "solved" || !strings.Contains(d.Title, "Nr. 1") {
-		t.Errorf("page data: served %v, solution %v, status %s, title %q", d.Served, d.Solution, d.Status, d.Title)
+	if !d.Served || !d.Library.Pending || d.Solution != nil || d.Status != "pending" || len(d.Steps) != 0 || !strings.Contains(d.Title, "Nr. 1") {
+		t.Errorf("first page: served %v, pending %v, solution %v, status %s, %d steps, title %q", d.Served, d.Library.Pending, d.Solution, d.Status, len(d.Steps), d.Title)
 	}
 	if d.Library.Entries[0].Regions != nil {
 		t.Error("puzzle page carries the regions of all library puzzles")
+	}
+
+	// The trace waits for the solver.
+	rec = get(h, "/bibliothek/weg?id="+e.id)
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("trace: %d %s", rec.Code, rec.Body)
+	}
+	var tr Data
+	if err := json.Unmarshal(rec.Body.Bytes(), &tr); err != nil {
+		t.Fatal(err)
+	}
+	if tr.Status != "solved" || tr.Solution == nil || len(tr.Steps) == 0 || tr.Library.Pending {
+		t.Errorf("trace: status %s, solution %v, %d steps", tr.Status, tr.Solution, len(tr.Steps))
+	}
+	if rec := get(h, "/bibliothek/weg?id=nope"); rec.Code != http.StatusNotFound {
+		t.Errorf("trace of unknown id: %d", rec.Code)
+	}
+
+	// Once solved, the page has it all.
+	d = pageData(t, get(h, "/bibliothek?id="+e.id).Body.String())
+	if d.Library.Pending || d.Status != "solved" || len(d.Steps) != len(tr.Steps) {
+		t.Errorf("later page: pending %v, status %s, %d steps", d.Library.Pending, d.Status, len(d.Steps))
 	}
 
 	if rec := get(h, "/bibliothek?id=nope"); rec.Code != http.StatusNotFound {

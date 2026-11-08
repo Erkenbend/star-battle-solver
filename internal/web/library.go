@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -36,13 +37,14 @@ type Library struct {
 }
 
 type libEntry struct {
-	nr   int
-	id   string
-	p    *puzzle.Puzzle
-	once sync.Once
-	sol  []int
-	res  solver.Result
-	err  error
+	nr    int
+	id    string
+	p     *puzzle.Puzzle
+	once  sync.Once
+	ready chan struct{} // closed once sol, res and err are set
+	sol   []int
+	res   solver.Result
+	err   error
 }
 
 // LoadLibrary reads the library in dir of fsys (see LibraryIndex).
@@ -75,7 +77,7 @@ func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
 		if p.N < MinN || p.N > MaxN {
 			return nil, fmt.Errorf("%s: Größe %d außerhalb von %d bis %d", name, p.N, MinN, MaxN)
 		}
-		e := &libEntry{nr: len(lib.entries) + 1, id: LibraryID(p), p: p}
+		e := &libEntry{nr: len(lib.entries) + 1, id: LibraryID(p), p: p, ready: make(chan struct{})}
 		if prev := lib.byID[e.id]; prev != nil {
 			return nil, fmt.Errorf("%s: dasselbe Puzzle wie Nr. %d", name, prev.nr)
 		}
@@ -111,32 +113,51 @@ func LibraryID(p *puzzle.Puzzle) string {
 // Len is the number of puzzles.
 func (lib *Library) Len() int { return len(lib.entries) }
 
-// solved solves e once: its unique solution and the solver's trace.
-func (lib *Library) solved(e *libEntry) (*libEntry, error) {
+// start solves e in the background, once: its unique solution and the
+// solver's trace. Nothing is solved ahead: a puzzle is solved when its page
+// is first requested, and the page needs the result only once the puzzle is
+// solved by hand, which takes longer than the solver even on a Raspberry Pi.
+func (lib *Library) start(e *libEntry) {
 	e.once.Do(func() {
-		sols := bruteforce.Solve(e.p, 2)
-		if len(sols) != 1 {
-			e.err = fmt.Errorf("Bibliothek Nr. %d hat %d Lösungen", e.nr, len(sols))
-			return
-		}
-		e.sol = sols[0]
-		e.res, e.err = lib.solve(e.p)
+		go func() {
+			defer close(e.ready)
+			t := time.Now()
+			sols := bruteforce.Solve(e.p, 2)
+			if len(sols) != 1 {
+				e.err = fmt.Errorf("Bibliothek Nr. %d hat %d Lösungen", e.nr, len(sols))
+				return
+			}
+			e.sol = sols[0]
+			e.res, e.err = lib.solve(e.p)
+			log.Printf("Bibliothek Nr. %d gelöst (%.1f s)", e.nr, time.Since(t).Seconds())
+		}()
 	})
-	return e, e.err
 }
 
-// WarmUp solves all puzzles one after another in the background, so even the
-// big ones open without waiting.
-func (lib *Library) WarmUp() {
-	go func() {
-		start := time.Now()
-		for _, e := range lib.entries {
-			if _, err := lib.solved(e); err != nil {
-				log.Printf("Bibliothek: %v", err)
-			}
-		}
-		log.Printf("Bibliothek: %d Puzzles bereit (%.1f s)", len(lib.entries), time.Since(start).Seconds())
-	}()
+// done reports whether e's result is there (started or not).
+func (e *libEntry) done() bool {
+	select {
+	case <-e.ready:
+		return true
+	default:
+		return false
+	}
+}
+
+// data is the page data of e, with the solver's result if it is there.
+func (lib *Library) data(e *libEntry) Data {
+	title := fmt.Sprintf("Star Battle %d×%d · Bibliothek Nr. %d", e.p.N, e.p.N, e.nr)
+	var d Data
+	if e.done() && e.err == nil {
+		d = Build(title, e.p, e.sol, e.res)
+	} else {
+		d = Build(title, e.p, nil, solver.Result{})
+		d.Status, d.Steps = "pending", []Step{}
+	}
+	d.Served = true
+	d.Text = e.p.String()
+	d.Library = &LibraryInfo{ID: e.id, Nr: e.nr, Entries: lib.refs(false), Pending: d.Status == "pending"}
+	return d
 }
 
 // LibraryInfo places a page's puzzle in the library.
@@ -144,6 +165,9 @@ type LibraryInfo struct {
 	ID      string   `json:"id"`
 	Nr      int      `json:"nr"`
 	Entries []LibRef `json:"entries"` // all puzzles, for "next unsolved"
+	// The solver is still at work: solution and trace are missing, the page
+	// gets them from /bibliothek/weg once it needs them.
+	Pending bool `json:"pending,omitempty"`
 }
 
 // LibRef is one puzzle of the library in the overview.
@@ -177,9 +201,30 @@ func WriteLibrary(w io.Writer, d LibraryPage) error {
 
 // libraryRoutes adds the library to mux:
 //
-//	GET /bibliothek          overview
-//	GET /bibliothek?id=...   a puzzle of the library
+//	GET /bibliothek              overview
+//	GET /bibliothek?id=...       a puzzle of the library
+//	GET /bibliothek/weg?id=...   its solution and trace as JSON (Data), waits for the solver
 func libraryRoutes(mux *http.ServeMux, lib *Library) {
+	mux.HandleFunc("GET /bibliothek/weg", func(w http.ResponseWriter, r *http.Request) {
+		e := lib.byID[r.URL.Query().Get("id")]
+		if e == nil {
+			http.Error(w, "unbekanntes Puzzle", http.StatusNotFound)
+			return
+		}
+		lib.start(e)
+		select {
+		case <-e.ready:
+		case <-r.Context().Done():
+			return
+		}
+		if e.err != nil {
+			http.Error(w, e.err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		json.NewEncoder(w).Encode(lib.data(e))
+	})
 	mux.HandleFunc("GET /bibliothek", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("id")
 		if id == "" {
@@ -193,14 +238,8 @@ func libraryRoutes(mux *http.ServeMux, lib *Library) {
 			io.WriteString(w, `<!doctype html><meta charset="utf-8"><title>Nicht gefunden</title><p>Dieses Puzzle gibt es in der Bibliothek nicht. <a href="/bibliothek">Zur Bibliothek</a></p>`)
 			return
 		}
-		if _, err := lib.solved(e); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		d := Build(fmt.Sprintf("Star Battle %d×%d · Bibliothek Nr. %d", e.p.N, e.p.N, e.nr), e.p, e.sol, e.res)
-		d.Served = true
-		d.Text = e.p.String()
-		d.Library = &LibraryInfo{ID: e.id, Nr: e.nr, Entries: lib.refs(false)}
+		d := lib.data(e) // before start: a finished result goes into the page
+		lib.start(e)
 		writePage(w, d)
 	})
 }

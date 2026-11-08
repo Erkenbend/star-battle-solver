@@ -461,14 +461,21 @@ function boot() {
   }, true);
 
   // ---------- summary ----------
-  const k = d.steps.length;
-  const statusText =
-    { solved: `gelöst in ${k} Schritten`, stuck: `steckt nach ${k} Schritten fest`, contradiction: `Widerspruch nach ${k} Schritten` }[d.status] || d.status;
-  let summary = `${n}×${n} · Solver: ${statusText}`;
-  if (d.stats.lookahead) summary += ` · ${d.stats.lookahead} Annahmen`;
-  if (d.stats.guesses) summary += ` · ${d.stats.guesses}× geraten`;
-  if (!d.solution) summary += " · keine eindeutige Lösung";
-  $("summary").textContent = summary;
+  function drawSummary() {
+    if (d.library && d.library.pending) { // the solver's result comes later
+      $("summary").textContent = `${n}×${n} · ohne Hinweise`;
+      return;
+    }
+    const k = d.steps.length;
+    const statusText =
+      { solved: `gelöst in ${k} Schritten`, stuck: `steckt nach ${k} Schritten fest`, contradiction: `Widerspruch nach ${k} Schritten` }[d.status] || d.status;
+    let summary = `${n}×${n} · Solver: ${statusText}`;
+    if (d.stats.lookahead) summary += ` · ${d.stats.lookahead} Annahmen`;
+    if (d.stats.guesses) summary += ` · ${d.stats.guesses}× geraten`;
+    if (!d.solution) summary += " · keine eindeutige Lösung";
+    $("summary").textContent = summary;
+  }
+  drawSummary();
 
   // ---------- storage (per-viewer convenience only) ----------
   // A party round and a library puzzle keep their own progress, apart from
@@ -541,7 +548,7 @@ function boot() {
   if (lib) {
     $("hint").hidden = true;
     $("check").hidden = true;
-    $("play-msg").append(el("p", "muted", "Bibliothek: Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast."));
+    $("play-msg").append(el("p", "muted", "Bibliothek: ein besonders schweres Puzzle, an dem die einfachen Regeln scheitern. Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast."));
   }
   // No input: solved, or in a party round given up, not started or not ours.
   const locked = () => done || (!!party && (party.gaveUp || !partyLive()));
@@ -638,7 +645,39 @@ function boot() {
       partyTabs();
       partyReport();
     }
-    if (lib) $("tab-watch").hidden = !done;
+    if (lib) {
+      $("tab-watch").hidden = !done;
+      if (done && lib.pending) loadTrace();
+    }
+  }
+
+  // A library page may come before the solver is done (lib.pending): the
+  // solution and trace are fetched once the puzzle is solved by hand. The
+  // request waits for the solver; meanwhile the "Lösungsweg" tab shows a
+  // spinner.
+  function loadTrace() {
+    if (lib.loading) return;
+    lib.loading = true;
+    $("tab-watch").classList.add("loading");
+    $("trace-wait").replaceChildren(el("span", "spinner"), " Der Solver rechnet noch am Lösungsweg …");
+    fetch("/bibliothek/weg?id=" + encodeURIComponent(lib.id))
+      .then((r) => (r.ok ? r.json() : r.text().then((t) => Promise.reject(new Error(t.trim() || r.statusText)))))
+      .then((t) => {
+        for (const f of ["solution", "status", "error", "stats", "steps"]) d[f] = t[f];
+        lib.pending = false;
+        setTrace();
+        drawSummary();
+      })
+      .catch((e) => {
+        const again = el("button", "", "Nochmal versuchen");
+        again.onclick = loadTrace;
+        $("trace-wait").replaceChildren(el("p", "", "Der Lösungsweg ließ sich nicht laden: " + e.message), again);
+      })
+      .finally(() => {
+        lib.loading = false;
+        $("tab-watch").classList.remove("loading");
+        if (mode === "watch") render();
+      });
   }
 
   // The text for sharing a result; with the page's link when it has a stable
@@ -914,8 +953,8 @@ function boot() {
   };
 
   // ---------- watch mode ----------
-  const prefix = L.prefixStates(d, d.steps);
-  const expanded = d.steps.map((s) => !!s.hypothesis);
+  let prefix = L.prefixStates(d, d.steps);
+  let expanded = d.steps.map((s) => !!s.hypothesis);
   // A position is {k} (board after k steps, explaining step k-1) or {k, j}
   // (inside the refuted chain of step k-1, after its sub-steps 0..j). The chain
   // comes before its conclusion: "Angenommen … Widerspruch … also X".
@@ -1013,7 +1052,19 @@ function boot() {
     return { cells, step, parent, last, marks };
   }
 
+  // A trace that arrived later (loadTrace).
+  function setTrace() {
+    prefix = L.prefixStates(d, d.steps);
+    expanded = d.steps.map((s) => !!s.hypothesis);
+    positions = [];
+    cursor = 0;
+    buildPositions();
+    buildList();
+  }
+
   function render() {
+    $("panel-watch").classList.toggle("pending", !!(lib && lib.pending));
+    if (lib && lib.pending && done) loadTrace(); // e.g. opened with #weg
     const pos = positions[cursor];
     const v = viewAt(pos);
     drawBoard(v);
@@ -1032,7 +1083,8 @@ function boot() {
     if (pos.j !== undefined) {
       const first = v.parent.hypothesis.steps[0].marks.find((m) => m[2] === 1);
       banner(first ? `Gedankenexperiment: Was wäre, wenn auf (${first[0]},${first[1]}) ein Stern stünde?` : "Gedankenexperiment", "what-if");
-    } else if (pos.k === d.steps.length && d.status === "solved") banner("Gelöst.", "good");
+    } else if (d.status === "pending") banner(null);
+    else if (pos.k === d.steps.length && d.status === "solved") banner("Gelöst.", "good");
     else if (pos.k === d.steps.length && d.status !== "solved") banner(d.status === "stuck" ? "Hier kommt der Solver nicht weiter." : "Widerspruch: " + (d.error || ""), "what-if");
     else banner(null);
 
