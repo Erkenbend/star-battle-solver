@@ -65,6 +65,12 @@ func TestPartyServer(t *testing.T) {
 	if rec := get(h, "/party/QQQQ"); rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown party: %d", rec.Code)
 	}
+	// The round of a party that is gone: an error page with the way home.
+	rec = get(h, "/party/QQQQ/round/1")
+	if body := rec.Body.String(); rec.Code != http.StatusNotFound || !strings.Contains(body, "Diese Party gibt es nicht (mehr).") ||
+		!strings.Contains(body, `<a class="button primary" href="/">Zur Startseite</a>`) || !strings.Contains(body, `href="/party">Neue Party`) {
+		t.Fatalf("round of an unknown party: %d %s", rec.Code, body)
+	}
 
 	// Join, ready: the round starts.
 	var joined struct {

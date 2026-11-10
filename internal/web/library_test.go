@@ -111,7 +111,7 @@ func TestLibraryServer(t *testing.T) {
 		t.Errorf("later page: pending %v, status %s, %d steps", d.Library.Pending, d.Status, len(d.Steps))
 	}
 
-	if rec := get(h, "/bibliothek?id=nope"); rec.Code != http.StatusNotFound {
+	if rec := get(h, "/bibliothek?id=nope"); rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), `href="/bibliothek">Zur Bibliothek`) {
 		t.Errorf("unknown id: %d", rec.Code)
 	}
 	if rec := get(Handler(testSolve, nil, nil, nil), "/bibliothek"); rec.Code != http.StatusNotFound {

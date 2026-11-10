@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+/*{{STYLE}}*/
+</style>
+</head>
+<body>
+<header class="top">
+  <nav class="site-nav" aria-label="Spielmodus">
+    <a href="/" class="home" title="Startseite" aria-label="Startseite"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 1 7.5h2V14h3.5v-4h3v4H13V7.5h2z"/></svg></a>
+    <a href="/">Solo</a>
+    <a href="/party">Zusammen spielen</a>
+    <a href="/bibliothek">Bibliothek</a>
+  </nav>
+  <div class="title">
+    <h1>{{TITLE}}</h1>
+  </div>
+</header>
+
+<main class="error-main">
+  <div class="card">
+    <p>{{MESSAGE}}</p>
+    <div class="actions">
+      <a class="button primary" href="/">Zur Startseite</a>{{LINKS}}
+    </div>
+  </div>
+</main>
+</body>
+</html>

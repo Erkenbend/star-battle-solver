@@ -41,6 +41,9 @@ var libraryHTML string
 //go:embed assets/library.js
 var libraryJS string
 
+//go:embed assets/error.html
+var errorHTML string
+
 // Data is everything the page needs, serialized as JSON.
 type Data struct {
 	Title    string  `json:"title"`
@@ -174,6 +177,25 @@ func WriteParty(w io.Writer, d PartyPage) error {
 		title = "Star Battle · Party " + d.Code
 	}
 	return render(w, partyHTML, title, d, "", partyJS)
+}
+
+// Link is a further way out of an error page, next to the start page.
+type Link struct{ Href, Text string }
+
+// WriteError renders an error page: the message, a button to the start page
+// and the given links, below the site's navigation.
+func WriteError(w io.Writer, title, msg string, links ...Link) error {
+	var lb strings.Builder
+	for _, l := range links {
+		fmt.Fprintf(&lb, "\n      <a class=\"button\" href=\"%s\">%s</a>", html.EscapeString(l.Href), html.EscapeString(l.Text))
+	}
+	_, err := strings.NewReplacer(
+		"{{TITLE}}", html.EscapeString(title),
+		"/*{{STYLE}}*/", styleCSS,
+		"{{MESSAGE}}", html.EscapeString(msg),
+		"{{LINKS}}", lb.String(),
+	).WriteString(w, errorHTML)
+	return err
 }
 
 func render(w io.Writer, tmpl, title string, d any, app, party string) error {

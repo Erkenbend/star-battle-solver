@@ -24,7 +24,7 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 	})
 	mux.HandleFunc("POST /party", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		var sizes []int
@@ -53,14 +53,15 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 		writeParty(w, http.StatusOK, PartyPage{Code: code})
 	})
 	mux.HandleFunc("GET /party/{code}/round/{num}", func(w http.ResponseWriter, r *http.Request) {
+		toParty := []Link{{"/party", "Neue Party"}}
 		num, err := strconv.Atoi(r.PathValue("num"))
 		if err != nil {
-			http.NotFound(w, r)
+			writeError(w, http.StatusNotFound, "Diese Runde gibt es nicht.", toParty...)
 			return
 		}
 		d, err := pm.RoundData(r.PathValue("code"), num)
 		if err != nil {
-			http.Error(w, err.Error(), errorStatus(err))
+			writeError(w, errorStatus(err), err.Error(), toParty...)
 			return
 		}
 		writePage(w, d)

@@ -233,9 +233,7 @@ func libraryRoutes(mux *http.ServeMux, lib *Library) {
 		}
 		e := lib.byID[id]
 		if e == nil {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.WriteHeader(http.StatusNotFound)
-			io.WriteString(w, `<!doctype html><meta charset="utf-8"><title>Nicht gefunden</title><p>Dieses Puzzle gibt es in der Bibliothek nicht. <a href="/bibliothek">Zur Bibliothek</a></p>`)
+			writeError(w, http.StatusNotFound, "Dieses Puzzle gibt es in der Bibliothek nicht.", Link{"/bibliothek", "Zur Bibliothek"})
 			return
 		}
 		d := lib.data(e) // before start: a finished result goes into the page

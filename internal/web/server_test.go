@@ -92,6 +92,8 @@ func TestServer(t *testing.T) {
 	} {
 		if rec := get(h, bad); rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: status %d, want 400", bad, rec.Code)
+		} else if !strings.Contains(rec.Body.String(), `href="/">Zur Startseite`) {
+			t.Errorf("%s: no way to the start page", bad)
 		}
 	}
 }

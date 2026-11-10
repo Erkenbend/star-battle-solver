@@ -1442,7 +1442,10 @@ function boot() {
     }
     elapsed = 0; // the server's clock; our result's time once it is known
     if (location.hash === "#weg") history.replaceState(null, "", location.pathname);
-    partyView = Party.live(d.party.code, $("party-panel"), { onSnap: partySnap });
+    partyView = Party.live(d.party.code, $("party-panel"), {
+      onSnap: partySnap,
+      onGone() { $("party-lobby").parentElement.hidden = true; }, // the panel shows the ways on
+    });
   }
 
   // ---------- served by `starbattle serve`: new and pasted puzzles ----------

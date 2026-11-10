@@ -52,7 +52,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *Parties, lib *Library) http.H
 		if s := q.Get("n"); s != "" {
 			v, err := strconv.Atoi(s)
 			if err != nil || v < MinN || v > MaxN {
-				http.Error(w, fmt.Sprintf("n muss zwischen %d und %d liegen", MinN, MaxN), http.StatusBadRequest)
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("Die Größe muss zwischen %d und %d liegen.", MinN, MaxN))
 				return
 			}
 			n = v
@@ -68,7 +68,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *Parties, lib *Library) http.H
 		}
 		seed, err := strconv.ParseUint(seedStr, 10, 64)
 		if err != nil {
-			http.Error(w, "ungültiger Seed", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Diese Puzzle-Nummer ist ungültig.")
 			return
 		}
 		title := fmt.Sprintf("Star Battle %d×%d · Nr. %d", n, n, seed)
@@ -78,7 +78,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *Parties, lib *Library) http.H
 		}
 		p, sol, err := generate(n, seed)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		page(w, solve, title, p, sol)
@@ -92,14 +92,14 @@ func Handler(solve SolveFunc, pool *Pool, parties *Parties, lib *Library) http.H
 			err = fmt.Errorf("Größe %d×%d, erlaubt sind %d bis %d", p.N, p.N, MinN, MaxN)
 		}
 		if err != nil {
-			http.Error(w, "Puzzle nicht lesbar: "+err.Error(), http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Puzzle nicht lesbar: "+err.Error())
 			return
 		}
 		var sol []int
 		sols := bruteforce.Solve(p, 2)
 		switch len(sols) {
 		case 0:
-			http.Error(w, "Das Puzzle hat keine Lösung.", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Das Puzzle hat keine Lösung.")
 			return
 		case 1:
 			sol = sols[0]
@@ -122,7 +122,7 @@ func generate(n int, seed uint64) (*puzzle.Puzzle, []int, error) {
 func page(w http.ResponseWriter, solve SolveFunc, title string, p *puzzle.Puzzle, sol []int) {
 	res, err := solve(p)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	write(w, title, p, sol, res)
@@ -138,6 +138,11 @@ func write(w http.ResponseWriter, title string, p *puzzle.Puzzle, sol []int, res
 
 func writePage(w http.ResponseWriter, d Data) {
 	writeHTML(w, http.StatusOK, func(b io.Writer) error { return Write(b, d) })
+}
+
+// writeError sends the error page with msg and the given links.
+func writeError(w http.ResponseWriter, status int, msg string, links ...Link) {
+	writeHTML(w, status, func(b io.Writer) error { return WriteError(b, "Star Battle · Fehler", msg, links...) })
 }
 
 // writeHTML renders a page into a buffer first, so a rendering error still
