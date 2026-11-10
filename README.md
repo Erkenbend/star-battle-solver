@@ -209,7 +209,7 @@ Dazu die Solver-Optionen wie bei `solve`. Für den Betrieb auf einem Raspberry P
 | `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi |
 | `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern; zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`) |
-| `docs/screenshots` | Bilder für diese README |
+| `docs/screenshots` | Bilder für diese README; `take.sh` nimmt sie neu auf (Go, node ≥ 22, Chromium) |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |
 
 ## Lizenz
