@@ -69,10 +69,20 @@ type DesignCandidate struct {
 	Millis   int64   `json:"millis"` // time to generate
 }
 
-type completeResponse struct {
-	Problem    *patternProblem   `json:"problem,omitempty"`
-	Candidates []DesignCandidate `json:"candidates"`
-	Failed     int               `json:"failed"` // completions that found nothing
+// designEvent is one line of /api/complete's answer (NDJSON): the pattern's
+// problem (then nothing else follows), a candidate as soon as it is found,
+// or, last, done.
+type designEvent struct {
+	Problem   *patternProblem  `json:"problem,omitempty"`
+	Candidate *DesignCandidate `json:"candidate,omitempty"`
+	Done      *designDone      `json:"done,omitempty"`
+}
+
+// designDone ends the answer of /api/complete.
+type designDone struct {
+	Found      int `json:"found"`
+	Failed     int `json:"failed"`     // completions that found nothing (or were cancelled)
+	Duplicates int `json:"duplicates"` // completions equal to an earlier one, not sent
 }
 
 // DesignerHandler serves the designer. Saved puzzles go to dir. /play
@@ -99,12 +109,32 @@ func DesignerHandler(dir string, solve SolveFunc) http.Handler {
 		if !ok {
 			return
 		}
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Cache-Control", "no-store")
+		rc := http.NewResponseController(w)
+		enc := json.NewEncoder(w)
+		send := func(ev designEvent) {
+			enc.Encode(ev) // one line per event
+			rc.Flush()
+		}
 		if prob := checkPattern(req.Pattern); prob != nil {
-			writeJSON(w, http.StatusOK, completeResponse{Problem: prob, Candidates: []DesignCandidate{}})
+			send(designEvent{Problem: prob})
 			return
 		}
 		k := min(max(req.Candidates, 1), MaxDesignCandidates)
-		writeJSON(w, http.StatusOK, completeDesign(req.Pattern, k, solve, r.Context().Done()))
+		var d designDone
+		for c := range completeDesign(req.Pattern, k, solve, r.Context().Done()) {
+			switch {
+			case c == nil:
+				d.Failed++
+			case c.duplicate:
+				d.Duplicates++
+			default:
+				d.Found++
+				send(designEvent{Candidate: &c.DesignCandidate})
+			}
+		}
+		send(designEvent{Done: &d})
 	})
 	mux.HandleFunc("POST /api/save", func(w http.ResponseWriter, r *http.Request) {
 		req, ok := readDesignRequest(w, r)
@@ -169,15 +199,25 @@ func checkPattern(pattern [][]int) *patternProblem {
 	return p
 }
 
+// foundCandidate is a result of completeDesign.
+type foundCandidate struct {
+	DesignCandidate
+	duplicate bool // equal to a candidate sent earlier
+}
+
 // completeDesign computes k completions of pattern at the same time, each
 // in its own goroutine with its own seed, and solves each to judge it. The
 // generator's CPU limit (one core stays free) applies to all of them
-// together. Completions that fail are counted; identical ones are dropped.
-func completeDesign(pattern [][]int, k int, solve SolveFunc, done <-chan struct{}) completeResponse {
+// together. Each result comes out of the channel as soon as it is ready, so
+// the page can show it while the others are still running; nil stands for a
+// failed completion. The channel is closed after the last one.
+func completeDesign(pattern [][]int, k int, solve SolveFunc, done <-chan struct{}) <-chan *foundCandidate {
 	n := len(pattern)
-	results := make([]*DesignCandidate, k)
+	out := make(chan *foundCandidate, k)
+	var mu sync.Mutex
+	seen := map[string]bool{}
 	var wg sync.WaitGroup
-	for i := range k {
+	for range k {
 		seed := newSeed()
 		wg.Go(func() {
 			start := time.Now()
@@ -188,33 +228,30 @@ func completeDesign(pattern [][]int, k int, solve SolveFunc, done <-chan struct{
 				Done:          done,
 			})
 			if err != nil {
+				out <- nil
 				return
 			}
-			c := &DesignCandidate{Seed: seed, Regions: p.Regions, Solution: sol, Millis: time.Since(start).Milliseconds()}
-			if res, err := solve(p); err == nil {
-				c.Status = res.Status.String()
-				c.Steps = len(res.Trace)
-				c.Stats = Stats{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}
-				c.RulesOut = freeWhenStuck(p, res.Trace)
+			c := &foundCandidate{DesignCandidate: DesignCandidate{Seed: seed, Regions: p.Regions, Solution: sol, Millis: time.Since(start).Milliseconds()}}
+			mu.Lock()
+			id := LibraryID(p)
+			c.duplicate = seen[id]
+			seen[id] = true
+			mu.Unlock()
+			if !c.duplicate {
+				if res, err := solve(p); err == nil {
+					c.Status = res.Status.String()
+					c.Steps = len(res.Trace)
+					c.Stats = Stats{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}
+					c.RulesOut = freeWhenStuck(p, res.Trace)
+				}
 			}
-			results[i] = c
+			out <- c
 		})
 	}
-	wg.Wait()
-	out := completeResponse{Candidates: []DesignCandidate{}}
-	seen := map[string]bool{}
-	for _, c := range results {
-		if c == nil {
-			out.Failed++
-			continue
-		}
-		id := LibraryID(&puzzle.Puzzle{N: n, Regions: c.Regions})
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		out.Candidates = append(out.Candidates, *c)
-	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
 	return out
 }
 

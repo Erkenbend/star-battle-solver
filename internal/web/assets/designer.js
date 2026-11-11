@@ -20,7 +20,7 @@
   let color = 0;     // current color, FREE = eraser
   let cands = [];    // completions of the last request
   let candPattern = null; // the pattern they were computed for
-  let chosen = -1;
+  let chosen = null;  // the selected candidate
   let problem = null; // cells with a problem, as "r,c"
   let valid = false;  // the last check found no problem
 
@@ -220,37 +220,86 @@
     }
   }
 
+  // Candidates arrive one by one (NDJSON, see designer.go) while the others
+  // are still being computed, so one can be inspected and saved early.
   let genCtl = null;
+  const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
   $("go").addEventListener("click", async () => {
     if (genCtl) return;
     const ctl = (genCtl = new AbortController());
     const k = +$("count").value;
     const snapshot = pattern.map((row) => row.slice());
+    cands = [];
+    candPattern = snapshot;
+    showCands(null);
+    markStale();
     $("go").disabled = true;
     $("stop").hidden = false;
-    $("info").textContent = `Berechne ${k} Vorschl${k === 1 ? "ag" : "äge"} parallel …` + (n >= 13 ? " Bei dieser Größe kann das eine Weile dauern." : "");
     const t0 = performance.now();
-    try {
-      const res = await post("/api/complete", { pattern: snapshot, candidates: k }, ctl.signal);
-      if (res.problem) {
-        setProblem(res.problem);
-        setStatus("bad", res.problem.message);
+    const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
+    let finished = 0, failed = 0, dups = 0;
+    const progress = () => {
+      $("info").textContent = `${finished} von ${k} fertig, ${plural(cands.length, "Vorschlag", "Vorschläge")} (${secs()} s) …` +
+        (n >= 13 ? " Bei dieser Größe kann das dauern; fertige Vorschläge lassen sich schon speichern." : "");
+    };
+    progress();
+    const timer = setInterval(progress, 500);
+    const summary = (prefix) => {
+      let msg = `${prefix} ${plural(cands.length, "Vorschlag", "Vorschläge")} in ${secs()} s, schwerste zuerst.`;
+      if (failed) msg += ` ${plural(failed, "Versuch", "Versuche")} ohne Ergebnis.`;
+      if (dups) msg += ` ${plural(dups, "Vorschlag", "Vorschläge")} doppelt.`;
+      return msg;
+    };
+    const handle = (ev) => {
+      if (ev.problem) {
+        setProblem(ev.problem);
+        setStatus("bad", ev.problem.message);
+        valid = false;
         $("info").textContent = "Das Muster ist ungültig, siehe links.";
         return;
       }
-      // Hardest first: the library collects puzzles the rules alone cannot solve.
-      cands = res.candidates.sort((a, b) => b.rulesFree - a.rulesFree || b.stats.lookahead - a.stats.lookahead);
-      candPattern = snapshot;
-      const secs = ((performance.now() - t0) / 1000).toFixed(1);
-      let msg = `${cands.length} Vorschl${cands.length === 1 ? "ag" : "äge"} in ${secs} s, schwerste zuerst.`;
-      if (res.failed) msg += ` ${res.failed} Versuch${res.failed === 1 ? "" : "e"} ohne Ergebnis.`;
-      if (!cands.length) msg = `Kein Vorschlag gefunden (${secs} s). Der Generator schafft dieses Muster nicht; etwas weniger oder anders zeichnen hilft meist.`;
-      $("info").textContent = msg;
-      showCands(cands.length ? 0 : -1);
-      markStale();
+      if (ev.candidate) {
+        finished++;
+        cands.push(ev.candidate);
+        // Hardest first: the library collects puzzles the rules alone cannot solve.
+        cands.sort((a, b) => b.rulesFree - a.rulesFree || b.stats.lookahead - a.stats.lookahead || a.seed - b.seed);
+        showCands(chosen ? chosen.seed : ev.candidate.seed);
+        progress();
+        return;
+      }
+      if (ev.done) {
+        failed = ev.done.failed;
+        dups = ev.done.duplicates;
+        $("info").textContent = cands.length
+          ? summary("Fertig:")
+          : `Kein Vorschlag gefunden (${secs()} s). Der Generator schafft dieses Muster nicht; etwas weniger oder anders zeichnen hilft meist.`;
+      }
+    };
+    try {
+      const res = await fetch("/api/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pattern: snapshot, candidates: k }),
+        signal: ctl.signal,
+      });
+      if (!res.ok) throw new Error((await res.text()).trim() || res.statusText);
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += value;
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 1);
+          if (line) handle(JSON.parse(line));
+        }
+      }
     } catch (e) {
-      $("info").textContent = e.name === "AbortError" ? "Abgebrochen." : "Fehler: " + e.message;
+      $("info").textContent = e.name === "AbortError" ? summary("Abgebrochen:") : "Fehler: " + e.message;
     } finally {
+      clearInterval(timer);
       genCtl = null;
       $("stop").hidden = true;
       $("go").disabled = !valid;
@@ -329,25 +378,32 @@
     return parts.join("<br>");
   }
 
+  // Shows the candidates and selects the one with seed sel (none if null).
+  // The detail view is rebuilt only when the selection changes, so a name
+  // being typed or a save message survives new arrivals.
   function showCands(sel) {
     const box = $("cands");
     box.replaceChildren();
-    cands.forEach((c, i) => {
+    const next = cands.find((c) => c.seed === sel) || null;
+    cands.forEach((c) => {
       const b = el("button", "cand");
-      b.setAttribute("aria-pressed", String(i === sel));
+      b.setAttribute("aria-pressed", String(c === next));
       b.append(preview(c, { highlight: false }));
       const m = el("div", "meta");
       m.innerHTML = difficulty(c); // numbers only
       b.append(m);
-      b.addEventListener("click", () => showCands(i));
+      b.addEventListener("click", () => showCands(c.seed));
       box.append(b);
     });
-    chosen = sel;
-    showDetail();
+    if (next !== chosen) {
+      chosen = next;
+      showDetail();
+    }
   }
 
+
   function showDetail() {
-    const c = cands[chosen];
+    const c = chosen;
     $("detail").hidden = !c;
     $("save-msg").textContent = "";
     if (!c) return;
@@ -360,7 +416,7 @@
   $("show-solution").addEventListener("change", showDetail);
 
   $("save").addEventListener("click", async () => {
-    const c = cands[chosen];
+    const c = chosen;
     if (!c) return;
     const msg = $("save-msg");
     msg.className = "";

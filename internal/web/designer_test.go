@@ -38,6 +38,23 @@ func postDesign(t *testing.T, h http.Handler, path string, body any) *httptest.R
 	return rec
 }
 
+// designEvents reads the NDJSON answer of /api/complete.
+func designEvents(t *testing.T, rec *httptest.ResponseRecorder) []designEvent {
+	t.Helper()
+	if ct := rec.Header().Get("Content-Type"); ct != "application/x-ndjson" {
+		t.Fatalf("Content-Type %q", ct)
+	}
+	var evs []designEvent
+	for _, line := range strings.Split(strings.TrimSpace(rec.Body.String()), "\n") {
+		var ev designEvent
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatalf("line %q: %v", line, err)
+		}
+		evs = append(evs, ev)
+	}
+	return evs
+}
+
 var heart = patternOf(
 	"........",
 	".AA..AA.",
@@ -85,14 +102,17 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 	dir := t.TempDir()
 	h := DesignerHandler(dir, testSolve)
 	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: heart, Candidates: 3})
-	var res completeResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
-		t.Fatal(err)
-	}
-	if res.Problem != nil || len(res.Candidates)+res.Failed != 3 || len(res.Candidates) == 0 {
+	evs := designEvents(t, rec)
+	last := evs[len(evs)-1]
+	if last.Done == nil || last.Done.Found != len(evs)-1 || last.Done.Found+last.Done.Failed+last.Done.Duplicates != 3 || last.Done.Found == 0 {
 		t.Fatalf("got %s", rec.Body)
 	}
-	c := res.Candidates[0]
+	for _, ev := range evs[:len(evs)-1] {
+		if ev.Candidate == nil {
+			t.Fatalf("got %s", rec.Body)
+		}
+	}
+	c := evs[0].Candidate
 	for r, row := range heart {
 		for col, reg := range row {
 			if reg != generator.Free && c.Regions[r][col] != reg {
@@ -142,9 +162,8 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 func TestDesignerCompleteInvalid(t *testing.T) {
 	h := DesignerHandler(t.TempDir(), testSolve)
 	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: patternOf("AAAA", "....", "AAAA", "...."), Candidates: 2})
-	var res completeResponse
-	json.Unmarshal(rec.Body.Bytes(), &res)
-	if res.Problem == nil || len(res.Candidates) != 0 {
+	evs := designEvents(t, rec)
+	if len(evs) != 1 || evs[0].Problem == nil {
 		t.Fatalf("got %s", rec.Body)
 	}
 }
