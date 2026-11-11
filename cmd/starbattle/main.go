@@ -266,6 +266,7 @@ func cmdHTML(args []string) error {
 // puzzle of every size is generated ahead in the background.
 // /party serves the party mode: playing the same puzzles together in rounds.
 // /bibliothek offers the hard puzzles of testdata/hard to solve without help.
+// /einstellungen lets players choose the symbol of their stars (symbols/).
 func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "localhost:6369", "listen address")
@@ -289,11 +290,15 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	syms, err := web.LoadSymbols(starbattle.Symbols, "symbols")
+	if err != nil {
+		return err
+	}
 	parties := web.NewParties(solve, pool)
 	go parties.Run(5*time.Second, ctx.Done())
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           web.Handler(solve, pool, parties, lib),
+		Handler:           web.Handler(solve, pool, parties, lib, syms),
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
@@ -320,11 +325,15 @@ func cmdDesign(args []string) error {
 	solve := solverFlags(fs, "sync")
 	fs.Parse(args)
 
+	syms, err := web.LoadSymbols(starbattle.Symbols, "symbols")
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           web.DesignerHandler(*dir, solve),
+		Handler:           web.DesignerHandler(*dir, solve, syms),
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

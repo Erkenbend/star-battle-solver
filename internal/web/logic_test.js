@@ -229,3 +229,44 @@ console.log("coop ops ok");
   }
 }
 console.log("library ok");
+
+// Star symbol: stored catalog entries become drawable specs; anything broken,
+// and images on a page without the server, fall back to the star.
+{
+  const star = L.DEFAULT_MARK;
+  for (const bad of [null, undefined, 42, "star", {}, { kind: "gif" }, { kind: "svg" },
+    { kind: "svg", path: 'M0 0"/><script>' }, { kind: "glyph", glyph: "" }, { kind: "glyph", glyph: "x".repeat(30) },
+    { kind: "sprite", url: "https://example.com/a.svg" }, { kind: "sprite", url: "/symbole/../a.svg" }]) {
+    assert.equal(L.markSpec(bad, { sprites: true }), star, JSON.stringify(bad));
+  }
+  const heart = L.markSpec({ id: "heart", kind: "svg", path: "M50 90C20 68Z", scale: 5 });
+  assert.deepEqual([heart.kind, heart.tint, heart.scale], ["svg", true, 1]);
+  const club = L.markSpec({ id: "club", kind: "glyph", glyph: "♣︎", scale: 0.8 });
+  assert.deepEqual([club.kind, club.tint, club.scale, club.glyph], ["glyph", true, 0.8, "♣︎"]);
+  assert.equal(L.markSpec({ id: "clover", kind: "emoji", glyph: "🍀️" }).tint, false);
+  const sprite = { id: "sparkle", kind: "sprite", url: "/symbole/sparkle.svg?v=abc123", frames: 8, fps: 8 };
+  const s = L.markSpec(sprite, { sprites: true });
+  assert.deepEqual([s.kind, s.tint, s.url, s.frames, s.fps], ["sprite", false, sprite.url, 8, 8]);
+  assert.equal(L.markSpec(sprite, { sprites: false }), star); // page opened as a file
+  assert.equal(L.markSpec(sprite), star);
+  // Frames without a usable speed: a still image of the first frame.
+  const still = L.markSpec({ ...sprite, fps: 0 }, { sprites: true });
+  assert.deepEqual([still.frames, still.fps], [1, 0]);
+  // Played for about three seconds in whole runs, at least one; still images never.
+  assert.equal(L.markRuns(s), 3); // 8 frames at 8 fps: 1 s per run
+  assert.equal(L.markRuns({ frames: 40, fps: 4 }), 1);
+  assert.equal(L.markRuns({ frames: 4, fps: 30 }), 23);
+  assert.equal(L.markRuns(still), 0);
+}
+console.log("symbols ok");
+
+// Play options: defaults without storage, keys mapped back for other tabs.
+{
+  assert.equal(L.pref("autocross"), false);
+  assert.equal(L.pref("straight"), false); // no touch screen in node
+  assert.equal(L.pref("showProblems"), true);
+  assert.equal(L.prefOfKey("starbattle.showProblems"), "showProblems");
+  assert.equal(L.prefOfKey("starbattle.symbol"), null);
+  assert.equal(L.prefOfKey(null), null);
+}
+console.log("options ok");

@@ -87,11 +87,17 @@ type designDone struct {
 }
 
 // DesignerHandler serves the designer. Saved puzzles go to dir. /play
-// shows a puzzle to try it, as in serve.
-func DesignerHandler(dir string, solve SolveFunc) http.Handler {
+// shows a puzzle to try it, as in serve; with a symbol catalog (may be nil),
+// its link to /einstellungen works too.
+func DesignerHandler(dir string, solve SolveFunc, syms *Symbols) http.Handler {
 	mux := http.NewServeMux()
-	play := Handler(solve, nil, nil, nil)
+	play := Handler(solve, nil, nil, nil, syms)
 	mux.Handle("GET /play", play)
+	if syms != nil {
+		for _, p := range []string{"GET /einstellungen", "GET /symbole.json", "GET /symbole/{file}"} {
+			mux.Handle(p, play)
+		}
+	}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		d := DesignerPage{MinN: MinN, MaxN: MaxN, Dir: dir, Candidates: 4, MaxCands: MaxDesignCandidates}
 		writeHTML(w, http.StatusOK, func(b io.Writer) error {

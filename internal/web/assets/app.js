@@ -299,7 +299,143 @@ const Logic = (() => {
   // The server's board string ("0120…") as cells.
   const decodeBoard = (str) => Uint8Array.from(str, (ch) => ch.charCodeAt(0) - 48);
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved };
+  // ---------- play options ----------
+  // On/off options of this device, set on /einstellungen (or, in a page saved
+  // as a file, on the page itself). Unset, they take their default; the
+  // fat-finger guard is on by default for touch screens.
+  const PREFS = {
+    autocross: { key: "starbattle.autocross", def: () => false },
+    straight: { key: "starbattle.straight", def: () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches },
+    showProblems: { key: "starbattle.showProblems", def: () => true },
+  };
+  function pref(name) {
+    try {
+      const v = localStorage.getItem(PREFS[name].key);
+      if (v === "1" || v === "0") return v === "1";
+    } catch { /* private mode etc. */ }
+    return PREFS[name].def();
+  }
+  const setPref = (name, on) => {
+    try { localStorage.setItem(PREFS[name].key, on ? "1" : "0"); } catch { /* private mode etc. */ }
+  };
+  // The option a storage key belongs to, if any (for changes from other tabs).
+  const prefOfKey = (key) => Object.keys(PREFS).find((k) => PREFS[k].key === key) || null;
+
+  // ---------- star symbol ----------
+  // The symbol chosen on /einstellungen, kept in the browser's storage as a
+  // copy of its catalog entry (symbols.go), so pages draw it without asking
+  // the server. markSpec checks such an entry and falls back to the star.
+  const MARK_KEY = "starbattle.symbol";
+  const DEFAULT_MARK = Object.freeze({
+    id: "star", kind: "svg", tint: true, scale: 1, frames: 1, fps: 0,
+    path: "M50 6L61.5 37.2 94.7 38.5 68.5 59 77.6 91 50 72.5 22.4 91 31.5 59 5.3 38.5 38.5 37.2Z",
+  });
+  const PATH_RE = /^[MmLlHhVvCcSsQqTtAaZz0-9 ,.eE+-]+$/;
+  const URL_RE = /^\/symbole\/[a-z0-9-]+\.(svg|png|webp)(\?v=[0-9a-f]+)?$/;
+
+  // A drawable spec {id, kind, tint, scale, frames, fps, path|glyph|url} for
+  // a stored entry. Sprites need the server: with opts.sprites false (a page
+  // opened as a file) they fall back to the star, as does anything broken.
+  function markSpec(e, opts) {
+    if (!e || typeof e !== "object") return DEFAULT_MARK;
+    const id = typeof e.id === "string" ? e.id : "";
+    const scale = Number.isFinite(e.scale) && e.scale > 0 && e.scale <= 2 ? e.scale : 1;
+    const base = { id, scale, frames: 1, fps: 0 };
+    switch (e.kind) {
+      case "svg":
+        if (typeof e.path === "string" && PATH_RE.test(e.path)) return { ...base, kind: "svg", tint: true, path: e.path };
+        break;
+      case "glyph":
+      case "emoji":
+        if (typeof e.glyph === "string" && e.glyph.length > 0 && e.glyph.length <= 24) return { ...base, kind: e.kind, tint: e.kind === "glyph", glyph: e.glyph };
+        break;
+      case "sprite": {
+        if (!(opts && opts.sprites) || typeof e.url !== "string" || !URL_RE.test(e.url)) break;
+        const frames = Number.isInteger(e.frames) && e.frames >= 1 && e.frames <= 64 ? e.frames : 1;
+        const fps = frames > 1 && Number.isInteger(e.fps) && e.fps >= 1 && e.fps <= 30 ? e.fps : 0;
+        return { ...base, kind: "sprite", tint: false, url: e.url, frames: fps ? frames : 1, fps };
+      }
+    }
+    return DEFAULT_MARK;
+  }
+
+  const loadMark = () => {
+    try { return JSON.parse(localStorage.getItem(MARK_KEY) || "null"); } catch { return null; }
+  };
+  const saveMark = (e) => {
+    try { localStorage.setItem(MARK_KEY, JSON.stringify(e)); } catch { /* private mode etc. */ }
+  };
+
+  const GLYPH_FONT = '"Segoe UI Symbol", "DejaVu Sans", system-ui, sans-serif';
+  const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif';
+
+  // Where a glyph goes so that its ink, as this device's font draws it, sits
+  // in the middle of the 100×100 box at 80 units: font metrics put glyphs off
+  // center by different amounts on every system. Null if it cannot be measured.
+  function glyphBox(glyph, font, doc) {
+    try {
+      const ctx = doc.createElement("canvas").getContext("2d");
+      ctx.font = "100px " + font;
+      const m = ctx.measureText(glyph);
+      const l = m.actualBoundingBoxLeft, r = m.actualBoundingBoxRight, a = m.actualBoundingBoxAscent, d = m.actualBoundingBoxDescent;
+      const w = l + r, h = a + d;
+      if (![l, r, a, d].every(Number.isFinite) || w <= 1 || h <= 1) return null;
+      const k = 80 / Math.max(w, h);
+      const f = (x) => Math.round(x * 100) / 100;
+      return { x: f(50 - ((r - l) / 2) * k), y: f(50 - ((d - a) / 2) * k), "font-size": f(100 * k) };
+    } catch {
+      return null;
+    }
+  }
+
+  // The symbol layer of a cell: the mark of spec (class g-star) plus cross and
+  // auto-cross dot, in a 100×100 box. CSS shows the one matching the cell's
+  // class. Built with DOM calls, never markup, as the entry comes from storage.
+  function markSVG(spec, doc) {
+    const NS = "http://www.w3.org/2000/svg";
+    const mk = (tag, attrs) => {
+      const e = doc.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+      return e;
+    };
+    const svg = mk("svg", { viewBox: "0 0 100 100", "aria-hidden": "true" });
+    const g = mk("g", { class: "g-star g-" + spec.kind });
+    if (spec.scale !== 1) g.setAttribute("transform", `translate(50 50) scale(${spec.scale}) translate(-50 -50)`);
+    if (spec.kind === "svg") g.append(mk("path", { d: spec.path }));
+    else if (spec.kind === "glyph" || spec.kind === "emoji") {
+      const font = spec.kind === "emoji" ? EMOJI_FONT : GLYPH_FONT;
+      const t = mk("text", glyphBox(spec.glyph, font, doc) || { x: 50, y: 54, "text-anchor": "middle", "dominant-baseline": "central", "font-size": 84 });
+      t.style.fontFamily = font;
+      t.textContent = spec.glyph;
+      g.append(t);
+    } else if (spec.frames > 1) {
+      // Frames side by side, shown through a 100×100 window and moved by CSS.
+      const win = mk("svg", { x: 0, y: 0, width: 100, height: 100, viewBox: "0 0 100 100" });
+      win.append(mk("image", { class: "g-frames", href: spec.url, width: 100 * spec.frames, height: 100, preserveAspectRatio: "none" }));
+      g.append(win);
+    } else g.append(mk("image", { href: spec.url, width: 100, height: 100 }));
+    svg.append(g, mk("path", { class: "g-cross", d: "M32 32L68 68M68 32L32 68" }), mk("circle", { class: "g-auto", cx: 50, cy: 50, r: 8 }));
+    return svg;
+  }
+
+  // Classes and variables for spec on the element around the cells.
+  function markClasses(el, spec) {
+    el.classList.toggle("untinted", !spec.tint);
+    el.classList.toggle("mark-emoji", spec.kind === "emoji");
+    if (spec.frames > 1) {
+      el.style.setProperty("--frames", spec.frames);
+      el.style.setProperty("--frames-shift", -100 * spec.frames + "px");
+      el.style.setProperty("--frames-dur", spec.frames / spec.fps + "s");
+      el.style.setProperty("--frames-runs", markRuns(spec));
+    }
+  }
+
+  // An animated mark plays when set, whole runs for about MARK_PLAY_S
+  // seconds, and then stays on its first frame.
+  const MARK_PLAY_S = 3;
+  const markRuns = (spec) => (spec.frames > 1 ? Math.max(1, Math.round((MARK_PLAY_S * spec.fps) / spec.frames)) : 0);
+
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, markSpec, loadMark, saveMark, markSVG, markClasses, markRuns };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -344,15 +480,14 @@ function boot() {
   };
 
   // ---------- board ----------
-  // Marks as vector shapes sized to the cell (font glyphs were small and thin);
-  // CSS shows the one matching the cell's class.
-  const SYM =
-    '<svg viewBox="0 0 100 100" aria-hidden="true">' +
-    '<polygon class="g-star" points="50,6 61.5,37.2 94.7,38.5 68.5,59 77.6,91 50,72.5 22.4,91 31.5,59 5.3,38.5 38.5,37.2"/>' +
-    '<path class="g-cross" d="M32 32L68 68M68 32L32 68"/>' +
-    '<circle class="g-auto" cx="50" cy="50" r="8"/></svg>';
+  // Marks as vector shapes sized to the cell (font glyphs were small and thin),
+  // the star replaced by the symbol chosen on /einstellungen; CSS shows the
+  // one matching the cell's class. Image symbols need the server.
+  let mark = L.markSpec(L.loadMark(), { sprites: /^https?:$/.test(location.protocol) });
+  const symTpl = L.markSVG(mark, document);
   const boardEl = $("board");
   boardEl.style.setProperty("--n", n);
+  L.markClasses(boardEl, mark);
   boardEl.append(el("div", "axis"));
   for (let c = 0; c < n; c++) boardEl.append(el("div", "axis top", c));
   const cellEls = [];
@@ -363,7 +498,7 @@ function boot() {
       const e = el("div", "cell");
       regionColor(e, reg);
       const sym = el("span", "sym");
-      sym.innerHTML = SYM;
+      sym.append(symTpl.cloneNode(true));
       e.append(sym);
       e.dataset.i = r * n + c;
       e.setAttribute("aria-label", `Feld (${r},${c}), Farbe ${d.letters[reg]}`);
@@ -405,11 +540,21 @@ function boot() {
   }
 
   // view: {cells, auto?, marks: {new, hint, bad, refcell, ref} as Sets of indices}
+  // An animated star symbol plays only for stars just set by a click, a hint
+  // or a partner: not on loading, nor when many appear at once (switching to
+  // the solution, redo of a reset).
+  let drawnOnce = false;
   function drawBoard(view) {
     const m = view.marks || {};
+    let fresh = 0;
+    for (let i = 0; i < cellEls.length; i++) if (view.cells[i] === L.STAR && !cellEls[i].classList.contains("star")) fresh++;
+    const play = drawnOnce && fresh <= 2;
+    drawnOnce = true;
     for (let i = 0; i < cellEls.length; i++) {
       const e = cellEls[i], v = view.cells[i];
       const auto = view.auto && view.auto[i];
+      if (v !== L.STAR) e.classList.remove("fresh");
+      else if (!e.classList.contains("star")) e.classList.toggle("fresh", play);
       e.classList.toggle("star", v === L.STAR);
       e.classList.toggle("cross", v === L.CROSS && !auto);
       e.classList.toggle("auto", !!auto);
@@ -494,11 +639,9 @@ function boot() {
   const saved = load();
   let marks = new Uint8Array(n * n);
   if (saved && Array.isArray(saved.marks) && saved.marks.length === n * n) marks = Uint8Array.from(saved.marks);
-  // Auto-cross: a puzzle with saved progress keeps its own setting; a new one
-  // (e.g. the next party round) starts with the last choice on this device.
-  const autoKey = "starbattle.autocross";
-  if (saved && typeof saved.auto === "boolean") $("autocross").checked = saved.auto;
-  else try { $("autocross").checked = localStorage.getItem(autoKey) === "1"; } catch { /* private mode etc. */ }
+  // Options of this device (see L.pref), set on /einstellungen. A page saved
+  // as a file cannot reach that page and shows them itself.
+  const prefs = { autocross: L.pref("autocross"), straight: L.pref("straight"), showProblems: L.pref("showProblems") };
 
   // Solving time and hints shown, saved with the marks. The clock runs only
   // while the page is visible and stops for good once the puzzle is solved.
@@ -586,8 +729,10 @@ function boot() {
   }
 
   function renderPlay() {
-    const eff = L.effective(d, marks, $("autocross").checked);
-    const probs = L.problems(d, eff.cells);
+    const eff = L.effective(d, marks, prefs.autocross);
+    // Rule violations (two stars touching, a full row …) unless switched off;
+    // "Prüfen" still marks wrong cells, as asked for explicitly.
+    const probs = prefs.showProblems ? L.problems(d, eff.cells) : [];
     const bad = new Set(probs.flatMap((p) => p.cells));
     const view = { cells: eff.cells, auto: eff.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
@@ -726,11 +871,8 @@ function boot() {
   }
 
   function store() {
-    if (coop) { // the board lives on the server
-      save({ auto: $("autocross").checked });
-      return;
-    }
-    const v = { marks: [...marks], auto: $("autocross").checked, time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
+    if (coop) return; // the board lives on the server
+    const v = { marks: [...marks], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
     if (party) v.gaveUp = party.gaveUp;
     save(v);
   }
@@ -749,7 +891,7 @@ function boot() {
   }
 
   function showHint() {
-    const eff = L.effective(d, marks, $("autocross").checked);
+    const eff = L.effective(d, marks, prefs.autocross);
     const wrong = L.mistakes(d, eff.cells);
     if (wrong.length) {
       message(el("p", "", "Etwas passt nicht zur Lösung. Erst das korrigieren, dann gibt es den nächsten Hinweis."), showMistakesButton());
@@ -801,7 +943,7 @@ function boot() {
       return;
     }
     overlay = null;
-    const eff = L.effective(d, marks, $("autocross").checked);
+    const eff = L.effective(d, marks, prefs.autocross);
     if (!L.mistakes(d, eff.cells).length) message(el("p", "", L.solved(d, eff.cells) ? "Gelöst." : "Bisher alles richtig."));
     else message(el("p", "", "Da stimmt etwas nicht: mindestens ein Feld passt nicht zur Lösung."), showMistakesButton());
     renderPlay();
@@ -817,7 +959,7 @@ function boot() {
   }
 
   function showMistakes() {
-    const eff = L.effective(d, marks, $("autocross").checked);
+    const eff = L.effective(d, marks, prefs.autocross);
     const wrong = L.mistakes(d, eff.cells);
     let cost = 0;
     for (const i of L.mistakes(d, marks)) {
@@ -838,14 +980,39 @@ function boot() {
   // column) from the start cell instead, redrawn as the finger moves, so a
   // slipping finger cannot hit neighbours. The setting is per device; it is
   // on by default for touch screens.
-  const straightKey = "starbattle.straight";
-  try {
-    const v = localStorage.getItem(straightKey);
-    $("straight").checked = v === null ? !!(window.matchMedia && matchMedia("(pointer: coarse)").matches) : v === "1";
-  } catch { /* private mode etc. */ }
-  $("straight").onchange = () => {
-    try { localStorage.setItem(straightKey, $("straight").checked ? "1" : "0"); } catch { /* ignore */ }
-  };
+  const OPTION_IDS = [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"]];
+  const onOff = (v) => (v ? "an" : "aus");
+  function applyPrefs() {
+    for (const [k, id] of OPTION_IDS) $(id).checked = prefs[k];
+    $("options-state").textContent =
+      `Nachbarn kreuzen: ${onOff(prefs.autocross)} · Fat-Finger-Schutz: ${onOff(prefs.straight)} · Regelverstöße: ${onOff(prefs.showProblems)} · `;
+  }
+  applyPrefs();
+  if (d.served) $("options-link").hidden = false;
+  else $("play-options").hidden = false;
+  for (const [k, id] of OPTION_IDS) {
+    $(id).onchange = () => {
+      prefs[k] = $(id).checked;
+      L.setPref(k, prefs[k]);
+      applyPrefs();
+      if (mode === "play") setMode("play"); // board, problems and legend
+    };
+  }
+  // Changed on /einstellungen in another tab: take over at once. The star
+  // symbol too, by rebuilding the cells' symbol layer.
+  window.addEventListener("storage", (ev) => {
+    const k = L.prefOfKey(ev.key);
+    if (k) {
+      prefs[k] = L.pref(k);
+      applyPrefs();
+      if (mode === "play") setMode("play");
+    } else if (ev.key === L.MARK_KEY) {
+      mark = L.markSpec(L.loadMark(), { sprites: /^https?:$/.test(location.protocol) });
+      const tpl = L.markSVG(mark, document);
+      L.markClasses(boardEl, mark);
+      for (const e of cellEls) e.querySelector(".sym").replaceChildren(tpl.cloneNode(true));
+    }
+  });
   let drag = null; // {start, last, erase, before, moved, straight, x, y, cell}
   const cellAt = (ev) => {
     const e = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : ev.target;
@@ -859,7 +1026,7 @@ function boot() {
     const i = +c.dataset.i;
     drag = {
       start: i, last: i, erase: marks[i] === L.CROSS, before: marks, moved: false, shift: ev.shiftKey,
-      straight: $("straight").checked, x: ev.clientX, y: ev.clientY, cell: c.getBoundingClientRect().width,
+      straight: prefs.straight, x: ev.clientX, y: ev.clientY, cell: c.getBoundingClientRect().width,
     };
   });
   document.addEventListener("pointermove", (ev) => {
@@ -947,10 +1114,6 @@ function boot() {
   clockRun(!document.hidden);
   $("hint").onclick = toggleHint;
   $("check").onclick = checkMistakes;
-  $("autocross").onchange = () => {
-    try { localStorage.setItem(autoKey, $("autocross").checked ? "1" : "0"); } catch { /* ignore */ }
-    renderPlay();
-  };
 
   // ---------- watch mode ----------
   let prefix = L.prefixStates(d, d.steps);
@@ -1145,7 +1308,9 @@ function boot() {
     document.body.classList.toggle("watch", m === "watch");
     $("legend").textContent =
       m === "play"
-        ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt · rot: Regelverstoß" + (lib ? "" : " · orange: Hinweis")
+        ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt" +
+          (prefs.showProblems ? " · rot: Regelverstoß" : lib ? "" : " · rot: falsch laut Prüfen") +
+          (lib ? "" : " · orange: Hinweis")
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
     else render();
@@ -1225,7 +1390,7 @@ function boot() {
   function partySolve() {
     if (party.solving) return;
     party.solving = true;
-    const eff = L.effective(d, marks, $("autocross").checked);
+    const eff = L.effective(d, marks, prefs.autocross);
     partyPost("solve", { stars: L.starColumns(d, eff.cells) })
       .then((r) => {
         elapsed = r.result.timeMs; // the server's time counts

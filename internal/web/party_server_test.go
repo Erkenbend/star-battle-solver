@@ -28,12 +28,12 @@ func postJSON(t *testing.T, h http.Handler, path string, body any, out any) int 
 
 func TestPartyServer(t *testing.T) {
 	pm, clk := newTestParties(t)
-	h := Handler(testSolve, nil, pm, nil)
+	h := Handler(testSolve, nil, pm, nil, nil)
 
 	if rec := get(h, "/party"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id="create"`) {
 		t.Fatalf("start page: %d", rec.Code)
 	}
-	if rec := get(Handler(testSolve, nil, nil, nil), "/party"); rec.Code != http.StatusNotFound {
+	if rec := get(Handler(testSolve, nil, nil, nil, nil), "/party"); rec.Code != http.StatusNotFound {
 		t.Fatalf("party mode without parties: %d", rec.Code)
 	}
 
@@ -142,7 +142,7 @@ func TestPartyServer(t *testing.T) {
 
 func TestPartyEvents(t *testing.T) {
 	pm, _ := newTestParties(t)
-	srv := httptest.NewServer(Handler(testSolve, nil, pm, nil))
+	srv := httptest.NewServer(Handler(testSolve, nil, pm, nil, nil))
 	defer srv.Close()
 	code, err := pm.Create([]int{5}, "")
 	must(t, err)
@@ -191,7 +191,7 @@ func TestPartyEvents(t *testing.T) {
 
 func TestCoopServer(t *testing.T) {
 	pm, clk := newTestParties(t)
-	h := Handler(testSolve, nil, pm, nil)
+	h := Handler(testSolve, nil, pm, nil, nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/party", strings.NewReader("n=5&mode=coop"))

@@ -59,7 +59,7 @@ func TestLibraryID(t *testing.T) {
 
 func TestLibraryServer(t *testing.T) {
 	lib := testLibrary(t)
-	h := Handler(testSolve, nil, nil, lib)
+	h := Handler(testSolve, nil, nil, lib, nil)
 
 	rec := get(h, "/bibliothek")
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id="groups"`) {
@@ -114,7 +114,7 @@ func TestLibraryServer(t *testing.T) {
 	if rec := get(h, "/bibliothek?id=nope"); rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), `href="/bibliothek">Zur Bibliothek`) {
 		t.Errorf("unknown id: %d", rec.Code)
 	}
-	if rec := get(Handler(testSolve, nil, nil, nil), "/bibliothek"); rec.Code != http.StatusNotFound {
+	if rec := get(Handler(testSolve, nil, nil, nil, nil), "/bibliothek"); rec.Code != http.StatusNotFound {
 		t.Errorf("without library: %d", rec.Code)
 	}
 }

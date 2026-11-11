@@ -37,14 +37,19 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 // With a pool (may be nil), /?n=8 hands out the seed of the puzzle the pool
 // has ready, so the page appears without waiting for the generator. With
 // parties (may be nil), /party and below serve the party mode (party_server.go).
-// With a library (may be nil), /bibliothek serves it (library.go).
-func Handler(solve SolveFunc, pool *Pool, parties *Parties, lib *Library) http.Handler {
+// With a library (may be nil), /bibliothek serves it (library.go). With a
+// symbol catalog (may be nil), /einstellungen lets players choose the symbol
+// of their stars (symbols.go).
+func Handler(solve SolveFunc, pool *Pool, parties *Parties, lib *Library, syms *Symbols) http.Handler {
 	mux := http.NewServeMux()
 	if parties != nil {
 		partyRoutes(mux, parties)
 	}
 	if lib != nil {
 		libraryRoutes(mux, lib)
+	}
+	if syms != nil {
+		symbolRoutes(mux, syms)
 	}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()

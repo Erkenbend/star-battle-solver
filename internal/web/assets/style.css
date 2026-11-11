@@ -224,6 +224,24 @@ dialog textarea {
 .cell.bad .g-star { fill: var(--bad); stroke: var(--star-edge); }
 .cell.bad .g-cross { stroke: var(--bad); }
 
+/* Other star symbols (chosen on /einstellungen, see markSVG in app.js).
+   Glyphs: text in the star colors with the outline behind the fill.
+   Emoji and images keep their colors; a wrong one glows red instead, on top
+   of the red ring every wrong cell gets. Emoji get a faint shadow to stand
+   out from all region colors. */
+.g-glyph text { paint-order: stroke; }
+.cell.star .g-glyph { stroke-width: 4; }
+.g-emoji text { stroke: none; }
+.mark-emoji .cell.star .sym { filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.45)); }
+.untinted .cell.star.bad .sym { filter: drop-shadow(0 0 2px var(--bad)) drop-shadow(0 0 3px var(--bad)); }
+/* Animated sprites: frames side by side, moved frame by frame through a
+   100×100 window. They play a few runs when set (.fresh, see drawBoard),
+   then the first frame stays; without motion it stays all along. */
+.cell .sym .g-sprite svg { overflow: hidden; }
+.cell.fresh .g-frames { animation: frames var(--frames-dur) steps(var(--frames)) var(--frames-runs); }
+@keyframes frames { to { transform: translateX(var(--frames-shift)); } }
+@media (prefers-reduced-motion: reduce) { .g-frames { animation: none; } }
+
 /* Overlays: referenced units (tint), new marks, hints, problems. */
 .cell::after {
   content: "";
@@ -275,6 +293,11 @@ dialog textarea {
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .clock { margin-left: auto; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .toggle { color: var(--muted); font-size: 14px; display: flex; gap: 6px; align-items: center; }
+/* The options as set on /einstellungen, or the switches themselves in a page
+   saved as a file. */
+#play-options { display: flex; flex-direction: column; gap: 12px; }
+.options-link { margin: 0; font-size: 13px; }
+.options-link a { color: var(--accent); }
 
 .card {
   background: var(--card);
@@ -351,8 +374,17 @@ kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); borde
   border: 1px solid transparent;
 }
 .site-nav a:hover { border-color: var(--border); color: var(--fg); }
-.site-nav a.home { display: inline-flex; align-items: center; padding: 3px 9px; }
-.site-nav a.home svg { width: 15px; height: 15px; fill: currentColor; }
+.site-nav a.home, .site-nav a.settings { display: inline-flex; align-items: center; padding: 3px 9px; }
+.site-nav a.home svg, .site-nav a.settings svg { width: 15px; height: 15px; fill: currentColor; }
+.site-nav a.settings { margin-left: auto; }
+/* Narrow screens: tighter, and if still too wide, the gear moves to its own
+   line rather than the page scrolling sideways. */
+.site-nav { flex-wrap: wrap; }
+.site-nav a { white-space: nowrap; }
+@media (max-width: 420px) {
+  .site-nav { gap: 0; font-size: 13px; }
+  .site-nav a, .site-nav a.home, .site-nav a.settings { padding: 3px 6px; }
+}
 .site-nav a[aria-current="page"] { color: var(--fg); border-color: var(--border); background: var(--card); font-weight: 600; }
 
 /* ---------- party mode ---------- */
@@ -466,3 +498,32 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner, .tabs button.loading::after { animation-duration: 2.4s; } }
 .lib-note { border-left: 4px solid var(--hint); max-width: 760px; }
+
+/* ---------- settings ---------- */
+.settings-main { max-width: 1180px; margin: 0 auto; padding: 8px 16px 32px; display: flex; flex-direction: column; gap: 24px; }
+.settings-group { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.settings-group legend { padding: 0; margin-bottom: 4px; }
+.settings-group h2 { margin: 0; font-size: 18px; }
+.settings-group > p { margin: 0 0 4px; }
+.option {
+  display: flex; align-items: flex-start; gap: 10px; max-width: 760px;
+  padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+}
+.option input { margin: 3px 0 0; flex: none; }
+.option > span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.option .muted { font-size: 12.5px; }
+.symbol-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+@media (max-width: 400px) { .symbol-list { grid-template-columns: minmax(0, 1fr); } }
+.symbol-option {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; min-width: 0;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  cursor: pointer;
+}
+.symbol-option:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.symbol-option input { margin: 0; flex: none; }
+.symbol-preview { display: flex; flex: none; }
+.symbol-preview .cell { width: 38px; cursor: inherit; touch-action: auto; }
+.symbol-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+.symbol-text .muted { font-size: 12.5px; }
+.settings-status { min-height: 1.45em; margin: 0; font-size: 14px; color: var(--muted); }

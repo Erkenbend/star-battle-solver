@@ -187,6 +187,26 @@ Dieselbe Seite wie bei `html`, dazu „Neues Puzzle“ (Größe 4 bis 14), eigen
 
 Unter `/bibliothek` liegen die Puzzles aus `testdata/hard`, nach Größe sortiert und mit Vorschau. Gelöst wird dort ohne Hilfe: Es gibt keine Hinweise, kein Prüfen und den Lösungsweg erst nach dem Lösen. Welche Puzzles gelöst sind (und die beste Zeit), merkt sich der Browser. Nach dem Lösen geht es mit „Weiter“ zum nächsten ungelösten Puzzle, und „Ergebnis kopieren“ gibt einen Link der Form `/bibliothek?id=14cd642742` mit. Die ID wird aus den Regionen berechnet. Links und gespeicherte Ergebnisse bleiben deshalb gültig, auch wenn sich der Generator ändert (die Seeds in den Dateien erzeugen heute schon andere Puzzles). Die angezeigte Nummer ergibt sich aus der Reihenfolge in `testdata/hard/bibliothek.idx`. Neue Puzzles werden dort nur unten angehängt. Vorgerechnet wird in der Bibliothek nichts: Der Solver startet beim ersten Aufruf eines Puzzles im Hintergrund, und `-no-pregen` betrifft sie nicht.
 
+Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. Sie gelten in allen Spielmodi und werden im Browser gespeichert, also pro Gerät:
+
+- **Nachbarn eines Sterns automatisch kreuzen:** Felder, auf denen wegen eines Sterns kein weiterer stehen kann, bekommen einen Punkt.
+- **Fat-Finger-Schutz:** Beim Ziehen wird nur in gerader Zeile oder Spalte gekreuzt. Auf Touchscreens ist er von Anfang an an.
+- **Regelverstöße sofort rot markieren:** Ist das aus, zeigt nur noch „Prüfen“ Fehler.
+- **Symbol für Sterne** (siehe unten)
+
+Die Spielseite zeigt unter den Knöpfen, wie die Optionen stehen, mit einem Link dorthin. Eine offene Spielseite übernimmt Änderungen sofort. In einer mit `html` gespeicherten Datei gibt es keine Einstellungsseite, dort stehen die drei Schalter direkt auf der Seite.
+
+Welches Symbol das Brett statt ★ zeigt, wählt man aus Vorschlägen, die in `symbols/symbols.json` stehen und ins Programm eingebaut werden. Es gibt vier Arten:
+
+| Art | Beispiel | Eigenschaften |
+|---|---|---|
+| `svg` | Stern, Herz, Krone | Pfad in einem 100×100-Feld. Sieht überall gleich aus, nimmt die Sternfarbe an und wird bei Fehlern rot. |
+| `glyph` | ♣, ✿ | Schriftzeichen, als Text dargestellt (nie als Emoji). Nimmt die Farben an, sieht aber je nach Schrift des Geräts etwas anders aus. |
+| `emoji` | 🌟, 🍀 | Emoji aus der Schrift des Geräts. Behält die eigenen Farben und sieht auf jedem System anders aus; fehlt eine Emoji-Schrift, erscheint ein leeres Kästchen. |
+| `sprite` | Diamant, funkelnder Stern | Bilddatei (`.svg`, `.png`, `.webp`, höchstens 256 KiB) im Verzeichnis `symbols/`. Mit `frames` und `fps` ein animiertes Bild: alle Einzelbilder (je 100×100) nebeneinander, z. B. aus `symbols/sparkle.py`. Die Animation spielt nur nach dem Setzen eines Sterns etwa drei Sekunden lang, danach bleibt das erste Bild stehen; wünscht das System reduzierte Bewegung, gar nicht. |
+
+Was die Farben nicht annimmt, leuchtet bei Fehlern rot. Bilder lädt die Seite vom Server; in einer mit `html` gespeicherten Datei erscheint stattdessen der Stern. GIF und animiertes PNG/WebP sind absichtlich nicht vorgesehen, weil sie sich nicht anhalten lassen.
+
 | Option | Bedeutung |
 |---|---|
 | `-addr` | Adresse (Standard `localhost:6369`) |
@@ -233,7 +253,8 @@ Dazu die Solver-Optionen wie bei `solve`.
 | `internal/bruteforce` | Referenz-Solver für Generator und Tests |
 | `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen, auch um ein gezeichnetes Muster herum |
 | `internal/render` | Ausgabe im Terminal |
-| `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek, Designer |
+| `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek, Einstellungen, Designer |
+| `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder) |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi |
 | `designs` | mit `starbattle design` entworfene Puzzles (entsteht beim ersten Speichern) |
 | `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern; zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`) |

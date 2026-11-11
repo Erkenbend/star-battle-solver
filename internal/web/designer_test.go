@@ -67,7 +67,7 @@ var heart = patternOf(
 )
 
 func TestDesignerPage(t *testing.T) {
-	h := DesignerHandler(t.TempDir(), testSolve)
+	h := DesignerHandler(t.TempDir(), testSolve, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id="canvas"`) {
@@ -75,14 +75,14 @@ func TestDesignerPage(t *testing.T) {
 	}
 	// Not part of serve.
 	rec = httptest.NewRecorder()
-	Handler(testSolve, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest("POST", "/api/complete", nil))
+	Handler(testSolve, nil, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest("POST", "/api/complete", nil))
 	if rec.Code == http.StatusOK {
 		t.Fatal("serve answers /api/complete")
 	}
 }
 
 func TestDesignerCheck(t *testing.T) {
-	h := DesignerHandler(t.TempDir(), testSolve)
+	h := DesignerHandler(t.TempDir(), testSolve, nil)
 	rec := postDesign(t, h, "/api/check", designRequest{Pattern: heart})
 	if got := strings.TrimSpace(rec.Body.String()); got != "null" {
 		t.Fatalf("valid pattern: got %s", got)
@@ -100,7 +100,7 @@ func TestDesignerCheck(t *testing.T) {
 
 func TestDesignerCompleteAndSave(t *testing.T) {
 	dir := t.TempDir()
-	h := DesignerHandler(dir, testSolve)
+	h := DesignerHandler(dir, testSolve, nil)
 	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: heart, Candidates: 3})
 	evs := designEvents(t, rec)
 	last := evs[len(evs)-1]
@@ -160,7 +160,7 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 }
 
 func TestDesignerCompleteInvalid(t *testing.T) {
-	h := DesignerHandler(t.TempDir(), testSolve)
+	h := DesignerHandler(t.TempDir(), testSolve, nil)
 	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: patternOf("AAAA", "....", "AAAA", "...."), Candidates: 2})
 	evs := designEvents(t, rec)
 	if len(evs) != 1 || evs[0].Problem == nil {
@@ -170,7 +170,7 @@ func TestDesignerCompleteInvalid(t *testing.T) {
 
 func TestDesignerStrict(t *testing.T) {
 	dir := t.TempDir()
-	h := DesignerHandler(dir, testSolve)
+	h := DesignerHandler(dir, testSolve, nil)
 	// Not connected as drawn: fine normally, not strictly.
 	parts := patternOf("A..A....", "........", "........", "........", "........", "........", "........", "........")
 	if rec := postDesign(t, h, "/api/check", designRequest{Pattern: parts}); strings.TrimSpace(rec.Body.String()) != "null" {

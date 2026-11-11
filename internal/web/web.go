@@ -50,6 +50,12 @@ var designerJS string
 //go:embed assets/error.html
 var errorHTML string
 
+//go:embed assets/settings.html
+var settingsHTML string
+
+//go:embed assets/settings.js
+var settingsJS string
+
 // Data is everything the page needs, serialized as JSON.
 type Data struct {
 	Title    string  `json:"title"`

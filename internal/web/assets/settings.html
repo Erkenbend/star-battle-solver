@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+/*{{STYLE}}*/
+</style>
+</head>
+<body>
+<header class="top">
+  <nav class="site-nav" aria-label="Spielmodus">
+    <a href="/" class="home" title="Startseite" aria-label="Startseite"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 1 7.5h2V14h3.5v-4h3v4H13V7.5h2z"/></svg></a>
+    <a href="/">Solo</a>
+    <a href="/party">Zusammen spielen</a>
+    <a href="/bibliothek">Bibliothek</a>
+    <a href="/einstellungen" class="settings" title="Einstellungen" aria-label="Einstellungen" aria-current="page"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M6.9 1h2.2l.4 2 1.3.6 1.7-1.2 1.6 1.6-1.2 1.7.6 1.3 2 .4v2.2l-2 .4-.6 1.3 1.2 1.7-1.6 1.6-1.7-1.2-1.3.6-.4 2H6.9l-.4-2-1.3-.6-1.7 1.2-1.6-1.6 1.2-1.7-.6-1.3-2-.4V6.9l2-.4.6-1.3-1.2-1.7 1.6-1.6 1.7 1.2 1.3-.6zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z"/></svg></a>
+  </nav>
+  <div class="title">
+    <h1>Einstellungen</h1>
+    <p class="sub">Gilt für alle Puzzles und Spielmodi in diesem Browser.</p>
+  </div>
+</header>
+
+<main class="settings-main">
+  <fieldset class="settings-group">
+    <legend><h2>Spielen</h2></legend>
+    <label class="option"><input type="checkbox" id="autocross">
+      <span><strong>Nachbarn eines Sterns automatisch kreuzen</strong>
+      <span class="muted">Alle Felder in Zeile, Spalte und Farbe eines Sterns und rund um ihn bekommen einen Punkt, denn dort kann kein weiterer Stern stehen.</span></span></label>
+    <label class="option"><input type="checkbox" id="straight">
+      <span><strong>Fat-Finger-Schutz</strong>
+      <span class="muted">Beim Ziehen nur in gerader Zeile oder Spalte kreuzen, damit ein abrutschender Finger keine Nachbarn trifft. Auf Touchscreens von Anfang an an.</span></span></label>
+    <label class="option"><input type="checkbox" id="showproblems">
+      <span><strong>Regelverstöße sofort rot markieren</strong>
+      <span class="muted">Zum Beispiel zwei Sterne, die sich berühren. Ausgeschaltet zeigt nur noch „Prüfen“ Fehler.</span></span></label>
+  </fieldset>
+  <fieldset class="settings-group symbols" id="symbols">
+    <legend><h2>Symbol für Sterne</h2></legend>
+    <p class="muted">Die Regeln bleiben gleich, nur das Brett zeigt statt ★ dein Symbol. Mitspielende in einer Party sehen ihr eigenes. Die Vorschau zeigt es auf verschiedenen Farben, rechts als falsch markiert.</p>
+    <p class="settings-status" id="status" role="status"></p>
+    <div class="symbol-list" id="symbol-list"></div>
+  </fieldset>
+</main>
+
+<script id="data" type="application/json">/*{{DATA}}*/null</script>
+<script>
+/*{{APP}}*/
+/*{{PARTY}}*/
+</script>
+</body>
+</html>
