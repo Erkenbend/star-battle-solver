@@ -130,7 +130,7 @@ func TestRepairMoves(t *testing.T) {
 				if len(alts) == 0 {
 					break
 				}
-				m, ok := bestMove(p, sol, alts, removed, rng, 1)
+				m, ok := bestMove(p, sol, nil, alts, removed, rng, 1)
 				if !ok {
 					t.Fatalf("n=%d seed=%d: no move found\n%s", n, seed, p)
 				}

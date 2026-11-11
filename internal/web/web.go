@@ -41,6 +41,12 @@ var libraryHTML string
 //go:embed assets/library.js
 var libraryJS string
 
+//go:embed assets/designer.html
+var designerHTML string
+
+//go:embed assets/designer.js
+var designerJS string
+
 //go:embed assets/error.html
 var errorHTML string
 

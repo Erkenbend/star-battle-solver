@@ -194,6 +194,31 @@ Unter `/bibliothek` liegen die Puzzles aus `testdata/hard`, nach Größe sortier
 
 Dazu die Solver-Optionen wie bei `solve`. Für den Betrieb auf einem Raspberry Pi siehe [deploy/README.md](deploy/README.md).
 
+### `design`: Puzzles entwerfen (für Entwickler)
+
+```sh
+starbattle design                       # http://localhost:6370/, speichert nach designs/
+starbattle design -dir testdata/designs
+```
+
+Ein Werkzeug für die Entwicklung, bewusst nicht Teil von `serve`. Auf der Seite zeichnet man einen Teil des Puzzles: Farbe wählen und Felder bemalen, Rechtsklick oder Radierer macht sie wieder frei. Schon beim Zeichnen prüft der Server, ob das Muster in ein gültiges Puzzle passen kann:
+
+- Die Teile jeder Farbe müssen sich über freie Felder verbinden lassen. Getrennt zeichnen ist erlaubt, der Generator verbindet sie.
+- Eine ringsum eingeschlossene Farbe braucht mindestens so viele Felder wie jede Region (ab 10×10 zwei).
+- Es muss eine Verteilung der Sterne geben, die zum Muster passt, also nicht z. B. eine Farbe, die zwei ganze Zeilen füllt.
+- Sind alle Farben gezeichnet, dürfen die Sterne nicht auf mehrere Arten allein auf gezeichneten Feldern Platz finden. Gezeichnete Felder ändert der Generator nie, sonst hätte jedes fertige Puzzle mehrere Lösungen.
+
+Danach berechnet „Vorschläge berechnen“ mehrere Vervollständigungen gleichzeitig, jede in einer eigenen Goroutine mit eigenem Seed (`generator.Complete`). Gezeichnete Felder behalten ihre Farbe, und gezeichnete Farben wachsen nur, wo es nötig ist, damit die Form erkennbar bleibt. Zu jedem Vorschlag steht, wie weit die Regeln allein kommen. Den passenden auswählen, optional benennen und speichern: Er landet als `nNN_name.txt` (ohne Namen `nNN_d001.txt` usw.) im Verzeichnis, mit Seed und Muster als Kommentar. Bestehende Dateien werden nie überschrieben. „Ausprobieren“ öffnet den Vorschlag als normale Spielseite.
+
+Bis 12×12 dauert ein Vorschlag meist unter einer Sekunde, 14×14 kann eine Minute brauchen. Sehr dichte oder verwinkelte Muster schafft der Generator nicht immer; dann hilft es, weniger zu zeichnen.
+
+| Option | Bedeutung |
+|---|---|
+| `-addr` | Adresse (Standard `localhost:6370`) |
+| `-dir` | Verzeichnis für gespeicherte Puzzles (Standard `designs`, wird bei Bedarf angelegt) |
+
+Dazu die Solver-Optionen wie bei `solve`.
+
 ## Aufbau
 
 | Verzeichnis | Inhalt |
@@ -204,10 +229,11 @@ Dazu die Solver-Optionen wie bei `solve`. Für den Betrieb auf einem Raspberry P
 | `internal/solver` | Runner (`RunSync`, `RunConcurrent`), Suche mit Lookahead und Raten, Trace |
 | `internal/solver/observers` | die logischen Regeln mit Erklärungen |
 | `internal/bruteforce` | Referenz-Solver für Generator und Tests |
-| `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen |
+| `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen, auch um ein gezeichnetes Muster herum |
 | `internal/render` | Ausgabe im Terminal |
-| `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek |
+| `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek, Designer |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi |
+| `designs` | mit `starbattle design` entworfene Puzzles (entsteht beim ersten Speichern) |
 | `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern; zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`) |
 | `docs/screenshots` | Bilder für diese README; `take.sh` nimmt sie neu auf (Go, node ≥ 22, Chromium) |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |

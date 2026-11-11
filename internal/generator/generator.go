@@ -35,6 +35,10 @@ type Options struct {
 	// most every third first attempt fails; more workers mostly slow the
 	// first attempt down by competing for the CPU.
 	Workers int
+	// Done, if not nil, cancels the call once closed: no further attempts
+	// start, running ones give up, and the call fails unless an attempt has
+	// already succeeded.
+	Done <-chan struct{}
 }
 
 // DefaultMinRegionSize is the MinRegionSize the CLI and the web server use for
@@ -68,6 +72,20 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 	if n > puzzle.MaxN {
 		return nil, nil, errors.New("n too large")
 	}
+	return run(rng, o, func(arng *rand.Rand, k, minSize int, stop func() bool) (*puzzle.Puzzle, []int, bool) {
+		sol := randomSolution(n, arng)
+		p := growRegions(n, sol, arng)
+		return p, sol, makeUnique(p, sol, nil, arng, k, minSize, stop)
+	})
+}
+
+// attemptFunc is one attempt of run: a layout and its solution drawn from rng,
+// ok if the solution is unique. It gives up (not ok) once stop returns true.
+type attemptFunc func(rng *rand.Rand, k, minSize int, stop func() bool) (p *puzzle.Puzzle, sol []int, ok bool)
+
+// run runs attempts in parallel (see Options) and returns the result of the
+// first successful one that also passes the region size limit and o.Accept.
+func run(rng *rand.Rand, o Options, attempt attemptFunc) (*puzzle.Puzzle, []int, error) {
 	attempts := o.MaxAttempts
 	if attempts <= 0 {
 		attempts = 1000
@@ -98,7 +116,7 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 	for i := range attempts {
 		slots <- struct{}{}
 		cpuSlots <- struct{}{}
-		if int64(i) > best.Load() {
+		if int64(i) > best.Load() || cancelled(o.Done) {
 			<-cpuSlots
 			<-slots
 			break
@@ -106,10 +124,9 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 		arng := rand.New(rand.NewPCG(rng.Uint64(), rng.Uint64()))
 		wg.Go(func() {
 			defer func() { <-cpuSlots; <-slots }()
-			stop := func() bool { return int64(i) > best.Load() }
-			sol := randomSolution(n, arng)
-			p := growRegions(n, sol, arng)
-			if !makeUnique(p, sol, arng, k, minSize, stop) || smallestRegion(p) < minSize {
+			stop := func() bool { return int64(i) > best.Load() || cancelled(o.Done) }
+			p, sol, ok := attempt(arng, k, minSize, stop)
+			if !ok || smallestRegion(p) < minSize {
 				return
 			}
 			if o.Accept != nil && !o.Accept(p, sol) {
@@ -128,7 +145,25 @@ func Generate(n int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
 	if b := best.Load(); b < int64(attempts) {
 		return results[b].p, results[b].sol, nil
 	}
+	if cancelled(o.Done) {
+		return nil, nil, ErrCancelled
+	}
 	return nil, nil, errors.New("no puzzle found within attempt limit")
+}
+
+// ErrCancelled is returned when Options.Done was closed before a puzzle was found.
+var ErrCancelled = errors.New("cancelled")
+
+func cancelled(done <-chan struct{}) bool {
+	if done == nil {
+		return false
+	}
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
 }
 
 // randomSolution returns a random permutation with |p[i]-p[i+1]| > 1.
@@ -171,8 +206,19 @@ func growRegions(n int, sol []int, rng *rand.Rand) *puzzle.Puzzle {
 	for r, c := range sol {
 		regs[r][c] = ids[r]
 	}
-	remaining := n*n - n
+	grow(regs, n*n-n, rng, nil)
+	return &puzzle.Puzzle{N: n, Regions: regs}
+}
+
+// grow assigns the remaining unassigned cells (-1) of regs, one at a time: a
+// random cell next to an assigned one joins a random neighboring region. So
+// every region stays connected if it was before. With only (may be nil), only
+// the regions marked there grow; grow stops when they cannot grow further
+// and returns the number of cells still unassigned.
+func grow(regs [][]int, remaining int, rng *rand.Rand, only []bool) int {
+	n := len(regs)
 	in := func(r, c int) bool { return r >= 0 && r < n && c >= 0 && c < n }
+	grows := func(r, c int) bool { return in(r, c) && regs[r][c] != -1 && (only == nil || only[regs[r][c]]) }
 	for remaining > 0 {
 		// Collect unassigned cells on the frontier, pick one, join a random neighbor region.
 		var frontier []puzzle.Pos
@@ -182,32 +228,52 @@ func growRegions(n int, sol []int, rng *rand.Rand) *puzzle.Puzzle {
 					continue
 				}
 				for _, d := range orth {
-					if in(r+d.Row, c+d.Col) && regs[r+d.Row][c+d.Col] != -1 {
+					if grows(r+d.Row, c+d.Col) {
 						frontier = append(frontier, puzzle.Pos{Row: r, Col: c})
 						break
 					}
 				}
 			}
 		}
+		if len(frontier) == 0 {
+			break
+		}
 		cell := frontier[rng.IntN(len(frontier))]
 		var nbRegs []int
 		for _, d := range orth {
 			rr, cc := cell.Row+d.Row, cell.Col+d.Col
-			if in(rr, cc) && regs[rr][cc] != -1 {
+			if grows(rr, cc) {
 				nbRegs = append(nbRegs, regs[rr][cc])
 			}
 		}
 		regs[cell.Row][cell.Col] = nbRegs[rng.IntN(len(nbRegs))]
 		remaining--
 	}
-	return &puzzle.Puzzle{N: n, Regions: regs}
+	return remaining
 }
+
+// locks restrict the repair of a completed pattern (see Complete): fixed
+// cells (n*n) never move, and no cells move into a drawn region (per
+// region), so drawn shapes keep their outline. Measured on parts of generated
+// puzzles (n = 8 to 12) and a drawn heart: almost as many completions
+// succeed as without the second rule, the heart grows by 3 instead of 11
+// cells, and completing takes about twice as long. With growDrawn, moves
+// into drawn regions are allowed but lose drawnPenalty per cell, so they win
+// only when nothing else is left.
+type locks struct {
+	fixed     []bool
+	drawn     []bool
+	growDrawn bool
+}
+
+// drawnPenalty: see locks.
+const drawnPenalty = 1000
 
 // makeUnique repairs the layout until sol is its only solution. Each step looks
 // at up to k alternative solutions and moves one piece of a region into a
-// neighboring region (see bestMove). Returns false if it gives up, or as soon
-// as stop (if not nil) returns true.
-func makeUnique(p *puzzle.Puzzle, sol []int, rng *rand.Rand, k, minSize int, stop func() bool) bool {
+// neighboring region (see bestMove), respecting lk (may be nil). Returns false
+// if it gives up, or as soon as stop (if not nil) returns true.
+func makeUnique(p *puzzle.Puzzle, sol []int, lk *locks, rng *rand.Rand, k, minSize int, stop func() bool) bool {
 	var removed [][]int // alternatives destroyed so far; moves that revive them are penalized
 	for range 6 * p.N { // successful repairs need well under 6n steps; failing ones would loop
 		if stop != nil && stop() {
@@ -222,7 +288,7 @@ func makeUnique(p *puzzle.Puzzle, sol []int, rng *rand.Rand, k, minSize int, sto
 		if len(alts) == 0 {
 			return true // sol is always a solution, so it is the only one
 		}
-		m, ok := bestMove(p, sol, alts, removed, rng, minSize)
+		m, ok := bestMove(p, sol, lk, alts, removed, rng, minSize)
 		if !ok {
 			return false
 		}
@@ -253,7 +319,10 @@ type move struct {
 // its only star of that alternative). Score: 10 per destroyed alternative,
 // -20 per previously destroyed alternative that becomes valid again, -1 per
 // moved cell. Ties are broken with rng.
-func bestMove(p *puzzle.Puzzle, sol []int, alts, removed [][]int, rng *rand.Rand, minSize int) (move, bool) {
+//
+// With lk (may be nil), the path avoids fixed cells, a piece that contains
+// one is not moved, and nothing moves into a drawn region (see locks).
+func bestMove(p *puzzle.Puzzle, sol []int, lk *locks, alts, removed [][]int, rng *rand.Rand, minSize int) (move, bool) {
 	n := p.N
 	size := make([]int, n)
 	for r := range n {
@@ -276,12 +345,19 @@ func bestMove(p *puzzle.Puzzle, sol []int, alts, removed [][]int, rng *rand.Rand
 			tried[r*n+c] = true
 			x := puzzle.Pos{Row: r, Col: c}
 			from := p.Regions[r][c]
-			path := pathToBorder(p, anchor[from], x)
+			var fixed []bool
+			if lk != nil {
+				fixed = lk.fixed
+			}
+			if fixed != nil && fixed[r*n+c] {
+				continue
+			}
+			path := pathToBorder(p, anchor[from], x, fixed)
 			if path == nil {
 				continue
 			}
 			piece := detached(p, anchor[from], path)
-			if size[from]-len(piece) < minSize {
+			if size[from]-len(piece) < minSize || containsFixed(piece, fixed, n) {
 				continue
 			}
 			inPiece := make([]bool, n*n)
@@ -298,6 +374,9 @@ func bestMove(p *puzzle.Puzzle, sol []int, alts, removed [][]int, rng *rand.Rand
 				}
 			}
 			for _, to := range neighborRegions(p, path[len(path)-1]) {
+				if lk != nil && lk.drawn[to] && !lk.growDrawn {
+					continue
+				}
 				for _, q := range piece {
 					p.Regions[q.Row][q.Col] = to
 				}
@@ -311,6 +390,10 @@ func bestMove(p *puzzle.Puzzle, sol []int, alts, removed [][]int, rng *rand.Rand
 					p.Regions[q.Row][q.Col] = from
 				}
 				score := 10*kills - 20*revived - len(piece)
+				if lk != nil && lk.drawn[to] {
+					score -= drawnPenalty * len(piece)
+				}
+
 				switch {
 				case best == nil || score > bestScore:
 					best, bestScore = []move{{piece, to}}, score
@@ -327,9 +410,9 @@ func bestMove(p *puzzle.Puzzle, sol []int, alts, removed [][]int, rng *rand.Rand
 }
 
 // pathToBorder returns the shortest path inside x's region from x to a cell
-// that touches another region (just x if it already does), avoiding anchor.
-// Returns nil if there is none.
-func pathToBorder(p *puzzle.Puzzle, anchor, x puzzle.Pos) []puzzle.Pos {
+// that touches another region (just x if it already does), avoiding anchor and
+// the cells marked in fixed (may be nil). Returns nil if there is none.
+func pathToBorder(p *puzzle.Puzzle, anchor, x puzzle.Pos, fixed []bool) []puzzle.Pos {
 	n, reg := p.N, p.Regions[x.Row][x.Col]
 	parent := make([]int, n*n)
 	for i := range parent {
@@ -352,7 +435,7 @@ func pathToBorder(p *puzzle.Puzzle, anchor, x puzzle.Pos) []puzzle.Pos {
 		}
 		for _, d := range orth {
 			rr, cc := cur.Row+d.Row, cur.Col+d.Col
-			if p.In(rr, cc) && parent[rr*n+cc] == -1 && p.Regions[rr][cc] == reg {
+			if p.In(rr, cc) && parent[rr*n+cc] == -1 && p.Regions[rr][cc] == reg && (fixed == nil || !fixed[rr*n+cc]) {
 				parent[rr*n+cc] = cur.Row*n + cur.Col
 				queue = append(queue, puzzle.Pos{Row: rr, Col: cc})
 			}
@@ -392,6 +475,19 @@ func detached(p *puzzle.Puzzle, anchor puzzle.Pos, cut []puzzle.Pos) []puzzle.Po
 		}
 	}
 	return piece
+}
+
+// containsFixed reports whether a cell of piece is marked in fixed (may be nil).
+func containsFixed(piece []puzzle.Pos, fixed []bool, n int) bool {
+	if fixed == nil {
+		return false
+	}
+	for _, q := range piece {
+		if fixed[q.Row*n+q.Col] {
+			return true
+		}
+	}
+	return false
 }
 
 // neighborRegions lists the distinct regions orthogonally adjacent to x, other than x's own.

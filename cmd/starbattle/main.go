@@ -7,6 +7,7 @@
 //	                 [-step] [-verbose] [-nocolor] [p.txt]
 //	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
 //	starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags]   generate and solve in the browser
+//	starbattle design [-addr localhost:6370] [-dir designs] [solver flags]   draw a pattern, complete it (for developers)
 package main
 
 import (
@@ -52,6 +53,8 @@ func main() {
 		err = cmdHTML(os.Args[2:])
 	case "serve":
 		err = cmdServe(os.Args[2:])
+	case "design":
+		err = cmdDesign(os.Args[2:])
 	default:
 		usage()
 	}
@@ -69,7 +72,8 @@ func usage() {
                    [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
                    [-step] [-verbose] [-nocolor] [file]
   starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
-  starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]`)
+  starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]
+  starbattle design [-addr localhost:6370] [-dir designs] [solver flags as for solve]`)
 	os.Exit(2)
 }
 
@@ -296,6 +300,37 @@ func cmdServe(args []string) error {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	fmt.Fprintf(os.Stderr, "Star Battle auf http://%s/\n", *addr)
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return srv.Shutdown(shutdownCtx)
+}
+
+// cmdDesign serves the designer, a tool for developers of this project:
+// draw part of a puzzle, let the generator complete it in several ways, pick
+// one and save it to -dir. It is deliberately not part of serve.
+func cmdDesign(args []string) error {
+	fs := flag.NewFlagSet("design", flag.ExitOnError)
+	addr := fs.String("addr", "localhost:6370", "listen address")
+	dir := fs.String("dir", "designs", "directory for saved puzzles")
+	solve := solverFlags(fs, "sync")
+	fs.Parse(args)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	srv := &http.Server{
+		Addr:              *addr,
+		Handler:           web.DesignerHandler(*dir, solve),
+		ReadHeaderTimeout: 10 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
+	}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.ListenAndServe() }()
+	fmt.Fprintf(os.Stderr, "Designer auf http://%s/ (speichert nach %s)\n", *addr, *dir)
 	select {
 	case err := <-errc:
 		return err

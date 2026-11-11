@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+/*{{STYLE}}*/
+
+/* Designer only. */
+.des-main { max-width: 1180px; margin: 0 auto; padding: 8px 16px 40px; display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .des-main { grid-template-columns: minmax(0, 1fr); } }
+.des-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.des-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.des-row label { color: var(--muted); font-size: 14px; display: flex; gap: 6px; align-items: center; }
+.palette { display: flex; flex-wrap: wrap; gap: 6px; }
+.palette button {
+  width: 38px; height: 38px; padding: 0; border-radius: 8px;
+  font-weight: 650; font-size: 14px; color: var(--fg);
+  background: hsl(var(--h) var(--s) var(--l));
+}
+.palette button.eraser { background: var(--card); font-size: 18px; }
+.palette button[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+.palette button .cnt { display: block; font-size: 10px; font-weight: 500; color: color-mix(in srgb, var(--fg) 65%, transparent); }
+
+.canvas {
+  --size: min(520px, calc(100vw - 32px));
+  width: var(--size);
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  border: 2px solid var(--thick);
+  user-select: none; -webkit-user-select: none;
+  touch-action: none;
+  background: var(--card);
+}
+.canvas .c {
+  aspect-ratio: 1;
+  box-shadow: inset 0 0 0 0.5px var(--thin);
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--size) / var(--n) * 0.32); font-weight: 600;
+  color: color-mix(in srgb, var(--fg) 45%, transparent);
+  cursor: crosshair;
+}
+.canvas .c.free {
+  background: repeating-linear-gradient(45deg, transparent 0 5px, color-mix(in srgb, var(--fg) 6%, transparent) 5px 6px);
+}
+.canvas .c.drawn { background: hsl(var(--h) var(--s) var(--l)); }
+.canvas .c.problem { box-shadow: inset 0 0 0 3px var(--bad); }
+
+.status { border-left: 4px solid var(--border); padding: 8px 12px; background: var(--card); border-radius: 0 8px 8px 0; font-size: 14px; }
+.status.ok { border-left-color: #2e9d58; }
+.status.bad { border-left-color: var(--bad); }
+.status.busy { border-left-color: var(--accent); }
+
+.cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.cand {
+  text-align: left; padding: 8px; border-radius: 10px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cand[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 1px; }
+.cand svg { width: 100%; height: auto; display: block; border-radius: 3px; }
+.cands.stale .cand { opacity: 0.55; }
+.stale-note { color: var(--hint); font-size: 14px; margin: 0; }
+.cand .meta { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.cand .meta strong { color: var(--fg); font-weight: 600; }
+
+.big svg { width: 100%; max-width: 520px; display: block; }
+svg rect.cell-r { fill: hsl(var(--h) var(--s) var(--l)); }
+svg rect.undrawn { fill-opacity: 0.38; }
+svg .walls { fill: none; stroke: var(--thick); stroke-linecap: square; }
+svg .grid { fill: none; stroke: var(--thin); }
+svg .star { fill: var(--star); stroke: var(--star-edge); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .palette button:not(.eraser),
+  :root:not([data-theme="light"]) .canvas .c.drawn { background: hsl(var(--h) var(--ds) var(--dl)); }
+  :root:not([data-theme="light"]) svg rect.cell-r { fill: hsl(var(--h) var(--ds) var(--dl)); }
+}
+:root[data-theme="dark"] .palette button:not(.eraser),
+:root[data-theme="dark"] .canvas .c.drawn { background: hsl(var(--h) var(--ds) var(--dl)); }
+:root[data-theme="dark"] svg rect.cell-r { fill: hsl(var(--h) var(--ds) var(--dl)); }
+.des-row input[type="text"] {
+  font: inherit; color: var(--fg); background: var(--card);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 0; flex: 1 1 10em;
+}
+.saved { color: #2e9d58; font-size: 14px; }
+.err { color: var(--bad); font-size: 14px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="title">
+    <h1>Designer</h1>
+    <p class="sub">Einen Teil des Puzzles zeichnen, den Rest berechnen lassen. Werkzeug für die Entwicklung, nicht Teil von <code>serve</code>.</p>
+  </div>
+</header>
+
+<main class="des-main">
+  <section class="des-col" aria-label="Muster zeichnen">
+    <div class="des-row">
+      <label>Größe <select id="size"></select></label>
+      <button id="clear" class="quiet">Leeren</button>
+    </div>
+    <div class="palette" id="palette" role="toolbar" aria-label="Farbe"></div>
+    <div class="canvas" id="canvas"></div>
+    <p class="legend">Ziehen malt mit der gewählten Farbe. Rechtsklick oder Radierer macht Felder wieder frei. Ein Klick auf ein Feld in der gewählten Farbe radiert. Schraffierte Felder füllt der Generator. Teile einer Farbe dürfen getrennt sein, wenn sie sich über freie Felder verbinden lassen.</p>
+    <div class="status" id="status" role="status"></div>
+  </section>
+
+  <section class="des-col" aria-label="Vorschläge">
+    <div class="des-row">
+      <label>Vorschläge <select id="count"></select></label>
+      <button id="go" class="primary">Vorschläge berechnen</button>
+      <button id="stop" class="quiet" hidden>Abbrechen</button>
+    </div>
+    <p class="muted" id="info">Noch keine Vorschläge.</p>
+    <p class="stale-note" id="stale" hidden>Die Zeichnung hat sich seitdem geändert. Die Vorschläge gehören zur vorherigen; gespeichert wird auch diese.</p>
+    <div class="cands" id="cands"></div>
+    <div class="card" id="detail" hidden>
+      <div class="big" id="big"></div>
+      <div class="des-row" style="margin-top:10px">
+        <label><input type="checkbox" id="show-pattern" checked> Muster hervorheben</label>
+        <label><input type="checkbox" id="show-solution"> Lösung zeigen</label>
+      </div>
+      <p class="muted" id="detail-meta" style="margin-top:8px"></p>
+      <div class="des-row" style="margin-top:8px">
+        <input type="text" id="name" placeholder="Name (optional), z. B. herz" maxlength="41" autocomplete="off">
+        <button id="save" class="primary">Speichern</button>
+        <a class="button" id="try" target="_blank" rel="noopener">Ausprobieren</a>
+      </div>
+      <p id="save-msg"></p>
+    </div>
+  </section>
+</main>
+
+<script id="data" type="application/json">/*{{DATA}}*/null</script>
+<script>
+/*{{APP}}*/
+/*{{PARTY}}*/
+</script>
+</body>
+</html>

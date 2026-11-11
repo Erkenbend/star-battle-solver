@@ -1,0 +1,18 @@
+# designer: generator.Complete(pattern, rand.NewPCG(638500, 8)), 2026-11-11
+# pattern (. = free):
+#   ........
+#   AAA.....
+#   A..B....
+#   AA.B.CCC
+#   A..B.C.C
+#   AAAB.C.C
+#   ...BBB.C
+#   .....CCC
+DDDDDDDD
+AAADDDDD
+AHHBDDDD
+AAHBFCCC
+AEHBFCCC
+AAABFCCC
+GGGBBBCC
+GGGGGCCC
