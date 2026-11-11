@@ -48,6 +48,7 @@ type designRequest struct {
 	Regions    [][]int `json:"regions,omitempty"`    // save: the chosen completion
 	Seed       uint64  `json:"seed,omitempty"`       // save: its seed
 	Name       string  `json:"name,omitempty"`       // save: file name (optional)
+	Strict     bool    `json:"strict,omitempty"`     // drawn colors are final (generator.Options.Strict)
 }
 
 // patternProblem is the answer to /api/check, and part of /api/complete's
@@ -102,7 +103,7 @@ func DesignerHandler(dir string, solve SolveFunc) http.Handler {
 		if !ok {
 			return
 		}
-		writeJSON(w, http.StatusOK, checkPattern(req.Pattern))
+		writeJSON(w, http.StatusOK, checkPattern(req.Pattern, req.Strict))
 	})
 	mux.HandleFunc("POST /api/complete", func(w http.ResponseWriter, r *http.Request) {
 		req, ok := readDesignRequest(w, r)
@@ -117,13 +118,13 @@ func DesignerHandler(dir string, solve SolveFunc) http.Handler {
 			enc.Encode(ev) // one line per event
 			rc.Flush()
 		}
-		if prob := checkPattern(req.Pattern); prob != nil {
+		if prob := checkPattern(req.Pattern, req.Strict); prob != nil {
 			send(designEvent{Problem: prob})
 			return
 		}
 		k := min(max(req.Candidates, 1), MaxDesignCandidates)
 		var d designDone
-		for c := range completeDesign(req.Pattern, k, solve, r.Context().Done()) {
+		for c := range completeDesign(req.Pattern, req.Strict, k, solve, r.Context().Done()) {
 			switch {
 			case c == nil:
 				d.Failed++
@@ -167,10 +168,10 @@ func readDesignRequest(w http.ResponseWriter, r *http.Request) (designRequest, b
 
 // checkPattern runs generator.CheckPattern and explains its finding in German,
 // or returns nil if the pattern is fine.
-func checkPattern(pattern [][]int) *patternProblem {
+func checkPattern(pattern [][]int, strict bool) *patternProblem {
 	n := len(pattern)
 	minSize := generator.DefaultMinRegionSize(n)
-	err := generator.CheckPattern(pattern, minSize)
+	err := generator.CheckPattern(pattern, minSize, strict)
 	if err == nil {
 		return nil
 	}
@@ -188,13 +189,31 @@ func checkPattern(pattern [][]int) *patternProblem {
 	}
 	switch pe.Problem {
 	case generator.Unreachable:
-		p.Message = color + ": Der markierte Teil lässt sich über freie Felder nicht mit dem Rest der Farbe verbinden. Jede Farbe muss am Ende eine zusammenhängende Fläche sein."
+		if strict {
+			p.Message = color + ": Der markierte Teil hängt nicht mit dem Rest der Farbe zusammen. Im strengen Modus bleibt jede Farbe genau so, wie sie gezeichnet ist, also muss sie zusammenhängend gezeichnet sein."
+		} else {
+			p.Message = color + ": Der markierte Teil lässt sich über freie Felder nicht mit dem Rest der Farbe verbinden. Jede Farbe muss am Ende eine zusammenhängende Fläche sein."
+		}
 	case generator.TooSmall:
-		p.Message = fmt.Sprintf("%s ist ringsum eingeschlossen und hat nur %d Feld(er). Bei %d×%d braucht jede Farbe mindestens %d Felder.", color, len(pe.Cells), n, n, minSize)
+		switch {
+		case pe.Region < 0:
+			p.Message = fmt.Sprintf("Die markierte freie Fläche hat nur %d Feld(er). Im strengen Modus füllen sie nur nicht gezeichnete Farben, und bei %d×%d braucht jede Farbe mindestens %d Felder.", len(pe.Cells), n, n, minSize)
+		case strict:
+			p.Message = fmt.Sprintf("%s hat nur %d Feld(er). Im strengen Modus wächst sie nicht mehr, und bei %d×%d braucht jede Farbe mindestens %d Felder.", color, len(pe.Cells), n, n, minSize)
+		default:
+			p.Message = fmt.Sprintf("%s ist ringsum eingeschlossen und hat nur %d Feld(er). Bei %d×%d braucht jede Farbe mindestens %d Felder.", color, len(pe.Cells), n, n, minSize)
+		}
+	case generator.Leftover:
+		p.Message = fmt.Sprintf("Im strengen Modus bekommen freie Felder nur Farben, die nicht gezeichnet sind. Es gibt %d getrennte freie Flächen, aber nur noch %d ungenutzte Farbe(n). Freie Flächen schließen oder Farben wieder entfernen hilft.", pe.Areas, pe.Missing)
+	case generator.Fixed:
+		p.Message = "Im strengen Modus steht das Puzzle hier schon fest: Jede freie Fläche bekommt genau eine der übrigen Farben. So hat es aber mehrere Lösungen (markiert: wo sich zwei davon unterscheiden). Etwas mehr frei lassen oder eine Farbe weniger zeichnen gibt dem Generator Spielraum."
 	case generator.Ambiguous:
 		p.Message = "Die Sterne lassen sich allein auf gezeichneten Feldern auf mehrere Arten verteilen (markiert: wo sich zwei solche Verteilungen unterscheiden). Gezeichnete Felder ändert der Generator nie, also hätte jedes fertige Puzzle mehrere Lösungen. Einige Felder wieder freigeben hilft."
 	default:
 		p.Message = "Zu diesem Muster passt keine Verteilung der Sterne (je ein Stern pro Zeile, Spalte und Farbe, ohne Berührung). Das passiert z. B., wenn eine Farbe zwei ganze Zeilen füllt oder zwei eingeschlossene Farben nur in derselben Zeile Platz für ihren Stern haben."
+		if strict {
+			p.Message += " Im strengen Modus muss außerdem der Stern jeder gezeichneten Farbe auf ihren eigenen Feldern liegen."
+		}
 	}
 	return p
 }
@@ -211,7 +230,7 @@ type foundCandidate struct {
 // together. Each result comes out of the channel as soon as it is ready, so
 // the page can show it while the others are still running; nil stands for a
 // failed completion. The channel is closed after the last one.
-func completeDesign(pattern [][]int, k int, solve SolveFunc, done <-chan struct{}) <-chan *foundCandidate {
+func completeDesign(pattern [][]int, strict bool, k int, solve SolveFunc, done <-chan struct{}) <-chan *foundCandidate {
 	n := len(pattern)
 	out := make(chan *foundCandidate, k)
 	var mu sync.Mutex
@@ -225,6 +244,7 @@ func completeDesign(pattern [][]int, k int, solve SolveFunc, done <-chan struct{
 				MinRegionSize: generator.DefaultMinRegionSize(n),
 				MaxAttempts:   designAttempts,
 				Workers:       1, // the candidates are the parallelism
+				Strict:        strict,
 				Done:          done,
 			})
 			if err != nil {
@@ -282,27 +302,44 @@ func freeWhenStuck(p *puzzle.Puzzle, trace []solver.Step) int {
 var designName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,40}$`)
 
 // saveDesign checks the chosen completion (valid, unique, contains the
-// pattern) and writes it to dir as nNN_name.txt, with the seed and the
+// pattern, and with req.Strict no drawn region larger than drawn) and writes it to dir as nNN_name.txt, with the seed and the
 // pattern in comments. Without a name, the next free nNN_dNNN is used. An
 // existing file is never overwritten. Returns the file name.
 func saveDesign(dir string, req designRequest) (string, error) {
 	n := len(req.Pattern)
-	p, err := puzzle.New(req.Regions)
-	if err != nil {
-		return "", fmt.Errorf("Puzzle ungültig: %v", err)
-	}
-	if p.N != n {
+	if len(req.Regions) != n {
 		return "", errors.New("Puzzle und Muster sind verschieden groß.")
 	}
-	for r, row := range req.Pattern {
+	for _, row := range req.Regions {
+		if len(row) != n {
+			return "", errors.New("Puzzle ist nicht quadratisch.")
+		}
+	}
+	drawn := make([]bool, n)
+	for _, row := range req.Pattern {
 		if len(row) != n {
 			return "", errors.New("Muster ist nicht quadratisch.")
 		}
-		for c, reg := range row {
-			if reg != generator.Free && reg != p.Regions[r][c] {
-				return "", fmt.Errorf("Feld (%d,%d) passt nicht zum Muster.", r, c)
+		for _, reg := range row {
+			if reg != generator.Free {
+				drawn[reg] = true
 			}
 		}
+	}
+	for r, row := range req.Pattern {
+		for c, reg := range row {
+			got := req.Regions[r][c]
+			if reg != generator.Free && reg != got {
+				return "", fmt.Errorf("Feld (%d,%d) passt nicht zum Muster.", r, c)
+			}
+			if reg == generator.Free && req.Strict && got >= 0 && got < n && drawn[got] {
+				return "", fmt.Errorf("Feld (%d,%d): Im strengen Modus darf eine gezeichnete Farbe nicht wachsen.", r, c)
+			}
+		}
+	}
+	p, err := puzzle.New(req.Regions)
+	if err != nil {
+		return "", fmt.Errorf("Puzzle ungültig: %v", err)
 	}
 	if bruteforce.CountSolutions(p, 2) != 1 {
 		return "", errors.New("Das Puzzle hat keine eindeutige Lösung.")
@@ -326,7 +363,11 @@ func saveDesign(dir string, req designRequest) (string, error) {
 	file := prefix + name + ".txt"
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "# designer: generator.Complete(pattern, rand.NewPCG(%d, %d)), %s\n", req.Seed, n, time.Now().Format("2006-01-02"))
+	mode := ""
+	if req.Strict {
+		mode = ", Strict"
+	}
+	fmt.Fprintf(&b, "# designer: generator.Complete(pattern, rand.NewPCG(%d, %d)%s), %s\n", req.Seed, n, mode, time.Now().Format("2006-01-02"))
 	b.WriteString("# pattern (. = free):\n")
 	for _, row := range req.Pattern {
 		b.WriteString("#   ")

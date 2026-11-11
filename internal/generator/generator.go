@@ -35,6 +35,10 @@ type Options struct {
 	// most every third first attempt fails; more workers mostly slow the
 	// first attempt down by competing for the CPU.
 	Workers int
+	// Strict (Complete only): every drawn region of the pattern is exactly
+	// its drawn cells and takes no free cells. Free cells go to the regions
+	// missing from the pattern only.
+	Strict bool
 	// Done, if not nil, cancels the call once closed: no further attempts
 	// start, running ones give up, and the call fails unless an attempt has
 	// already succeeded.

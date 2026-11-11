@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 
+	"starbattle/internal/bruteforce"
 	"starbattle/internal/puzzle"
 )
 
@@ -11,10 +12,11 @@ import (
 type PatternProblem int
 
 const (
-	// Unreachable: the parts of a region cannot be joined through free cells.
+	// Unreachable: the parts of a region cannot be joined through free cells
+	// (strict: the region is not connected as drawn).
 	Unreachable PatternProblem = iota
-	// TooSmall: a region is enclosed (no free cell next to it) and smaller
-	// than the minimum region size.
+	// TooSmall: a region is enclosed (no free cell next to it; strict: any
+	// region) and smaller than the minimum region size.
 	TooSmall
 	// NoStars: no placement of stars fits the pattern, e.g. a region that
 	// covers two whole rows, or two enclosed regions inside the same row.
@@ -23,13 +25,23 @@ const (
 	// stay solutions however the free cells are filled, since drawn cells
 	// keep their region.
 	Ambiguous
+	// Leftover (strict only): there are more separate areas of free cells
+	// than regions missing from the pattern, and the drawn regions cannot
+	// take free cells.
+	Leftover
+	// Fixed (strict only): every area of free cells is exactly one missing
+	// region, so the pattern already is the whole puzzle, and that has more
+	// than one solution.
+	Fixed
 )
 
 // PatternError describes a problem of a pattern found by CheckPattern.
 type PatternError struct {
 	Problem PatternProblem
-	Region  int          // the region concerned, -1 for NoStars and Ambiguous
-	Cells   []puzzle.Pos // the cells to point at (Unreachable: the part cut off; Ambiguous: the stars of both placements)
+	Region  int          // the region concerned, -1 if none (TooSmall: -1 for an area of free cells, strict)
+	Cells   []puzzle.Pos // the cells to point at (Unreachable: the part cut off; Ambiguous, Fixed: the stars of two solutions; Leftover: the free cells)
+	Areas   int          // Leftover: separate areas of free cells
+	Missing int          // Leftover: regions missing from the pattern
 }
 
 func (e *PatternError) Error() string {
@@ -40,6 +52,10 @@ func (e *PatternError) Error() string {
 		return fmt.Sprintf("region %c: enclosed and too small", puzzle.RegionLetter(e.Region))
 	case Ambiguous:
 		return "two star placements lie on drawn cells alone"
+	case Fixed:
+		return "the pattern fixes the puzzle, which has several solutions"
+	case Leftover:
+		return fmt.Sprintf("%d areas of free cells, but only %d regions left", e.Areas, e.Missing)
 	default:
 		return "no star placement fits the pattern"
 	}
@@ -57,11 +73,16 @@ const checkBudget = 2_000_000
 // column and region, none touching, in which every region gets a star it can
 // reach. It returns nil or a *PatternError.
 //
+// With strict (see Options.Strict), every drawn region is final: it must be
+// connected as drawn and have at least minSize cells, its star lies on its
+// own cells, and every separate area of free cells needs a region of its own
+// that is missing from the pattern.
+//
 // It cannot see paths of different regions that would have to cross, so
 // Complete can still fail on a pattern that passes. A pattern of the wrong
 // shape (not n×n with 4 ≤ n ≤ puzzle.MaxN, values outside Free..n-1) gives a
 // plain error.
-func CheckPattern(pattern [][]int, minSize int) error {
+func CheckPattern(pattern [][]int, minSize int, strict bool) error {
 	n := len(pattern)
 	if n < 4 || n > puzzle.MaxN {
 		return fmt.Errorf("size %d out of range [4,%d]", n, puzzle.MaxN)
@@ -76,7 +97,7 @@ func CheckPattern(pattern [][]int, minSize int) error {
 			}
 		}
 	}
-	info := analyze(pattern)
+	info := analyze(pattern, strict)
 	for reg := range n {
 		if !info.present[reg] {
 			continue
@@ -84,8 +105,37 @@ func CheckPattern(pattern [][]int, minSize int) error {
 		if cut := info.unreachablePart(reg); cut != nil {
 			return &PatternError{Problem: Unreachable, Region: reg, Cells: cut}
 		}
-		if len(info.touches[reg]) == 0 && len(info.cells[reg]) < minSize {
+		if (strict || len(info.touches[reg]) == 0) && len(info.cells[reg]) < minSize {
 			return &PatternError{Problem: TooSmall, Region: reg, Cells: info.cells[reg]}
+		}
+	}
+	if strict {
+		missing := 0
+		for _, ok := range info.present {
+			if !ok {
+				missing++
+			}
+		}
+		if info.areas > missing {
+			var cells []puzzle.Pos
+			for i, fc := range info.freeComp {
+				if fc >= 0 {
+					cells = append(cells, puzzle.Pos{Row: i / n, Col: i % n})
+				}
+			}
+			return &PatternError{Problem: Leftover, Region: -1, Cells: cells, Areas: info.areas, Missing: missing}
+		}
+		// Each area holds at least one whole missing region.
+		areaCells := map[int][]puzzle.Pos{}
+		for i, fc := range info.freeComp {
+			if fc >= 0 {
+				areaCells[fc] = append(areaCells[fc], puzzle.Pos{Row: i / n, Col: i % n})
+			}
+		}
+		for _, cells := range areaCells {
+			if len(cells) < minSize {
+				return &PatternError{Problem: TooSmall, Region: -1, Cells: cells}
+			}
 		}
 	}
 	budget := checkBudget
@@ -97,15 +147,59 @@ func CheckPattern(pattern [][]int, minSize int) error {
 		return &PatternError{Problem: NoStars, Region: -1}
 	}
 	if sols := info.drawnSolutions(2); len(sols) == 2 {
-		var cells []puzzle.Pos
-		for r := range n {
-			if sols[0][r] != sols[1][r] {
-				cells = append(cells, puzzle.Pos{Row: r, Col: sols[0][r]}, puzzle.Pos{Row: r, Col: sols[1][r]})
-			}
+		return &PatternError{Problem: Ambiguous, Region: -1, Cells: differing(sols[0], sols[1])}
+	}
+	if p := info.fixedLayout(); p != nil {
+		if sols := bruteforce.Solve(p, 2); len(sols) == 2 {
+			return &PatternError{Problem: Fixed, Region: -1, Cells: differing(sols[0], sols[1])}
 		}
-		return &PatternError{Problem: Ambiguous, Region: -1, Cells: cells}
 	}
 	return nil
+}
+
+// differing lists the stars of a and b (star column per row) in the rows
+// where they differ.
+func differing(a, b []int) []puzzle.Pos {
+	var cells []puzzle.Pos
+	for r := range a {
+		if a[r] != b[r] {
+			cells = append(cells, puzzle.Pos{Row: r, Col: a[r]}, puzzle.Pos{Row: r, Col: b[r]})
+		}
+	}
+	return cells
+}
+
+// fixedLayout returns the only layout a strict pattern allows when every
+// area of free cells is exactly one missing region, nil otherwise.
+func (info *patternInfo) fixedLayout() *puzzle.Puzzle {
+	if !info.strict {
+		return nil
+	}
+	var missing []int
+	for reg, ok := range info.present {
+		if !ok {
+			missing = append(missing, reg)
+		}
+	}
+	if len(missing) != info.areas {
+		return nil
+	}
+	n := info.n
+	regionOf := map[int]int{} // area -> region
+	regs := make([][]int, n)
+	for r := range n {
+		regs[r] = make([]int, n)
+		for c := range n {
+			regs[r][c] = info.pattern[r][c]
+			if fc := info.freeComp[r*n+c]; fc >= 0 {
+				if _, ok := regionOf[fc]; !ok {
+					regionOf[fc] = missing[len(regionOf)]
+				}
+				regs[r][c] = regionOf[fc]
+			}
+		}
+	}
+	return &puzzle.Puzzle{N: n, Regions: regs}
 }
 
 // drawnSolutions returns up to limit star placements that lie on drawn cells
@@ -150,6 +244,8 @@ func (info *patternInfo) drawnSolutions(limit int) [][]int {
 type patternInfo struct {
 	pattern  [][]int
 	n        int
+	strict   bool // see Options.Strict
+	areas    int  // separate parts of the free cells
 	present  []bool
 	cells    [][]puzzle.Pos // drawn cells per region
 	freeComp []int          // per cell: index of its part of the free cells, -1 if drawn
@@ -158,9 +254,11 @@ type patternInfo struct {
 	maxRow   []int          // per region: last row where its star can be
 }
 
-func analyze(pattern [][]int) *patternInfo {
+// analyze collects the patternInfo. With strict, drawn regions reach no
+// free part.
+func analyze(pattern [][]int, strict bool) *patternInfo {
 	n := len(pattern)
-	info := &patternInfo{pattern: pattern, n: n, present: make([]bool, n), cells: make([][]puzzle.Pos, n), touches: make([][]int, n), maxRow: make([]int, n)}
+	info := &patternInfo{pattern: pattern, n: n, strict: strict, present: make([]bool, n), cells: make([][]puzzle.Pos, n), touches: make([][]int, n), maxRow: make([]int, n)}
 	missing := false
 	for r, row := range pattern {
 		for c, reg := range row {
@@ -186,12 +284,15 @@ func analyze(pattern [][]int) *patternInfo {
 	// Parts of the free cells: components of the "region" 1 in free.
 	label, parts := components(free)
 	info.freeComp = make([]int, n*n)
+	seenArea := map[int]bool{}
 	for i, l := range label {
 		info.freeComp[i] = -1
 		if l >= 0 && free[i/n][i%n] == 1 {
 			info.freeComp[i] = l
+			seenArea[l] = true
 		}
 	}
+	info.areas = len(seenArea)
 	info.reaches = make([][]bool, len(parts))
 	for i := range info.reaches {
 		info.reaches[i] = make([]bool, n)
@@ -205,7 +306,7 @@ func analyze(pattern [][]int) *patternInfo {
 	for r := range n {
 		for c := range n {
 			reg := pattern[r][c]
-			if reg == Free {
+			if reg == Free || strict {
 				continue
 			}
 			for _, d := range orth {
@@ -240,7 +341,7 @@ func analyze(pattern [][]int) *patternInfo {
 }
 
 // unreachablePart returns a part of region reg that cannot be joined to its
-// first part through free cells, or nil if all parts can.
+// first part through free cells (strict: at all), or nil if all parts can.
 func (info *patternInfo) unreachablePart(reg int) []puzzle.Pos {
 	n := info.n
 	seen := make([]bool, n*n)
@@ -255,7 +356,7 @@ func (info *patternInfo) unreachablePart(reg int) []puzzle.Pos {
 			if rr < 0 || rr >= n || cc < 0 || cc >= n || seen[rr*n+cc] {
 				continue
 			}
-			if v := info.pattern[rr][cc]; v == reg || v == Free {
+			if v := info.pattern[rr][cc]; v == reg || (v == Free && !info.strict) {
 				seen[rr*n+cc] = true
 				stack = append(stack, puzzle.Pos{Row: rr, Col: cc})
 			}
@@ -378,6 +479,17 @@ func (info *patternInfo) shareFreeStars(cols []int, usedReg []bool) bool {
 	}
 	for reg := range n {
 		if !usedReg[reg] && !try(reg, make([]bool, len(stars))) {
+			return false
+		}
+	}
+	if info.strict {
+		// Every free part is filled by regions missing from the pattern
+		// only, so each needs a star.
+		has := map[int]bool{}
+		for _, fc := range stars {
+			has[fc] = true
+		}
+		if len(has) < info.areas {
 			return false
 		}
 	}

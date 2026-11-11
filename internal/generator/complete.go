@@ -33,9 +33,9 @@ const layoutTries = 30
 // unique, as Generate does, without ever moving a cell of pattern and, as
 // long as that works, without moving cells into a drawn region. Only if no
 // attempt succeeds that way, a second round allows such moves as a last
-// resort.
+// resort. With o.Strict, drawn regions never grow: no second round.
 func Complete(pattern [][]int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int, error) {
-	if err := CheckPattern(pattern, max(o.MinRegionSize, 1)); err != nil {
+	if err := CheckPattern(pattern, max(o.MinRegionSize, 1), o.Strict); err != nil {
 		return nil, nil, err
 	}
 	n := len(pattern)
@@ -47,7 +47,7 @@ func Complete(pattern [][]int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int
 			}
 		}
 	}
-	info := analyze(pattern)
+	info := analyze(pattern, o.Strict)
 	// A placement on drawn cells alone survives every repair (drawn cells
 	// never move), so if there is one, it has to be the solution.
 	var forced []int
@@ -67,7 +67,7 @@ func Complete(pattern [][]int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int
 					sol = solutionFor(info, arng)
 				}
 				if sol != nil {
-					if regs = layoutFor(pattern, sol, arng); regs != nil {
+					if regs = layoutFor(pattern, sol, o.Strict, arng); regs != nil {
 						break
 					}
 				}
@@ -80,7 +80,7 @@ func Complete(pattern [][]int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int
 		}
 	}
 	p, sol, err := run(rng, o, attempt(lk))
-	if err == nil || errors.Is(err, ErrCancelled) {
+	if err == nil || errors.Is(err, ErrCancelled) || o.Strict {
 		return p, sol, err
 	}
 	// Rarely, the drawn regions have to grow to make the solution unique.
@@ -96,7 +96,10 @@ func Complete(pattern [][]int, rng *rand.Rand, o Options) (*puzzle.Puzzle, []int
 // filling them first leaves the most room for the longer ones. The free stars
 // left over start the regions missing from pattern, which then grow over the
 // remaining free cells; the drawn regions only take the cells left after that.
-func layoutFor(pattern [][]int, sol []int, rng *rand.Rand) [][]int {
+//
+// With strict, the drawn regions take no free cells: layoutFor returns nil if
+// the missing regions cannot fill them all.
+func layoutFor(pattern [][]int, sol []int, strict bool, rng *rand.Rand) [][]int {
 	n := len(pattern)
 	regs := make([][]int, n)
 	for r := range regs {
@@ -184,6 +187,9 @@ func layoutFor(pattern [][]int, sol []int, rng *rand.Rand) [][]int {
 		undrawn[reg] = !present[reg]
 	}
 	free = grow(regs, free, rng, undrawn)
+	if free > 0 && strict {
+		return nil
+	}
 	grow(regs, free, rng, nil)
 	return regs
 }

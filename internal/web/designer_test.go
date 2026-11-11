@@ -167,3 +167,49 @@ func TestDesignerCompleteInvalid(t *testing.T) {
 		t.Fatalf("got %s", rec.Body)
 	}
 }
+
+func TestDesignerStrict(t *testing.T) {
+	dir := t.TempDir()
+	h := DesignerHandler(dir, testSolve)
+	// Not connected as drawn: fine normally, not strictly.
+	parts := patternOf("A..A....", "........", "........", "........", "........", "........", "........", "........")
+	if rec := postDesign(t, h, "/api/check", designRequest{Pattern: parts}); strings.TrimSpace(rec.Body.String()) != "null" {
+		t.Fatalf("normal: %s", rec.Body)
+	}
+	rec := postDesign(t, h, "/api/check", designRequest{Pattern: parts, Strict: true})
+	if !strings.Contains(rec.Body.String(), "strengen Modus") {
+		t.Fatalf("strict: %s", rec.Body)
+	}
+
+	evs := designEvents(t, postDesign(t, h, "/api/complete", designRequest{Pattern: heart, Candidates: 2, Strict: true}))
+	if evs[0].Candidate == nil {
+		t.Fatalf("no candidate: %+v", evs)
+	}
+	c := evs[0].Candidate
+	for r, row := range heart {
+		for col, reg := range row {
+			if (reg == generator.Free) == (c.Regions[r][col] == 0) {
+				t.Fatalf("cell (%d,%d): heart not kept exactly", r, col)
+			}
+		}
+	}
+	save := designRequest{Pattern: heart, Regions: c.Regions, Seed: c.Seed, Name: "streng", Strict: true}
+	if rec := postDesign(t, h, "/api/save", save); rec.Code != http.StatusOK {
+		t.Fatalf("save: %d %s", rec.Code, rec.Body)
+	}
+	text, _ := os.ReadFile(filepath.Join(dir, "n08_streng.txt"))
+	if !strings.Contains(string(text), ", Strict)") {
+		t.Errorf("mode missing:\n%s", text)
+	}
+	// A completion where the heart grew is refused in strict mode, before
+	// anything else is checked.
+	grown := make([][]int, 8)
+	for r := range grown {
+		grown[r] = append([]int(nil), c.Regions[r]...)
+	}
+	grown[0][0] = 0
+	save.Regions, save.Name = grown, "gewachsen"
+	if rec := postDesign(t, h, "/api/save", save); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "nicht wachsen") {
+		t.Fatalf("grown heart: %d %s", rec.Code, rec.Body)
+	}
+}

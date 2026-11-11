@@ -20,6 +20,7 @@
   let color = 0;     // current color, FREE = eraser
   let cands = [];    // completions of the last request
   let candPattern = null; // the pattern they were computed for
+  let candStrict = false; // and the mode
   let chosen = null;  // the selected candidate
   let problem = null; // cells with a problem, as "r,c"
   let valid = false;  // the last check found no problem
@@ -37,12 +38,15 @@
   const load = () => {
     try {
       const v = JSON.parse(localStorage.getItem(STORE));
-      if (v && v.pattern && v.pattern.length === v.n && v.n >= cfg.minN && v.n <= cfg.maxN) return v;
+      if (v && v.pattern && v.pattern.length === v.n && v.n >= cfg.minN && v.n <= cfg.maxN) {
+        $("strict").checked = !!v.strict;
+        return v;
+      }
     } catch (e) { /* no storage */ }
     return null;
   };
   const store = () => {
-    try { localStorage.setItem(STORE, JSON.stringify({ n, pattern })); } catch (e) { /* no storage */ }
+    try { localStorage.setItem(STORE, JSON.stringify({ n, pattern, strict: $("strict").checked })); } catch (e) { /* no storage */ }
   };
 
   const emptyPattern = (k) => Array.from({ length: k }, () => new Array(k).fill(FREE));
@@ -60,6 +64,7 @@
     }
     start(k, emptyPattern(k));
   });
+  $("strict").addEventListener("change", () => changed());
   $("clear").addEventListener("click", () => {
     if (drawnCount() > 0 && !confirm("Zeichnung leeren?")) return;
     start(n, emptyPattern(n));
@@ -202,7 +207,7 @@
     if (checkCtl) checkCtl.abort();
     const ctl = (checkCtl = new AbortController());
     try {
-      const p = await post("/api/check", { pattern }, ctl.signal);
+      const p = await post("/api/check", { pattern, strict: $("strict").checked }, ctl.signal);
       if (ctl !== checkCtl) return;
       setProblem(p);
       valid = !p;
@@ -229,8 +234,10 @@
     const ctl = (genCtl = new AbortController());
     const k = +$("count").value;
     const snapshot = pattern.map((row) => row.slice());
+    const strict = $("strict").checked;
     cands = [];
     candPattern = snapshot;
+    candStrict = strict;
     showCands(null);
     markStale();
     $("go").disabled = true;
@@ -272,14 +279,15 @@
         dups = ev.done.duplicates;
         $("info").textContent = cands.length
           ? summary("Fertig:")
-          : `Kein Vorschlag gefunden (${secs()} s). Der Generator schafft dieses Muster nicht; etwas weniger oder anders zeichnen hilft meist.`;
+          : `Kein Vorschlag gefunden (${secs()} s). Der Generator schafft dieses Muster nicht; etwas weniger oder anders zeichnen hilft meist.` +
+            (strict ? " Im strengen Modus bleibt ihm oft zu wenig Spielraum, etwa wenn kleine freie Flächen ringsum eingeschlossen sind; ohne „Streng“ klappt es eher." : "");
       }
     };
     try {
       const res = await fetch("/api/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pattern: snapshot, candidates: k }),
+        body: JSON.stringify({ pattern: snapshot, candidates: k, strict }),
         signal: ctl.signal,
       });
       if (!res.ok) throw new Error((await res.text()).trim() || res.statusText);
@@ -310,7 +318,7 @@
   // Candidates stay after the drawing changes, but are marked as belonging
   // to the earlier drawing.
   function markStale() {
-    const stale = !!candPattern && cands.length > 0 && JSON.stringify(candPattern) !== JSON.stringify(pattern);
+    const stale = !!candPattern && cands.length > 0 && (JSON.stringify(candPattern) !== JSON.stringify(pattern) || candStrict !== $("strict").checked);
     $("cands").classList.toggle("stale", stale);
     $("stale").hidden = !stale;
   }
@@ -422,7 +430,7 @@
     msg.className = "";
     msg.textContent = "Speichere …";
     try {
-      const res = await post("/api/save", { pattern: candPattern, regions: c.regions, seed: c.seed, name: $("name").value });
+      const res = await post("/api/save", { pattern: candPattern, regions: c.regions, seed: c.seed, name: $("name").value, strict: candStrict });
       msg.className = "saved";
       msg.textContent = `Gespeichert als ${cfg.dir}/${res.file}`;
     } catch (e) {

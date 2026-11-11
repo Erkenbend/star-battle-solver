@@ -99,10 +99,11 @@ svg .star { fill: var(--star); stroke: var(--star-edge); }
     <div class="des-row">
       <label>Größe <select id="size"></select></label>
       <button id="clear" class="quiet">Leeren</button>
+      <label title="Gezeichnete Farben bleiben genau so, wie sie sind: Sie wachsen nicht, und freie Felder bekommen nur Farben, die nicht gezeichnet sind."><input type="checkbox" id="strict"> Streng: Farben nicht erweitern</label>
     </div>
     <div class="palette" id="palette" role="toolbar" aria-label="Farbe"></div>
     <div class="canvas" id="canvas"></div>
-    <p class="legend">Ziehen malt mit der gewählten Farbe. Rechtsklick oder Radierer macht Felder wieder frei. Ein Klick auf ein Feld in der gewählten Farbe radiert. Schraffierte Felder füllt der Generator. Teile einer Farbe dürfen getrennt sein, wenn sie sich über freie Felder verbinden lassen.</p>
+    <p class="legend">Ziehen malt mit der gewählten Farbe. Rechtsklick oder Radierer macht Felder wieder frei. Ein Klick auf ein Feld in der gewählten Farbe radiert. Schraffierte Felder füllt der Generator. Teile einer Farbe dürfen getrennt sein, wenn sie sich über freie Felder verbinden lassen. Im strengen Modus ist jede gezeichnete Farbe dagegen schon fertig: zusammenhängend, mit ihrem Stern darin, und die freien Felder füllen nur die übrigen Farben.</p>
     <div class="status" id="status" role="status"></div>
   </section>
 
@@ -113,7 +114,7 @@ svg .star { fill: var(--star); stroke: var(--star-edge); }
       <button id="stop" class="quiet" hidden>Abbrechen</button>
     </div>
     <p class="muted" id="info">Noch keine Vorschläge.</p>
-    <p class="stale-note" id="stale" hidden>Die Zeichnung hat sich seitdem geändert. Die Vorschläge gehören zur vorherigen; gespeichert wird auch diese.</p>
+    <p class="stale-note" id="stale" hidden>Zeichnung oder Modus haben sich seitdem geändert. Die Vorschläge gehören zum vorherigen Stand, und so werden sie auch gespeichert.</p>
     <div class="cands" id="cands"></div>
     <div class="card" id="detail" hidden>
       <div class="big" id="big"></div>
