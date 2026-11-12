@@ -8,9 +8,11 @@
 //	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
 //	starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags]   generate and solve in the browser
 //	starbattle design [-addr localhost:6370] [-dir designs] [solver flags]   draw a pattern, complete it (for developers)
+//	starbattle hard -n N [-from S] [-count C] [-min-lookahead K] [-o testdata/hard] [-workers W]   find hard puzzles (for developers)
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -22,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -30,6 +33,7 @@ import (
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/generator"
+	"starbattle/internal/hardsearch"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/render"
 	"starbattle/internal/solver"
@@ -55,6 +59,8 @@ func main() {
 		err = cmdServe(os.Args[2:])
 	case "design":
 		err = cmdDesign(os.Args[2:])
+	case "hard":
+		err = cmdHard(os.Args[2:])
 	default:
 		usage()
 	}
@@ -73,7 +79,8 @@ func usage() {
                    [-step] [-verbose] [-nocolor] [file]
   starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
   starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]
-  starbattle design [-addr localhost:6370] [-dir designs] [solver flags as for solve]`)
+  starbattle design [-addr localhost:6370] [-dir designs] [solver flags as for solve]
+  starbattle hard -n N [-from S] [-count C] [-min-lookahead K] [-o dir] [-workers W]`)
 	os.Exit(2)
 }
 
@@ -348,6 +355,128 @@ func cmdDesign(args []string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// cmdHard searches seeds for hard puzzles (see hardsearch), a tool for
+// developers of this project to grow testdata/hard and so the library. One
+// line per seed, in seed order; Ctrl-C stops after the running seeds and
+// still prints where to continue.
+func cmdHard(args []string) error {
+	fs := flag.NewFlagSet("hard", flag.ExitOnError)
+	n := fs.Int("n", 10, "grid size")
+	from := fs.Uint64("from", 1, "first seed")
+	count := fs.Uint64("count", 100, "number of seeds")
+	minLookahead := fs.Int("min-lookahead", 1, "a hit needs at least this many lookahead steps with all rules (0: base rules stuck is enough)")
+	out := fs.String("o", "", "write hits as nNN_sSEED.txt into this directory (e.g. testdata/hard)")
+	workers := fs.Int("workers", 0, "seeds checked at the same time (0 = number of cores)")
+	fs.Parse(args)
+	if *n < 4 || *n > 52 {
+		return fmt.Errorf("-n %d: must be 4 to 52", *n)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	commit := buildCommit()
+	var stuck, hits int
+	var written []string
+	var firstErr error
+	next := hardsearch.Search(ctx, hardsearch.Options{N: *n, From: *from, Count: *count, Workers: *workers}, func(f hardsearch.Found) {
+		line := fmt.Sprintf("n=%d seed=%d", *n, f.Seed)
+		if f.Err != nil {
+			fmt.Printf("%s error: %v\n", line, f.Err)
+			firstErr = cmp.Or(firstErr, fmt.Errorf("seed %d: %w", f.Seed, f.Err))
+			return
+		}
+		v := f.Verdict
+		line += fmt.Sprintf(" %v t=%v", v, f.Took.Round(time.Millisecond))
+		if v.Base != solver.Solved {
+			stuck++
+		}
+		if v.Hard(*minLookahead) {
+			hits++
+			line += "  HIT"
+			if *out != "" {
+				name := fmt.Sprintf("n%02d_s%03d.txt", *n, f.Seed)
+				switch err := writeHard(filepath.Join(*out, name), *n, f, commit); {
+				case errors.Is(err, os.ErrExist):
+					line += " (" + name + " exists, kept)"
+				case err != nil:
+					line += " (" + err.Error() + ")"
+					firstErr = cmp.Or(firstErr, err)
+				default:
+					line += " → " + name
+					written = append(written, name)
+				}
+			}
+		}
+		fmt.Println(line)
+	})
+
+	fmt.Printf("\nseeds %d to %d: base rules stuck %d, hits %d (", *from, next-1, stuck, hits)
+	if *minLookahead > 0 {
+		fmt.Printf("all rules stuck, lookahead steps ≥ %d)\n", *minLookahead)
+	} else {
+		fmt.Printf("base rules stuck)\n")
+	}
+	if next < *from+*count {
+		fmt.Printf("stopped early; continue with -from %d -count %d\n", next, *from+*count-next)
+	} else {
+		fmt.Printf("next search: -from %d\n", next)
+	}
+	if len(written) > 0 {
+		fmt.Printf("written to %s; append to %s to put them in the library:\n", *out, web.LibraryIndex)
+		for _, name := range written {
+			fmt.Println(name)
+		}
+	}
+	return firstErr
+}
+
+// writeHard writes f's puzzle to path, with a header that says how to make it
+// again and why it is hard. An existing file is left alone (os.ErrExist).
+func writeHard(path string, n int, f hardsearch.Found, commit string) error {
+	v := f.Verdict
+	why := "base rules get stuck, all rules solve it"
+	if v.All == solver.Stuck {
+		why = fmt.Sprintf("needs lookahead even with all rules (%d lookahead steps", v.Lookahead)
+		if v.Guesses > 0 {
+			why += fmt.Sprintf(", %d guesses", v.Guesses)
+		}
+		why += ")"
+	}
+	header := fmt.Sprintf("# generate -n %d -seed %d at commit %s (MinRegionSize %d); %s\n",
+		n, f.Seed, commit, generator.DefaultMinRegionSize(n), why)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = io.WriteString(file, header+f.Puzzle.String())
+	return errors.Join(err, file.Close())
+}
+
+// buildCommit is the commit the binary was built from, for the header of
+// files written by hard: the generator's output depends on it. go run does
+// not record it, go build does.
+func buildCommit() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	var rev, dirty string
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = "+changes"
+			}
+		}
+	}
+	if rev == "" {
+		return "unknown"
+	}
+	return rev[:min(7, len(rev))] + dirty
 }
 
 // describeMarks lists the crosses of one step. Steps that place a star name it

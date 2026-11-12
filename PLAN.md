@@ -26,9 +26,10 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/solver` | `Mark`, `Observer`, `Apply`, `RunSync`, `RunConcurrent`, `Solve` (Lookahead + Backtracking), Trace mit Begründungen |
 | `internal/solver/observers` | Regeln, deutsche Erklärungen, Soundness- und Vergleichstests |
 | `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS); `Handler` für `serve`, mit Vorrat (`Pool`) und Party-Modus (`Parties`) |
-| `cmd/starbattle` | Befehle mit allen Optionen in `README.md`: `generate [-min-region]`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
+| `cmd/starbattle` | Befehle mit allen Optionen in `README.md`: `generate [-min-region]`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]`, `design [-addr] [-dir]`, `hard [-n] [-from] [-count] [-min-lookahead] [-o] [-workers]` |
 | `deploy` | Hosting auf dem Raspberry Pi: `deploy.sh [user@]host` (baut passend zu `uname -m`, installiert als systemd-Dienst), `starbattle.service`, Anleitung in `deploy/README.md` |
-| `testdata/hard` | 118 Puzzles, an denen die Basisregeln scheitern (87 davon brauchen auch mit allen Regeln Lookahead). Die Tests nehmen nur die Stichprobe aus `sample.idx`, mit `STARBATTLE_ALL_HARD=1` alle. Eingebettet über `hard.go` (Paket `starbattle`), auch die **Bibliothek** im Web (`/bibliothek`, `internal/web/library.go`): Name „10-3“ = drittes 10×10 in `bibliothek.idx` (nur anhängen!), Links und Browser-Speicher über `LibraryID` (Hash der normalisierten Regionen), weil die Seeds mit dem heutigen Generator nicht mehr reproduzierbar sind. Lösen dort ohne Hinweise/Prüfen, Lösungsweg erst nach dem Lösen. Kein Vorrechnen: Der Solver startet beim ersten Aufruf eines Puzzles im Hintergrund, die Seite holt Lösung und Trace erst nach dem Lösen von Hand (`/bibliothek/weg?id=…`, wartet auf den Solver, solange Spinner) |
+| `internal/hardsearch` | Suche nach schweren Puzzles (`starbattle hard`): Seed für Seed erzeugen wie `generate`, dann Basisregeln → alle Regeln → Lookahead zählen; Treffer als `nNN_sSEED.txt` mit Befehl und Commit im Kopf |
+| `testdata/hard` | 118 Puzzles, an denen die Basisregeln scheitern (87 davon brauchen auch mit allen Regeln Lookahead), Nachschub mit `starbattle hard` (nächste Seeds siehe „Erledigt“: N = 10 bis 12 ab 2401/2401/2001, N = 13 ab 3001, N = 14 ab 1801). Die Tests nehmen nur die Stichprobe aus `sample.idx`, mit `STARBATTLE_ALL_HARD=1` alle. Eingebettet über `hard.go` (Paket `starbattle`), auch die **Bibliothek** im Web (`/bibliothek`, `internal/web/library.go`): Name „10-3“ = drittes 10×10 in `bibliothek.idx` (nur anhängen!), Links und Browser-Speicher über `LibraryID` (Hash der normalisierten Regionen), weil die Seeds mit dem heutigen Generator nicht mehr reproduzierbar sind. Lösen dort ohne Hinweise/Prüfen, Lösungsweg erst nach dem Lösen. Kein Vorrechnen: Der Solver startet beim ersten Aufruf eines Puzzles im Hintergrund, die Seite holt Lösung und Trace erst nach dem Lösen von Hand (`/bibliothek/weg?id=…`, wartet auf den Solver, solange Spinner) |
 
 ### Regeln
 | Regel | Inhalt |
@@ -72,6 +73,8 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 _(leer: nächsten Punkt aus „Später“ auswählen)_
 
 ### Erledigt / verworfen
+
+- ~~**Suche nach schweren Puzzles als Befehl**~~: `starbattle hard` (Paket `internal/hardsearch`, Optionen in `README.md`) ersetzt das Wegwerf-Programm der bisherigen Suchen, das nie im Repo lag. Gleiche Kriterien wie `TestHardPuzzles`, Ausgabe pro Seed in Seed-Reihenfolge, mit `-o testdata/hard` direkt als Datei; `bibliothek.idx` bleibt Handarbeit. Der Test prüft, dass Seed 453 wieder `n10_s453.txt` mit 4 Lookahead-Schritten ergibt, d. h. dass Generator und Regeln die Bibliothek noch reproduzieren.
 
 - ~~**Aufräumen: README mit CLI-Befehlen**~~ umgesetzt: `README.md` (Puzzle-Format, alle Befehle mit Optionen, Aufbau). Betrieb auf dem Pi weiter in `deploy/README.md`, Hintergrund und Messungen hier.
 

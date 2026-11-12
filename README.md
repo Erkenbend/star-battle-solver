@@ -244,6 +244,34 @@ Bis 12×12 dauert ein Vorschlag meist unter einer Sekunde, 14×14 kann mehrere M
 
 Dazu die Solver-Optionen wie bei `solve`.
 
+### `hard`: schwere Puzzles suchen (für Entwickler)
+
+```sh
+go build -o starbattle ./cmd/starbattle    # go build, nicht go run: nur dann steht der Commit im Kopf der Dateien
+./starbattle hard -n 13 -from 3001 -count 500 -min-lookahead 4 -o testdata/hard
+```
+
+So entsteht Nachschub für `testdata/hard` und damit für die Bibliothek. Der Befehl erzeugt die Puzzles der Seeds `-from` bis `-from + count − 1` genau wie `generate` und prüft jedes: Kommen die Basisregeln weiter? Und wenn nicht, alle Regeln? Wenn auch die nicht weiterkommen, wie viele Lookahead-Schritte (und ob Raten) braucht der Solver? Pro Seed eine Zeile, in Seed-Reihenfolge; Treffer sind mit `HIT` markiert:
+
+```
+n=10 seed=450 base=stuck all=solved t=58ms
+n=10 seed=451 base=solved t=30ms
+n=10 seed=453 base=stuck all=stuck lookahead=4 guesses=0 t=161ms  HIT → n10_s453.txt
+```
+
+Mit `-o` landet jeder Treffer als `nNN_sSEED.txt` im Verzeichnis, mit Befehl, Commit und Grund als Kommentar; bestehende Dateien werden nie überschrieben. Am Ende stehen die Zahlen der Suche, der Seed, bei dem die nächste Suche weitermacht (die bisherigen Bereiche stehen in [PLAN.md](PLAN.md)), und die neuen Dateien. In die Bibliothek kommen sie erst, wenn man sie unten an `testdata/hard/bibliothek.idx` anhängt. Ctrl-C bricht nach den laufenden Seeds ab und nennt trotzdem, wo es weitergeht.
+
+Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 etwa jedes 130. Puzzle, bei 13×13 jedes 70., bei 14×14 jedes 50., unter 10×10 praktisch keins. Ein 14×14-Seed dauert bis zu einigen Sekunden.
+
+| Option | Bedeutung |
+|---|---|
+| `-n` | Größe (Standard 10) |
+| `-from` | erster Seed (Standard 1) |
+| `-count` | Anzahl Seeds (Standard 100) |
+| `-min-lookahead` | Treffer brauchen mit allen Regeln mindestens so viele Lookahead-Schritte (Standard 1); 0: Es reicht, dass die Basisregeln hängen bleiben |
+| `-o` | Verzeichnis für Treffer (ohne: nur anzeigen) |
+| `-workers` | Seeds gleichzeitig (Standard: Zahl der Kerne) |
+
 ## Aufbau
 
 | Verzeichnis | Inhalt |
@@ -255,12 +283,13 @@ Dazu die Solver-Optionen wie bei `solve`.
 | `internal/solver/observers` | die logischen Regeln mit Erklärungen |
 | `internal/bruteforce` | Referenz-Solver für Generator und Tests |
 | `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen, auch um ein gezeichnetes Muster herum |
+| `internal/hardsearch` | Suche nach schweren Puzzles für `testdata/hard` (`starbattle hard`) |
 | `internal/render` | Ausgabe im Terminal |
 | `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek, Einstellungen, Designer |
 | `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder) |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi |
 | `designs` | mit `starbattle design` entworfene Puzzles (entsteht beim ersten Speichern) |
-| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern; zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
+| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern (Nachschub mit `starbattle hard`); zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
 | `docs/screenshots` | Bilder für diese README; `take.sh` nimmt sie neu auf (Go, node ≥ 22, Chromium) |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |
 
