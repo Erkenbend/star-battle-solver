@@ -261,7 +261,7 @@ func TestCompleteStrict(t *testing.T) {
 }
 
 // strictOK lists the designs whose patterns also complete strictly.
-var strictOK = map[string]bool{"n08_lines.txt": true, "n08_sad_smiley.txt": true, "n08_smileyface.txt": true, "n09_lul.txt": true, "n12_inseln.txt": true}
+var strictOK = map[string]bool{"n08_lines.txt": true, "n08_sad_smiley.txt": true, "n08_smileyface.txt": true, "n09_lul.txt": true, "n10_confused_smiley.txt": true, "n12_inseln.txt": true}
 
 // TestCompleteDesigns completes the patterns of the puzzles in designs/
 // again, and strictly where noted in strictOK.
