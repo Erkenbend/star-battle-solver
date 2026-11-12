@@ -25,14 +25,14 @@ const (
 // SolveFunc runs the solver on a puzzle.
 type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 
-// Handler serves the interactive page with a form to generate new puzzles or
-// paste one. Every page has a stable URL, so reloading keeps the puzzle (and,
+// Handler serves the interactive page with a form to generate new puzzles.
+// Every page has a stable URL, so reloading keeps the puzzle (and,
 // via the page's local storage, the progress):
 //
 //	/?n=8&seed=42   generated puzzle (same seeding as `starbattle generate`)
 //	/?n=8           new seed, redirects to the URL above
-//	/play?p=AAB...  pasted puzzle in the text format (rows separated by
-//	                newlines, '/' or ',')
+//	/play?p=AAB...  puzzle in the text format, e.g. from the designer (rows
+//	                separated by newlines, '/' or ',')
 //
 // With a pool (may be nil), /?n=8 hands out the seed of the puzzle the pool
 // has ready, so the page appears without waiting for the generator. With

@@ -1683,7 +1683,7 @@ function boot() {
     });
   }
 
-  // ---------- served by `starbattle serve`: new and pasted puzzles ----------
+  // ---------- served by `starbattle serve`: new puzzles ----------
   if (d.served) {
     $("site-nav").hidden = false;
     $(party ? "nav-party" : lib ? "nav-library" : "nav-solo").setAttribute("aria-current", "page");
@@ -1697,18 +1697,6 @@ function boot() {
       sizes.append(o);
     }
     $("newgame").hidden = false;
-    const dlg = $("paste");
-    $("paste-open").onclick = () => {
-      $("paste-text").value = d.text || "";
-      dlg.showModal();
-      $("paste-text").select();
-    };
-    $("paste-cancel").onclick = () => dlg.close();
-    // Rows joined by "/" give a short, readable link.
-    dlg.querySelector("form").addEventListener("submit", () => {
-      const t = $("paste-text");
-      t.value = t.value.split("\n").map((r) => r.replace(/\s+/g, "")).filter((r) => r && !r.startsWith("#")).join("/");
-    });
   }
 
   buildPositions();

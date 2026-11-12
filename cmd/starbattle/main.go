@@ -268,8 +268,8 @@ func cmdHTML(args []string) error {
 	return errors.Join(web.Write(f, data), f.Close())
 }
 
-// cmdServe serves the interactive page with forms to generate a new puzzle or
-// paste one; each puzzle is solved on request. Unless -no-pregen is given, one
+// cmdServe serves the interactive page with a form to generate a new puzzle;
+// each puzzle is solved on request. Unless -no-pregen is given, one
 // puzzle of every size is generated ahead in the background.
 // /party serves the party mode: playing the same puzzles together in rounds.
 // /bibliothek offers the hard puzzles of testdata/hard to solve without help.

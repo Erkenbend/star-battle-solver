@@ -118,29 +118,6 @@ a.button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 
 .newgame { display: flex; gap: 6px; margin-left: auto; }
 
-dialog {
-  width: min(28rem, calc(100vw - 32px));
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--card);
-  color: var(--fg);
-  padding: 16px;
-}
-dialog::backdrop { background: rgb(0 0 0 / 0.4); }
-dialog h2 { margin: 0 0 4px; font-size: 18px; }
-dialog textarea {
-  box-sizing: border-box;
-  width: 100%;
-  margin: 8px 0 12px;
-  font: 15px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  letter-spacing: 0.15em;
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
-}
-
 .tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
 .tabs button { border: 0; background: transparent; border-radius: 7px; }
 .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-fg); }
