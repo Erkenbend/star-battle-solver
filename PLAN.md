@@ -153,5 +153,5 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 - `go test ./...` und `go test -race ./...`
 - `TestSoundness`: Jede Schlussfolgerung der Regeln stimmt mit der Brute-Force-Lösung überein.
 - `TestRunnersAgree`: `RunSync` und `RunConcurrent` erreichen denselben Endzustand.
-- `TestHardPuzzles`: Alle Puzzles in `testdata/hard` werden gelöst und bleiben für die Basisregeln ohne Suche unlösbar.
+- `TestHardPuzzles`: Die Puzzles in `testdata/hard` werden gelöst und bleiben für die Basisregeln ohne Suche unlösbar. Standardmäßig nur die Stichprobe aus `sample.idx` (9 Puzzles, N = 5 bis 14, mit und ohne Lookahead, alle Regeln), mit `STARBATTLE_ALL_HARD=1` alle. Das gilt auch für `TestPriorityOrder` und `TestJSLogic`. Messung: `observers` 59 → 21 s, `web` 18 → 2,6 s; `TestHardPuzzles` 35 → 5,4 s, `TestJSLogic` 17 → 1,8 s, `TestPriorityOrder` 12 → 3,9 s.
 - Manuell: `go run ./cmd/starbattle generate -n 8 | go run ./cmd/starbattle solve -verbose -step`

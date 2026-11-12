@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"starbattle"
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/generator"
@@ -26,12 +27,25 @@ func checkSolution(t *testing.T, name string, p *puzzle.Puzzle, res solver.Resul
 	}
 }
 
-// TestHardPuzzles: puzzles where the base rules alone get stuck (testdata/hard).
-func TestHardPuzzles(t *testing.T) {
-	files, _ := filepath.Glob("../../../testdata/hard/*.txt")
-	if len(files) == 0 {
-		t.Fatal("no testdata found")
+// hardTestFiles returns the paths of the hard puzzles the tests run, see
+// starbattle.HardTestSet.
+func hardTestFiles(t *testing.T) []string {
+	t.Helper()
+	names, err := starbattle.HardTestSet()
+	if err != nil || len(names) == 0 {
+		t.Fatalf("no hard puzzles: %v", err)
 	}
+	files := make([]string, len(names))
+	for i, name := range names {
+		files[i] = filepath.Join("../../..", starbattle.HardDir, name)
+	}
+	return files
+}
+
+// TestHardPuzzles: puzzles where the base rules alone get stuck (testdata/hard,
+// the sample unless STARBATTLE_ALL_HARD=1).
+func TestHardPuzzles(t *testing.T) {
+	files := hardTestFiles(t)
 	needGuess, byNewRules := 0, 0
 	for _, f := range files {
 		in, err := os.Open(f)

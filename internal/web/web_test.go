@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"starbattle"
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/puzzle"
@@ -112,7 +113,14 @@ func TestJSLogic(t *testing.T) {
 	if err != nil {
 		t.Skip("node not installed")
 	}
-	files, _ := filepath.Glob("../../testdata/hard/*.txt")
+	names, err := starbattle.HardTestSet()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var files []string
+	for _, name := range names {
+		files = append(files, filepath.Join("../..", starbattle.HardDir, name))
+	}
 	if testing.Short() {
 		files = files[:4]
 	}

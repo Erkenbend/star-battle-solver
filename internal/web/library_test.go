@@ -34,6 +34,23 @@ func TestLibraryIndex(t *testing.T) {
 			t.Errorf("entry %d: nr %d, id %q", i, e.nr, e.id)
 		}
 	}
+	// The sample the tests run (sample.idx) is part of the library, once each.
+	sample, err := starbattle.ReadIndex(starbattle.Hard, starbattle.HardDir+"/sample.idx")
+	if err != nil || len(sample) == 0 {
+		t.Fatalf("sample: %v", err)
+	}
+	inLib := map[string]bool{}
+	names, _ := starbattle.ReadIndex(starbattle.Hard, starbattle.HardDir+"/"+LibraryIndex)
+	for _, name := range names {
+		inLib[name] = true
+	}
+	seen := map[string]bool{}
+	for _, name := range sample {
+		if !inLib[name] || seen[name] {
+			t.Errorf("sample.idx: %s not in the library or listed twice", name)
+		}
+		seen[name] = true
+	}
 	// The first numbers are fixed: shared results name them.
 	if e := lib.entries[0]; e.p.N != 5 {
 		t.Errorf("Nr. 1 is %d×%d", e.p.N, e.p.N)

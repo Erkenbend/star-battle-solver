@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -73,8 +72,7 @@ func checkPriorities(start *board.State, obs []solver.Observer, trace []solver.S
 
 func priorityPuzzles(t *testing.T) []*puzzle.Puzzle {
 	var ps []*puzzle.Puzzle
-	files, _ := filepath.Glob("../../../testdata/hard/*.txt")
-	for _, f := range files {
+	for _, f := range hardTestFiles(t) {
 		in, err := os.Open(f)
 		if err != nil {
 			t.Fatal(err)

@@ -80,10 +80,13 @@ Voraussetzung ist Go (Version siehe `go.mod`). Es gibt keine weiteren Abhängigk
 
 ```sh
 go build -o starbattle ./cmd/starbattle
-go test ./...            # dauert etwa eine Minute (schwere Testpuzzles)
+go test ./...            # dauert etwa 20 Sekunden
 go test -short ./...     # überspringt einige langsame Tests
 go test -race ./...
+STARBATTLE_ALL_HARD=1 go test ./...   # alle schweren Puzzles statt der Stichprobe
 ```
+
+Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`), die alle Größen und Regeln abdeckt. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (gut eine Minute länger).
 
 Alle Beispiele unten lassen sich statt mit `starbattle` auch mit `go run ./cmd/starbattle` aufrufen.
 
@@ -257,7 +260,7 @@ Dazu die Solver-Optionen wie bei `solve`.
 | `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder) |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi |
 | `designs` | mit `starbattle design` entworfene Puzzles (entsteht beim ersten Speichern) |
-| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern; zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`) |
+| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern; zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
 | `docs/screenshots` | Bilder für diese README; `take.sh` nimmt sie neu auf (Go, node ≥ 22, Chromium) |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |
 

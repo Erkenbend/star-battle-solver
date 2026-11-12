@@ -1,0 +1,18 @@
+# Sample for the tests: a plain `go test ./...` checks only these puzzles,
+# `STARBATTLE_ALL_HARD=1 go test ./...` all of bibliothek.idx.
+# It covers sizes 5 to 14 and every rule (Pigeonhole and DeadCells too, with
+# and without lookahead), but leaves out the expensive cases with long
+# lookahead chains (mostly N = 14, 3 to 5 s each).
+#
+# Solved by all rules without lookahead:
+n05_s029.txt  # smallest, library no. 1
+n08_s087.txt  # many Confinement steps
+n11_s059.txt  # many ForcedPartner steps
+n12_s005.txt  # DeadCells even without lookahead
+#
+# Need lookahead even with all rules:
+n10_s396.txt  # smallest with lookahead (9 steps)
+n11_s095.txt  # Pigeonhole, 11 lookahead steps
+n12_s082.txt  # many DeadCells steps, short
+n13_s181.txt  # N = 13
+n14_s024.txt  # N = 14, the cheapest of that size

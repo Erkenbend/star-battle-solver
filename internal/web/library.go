@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,10 +11,10 @@ import (
 	"log"
 	"net/http"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
+	"starbattle"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
@@ -49,19 +48,13 @@ type libEntry struct {
 
 // LoadLibrary reads the library in dir of fsys (see LibraryIndex).
 func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
-	idx, err := fs.ReadFile(fsys, path.Join(dir, LibraryIndex))
+	names, err := starbattle.ReadIndex(fsys, path.Join(dir, LibraryIndex))
 	if err != nil {
 		return nil, err
 	}
 	lib := &Library{solve: solve, byID: map[string]*libEntry{}}
 	files := map[string]bool{}
-	sc := bufio.NewScanner(bytes.NewReader(idx))
-	for sc.Scan() {
-		name, _, _ := strings.Cut(sc.Text(), "#")
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
+	for _, name := range names {
 		if files[name] {
 			return nil, fmt.Errorf("%s: %s doppelt", LibraryIndex, name)
 		}
@@ -87,7 +80,7 @@ func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
 	if len(lib.entries) == 0 {
 		return nil, fmt.Errorf("%s: keine Puzzles", LibraryIndex)
 	}
-	return lib, sc.Err()
+	return lib, nil
 }
 
 // LibraryID identifies a puzzle by its regions alone: the regions renumbered
