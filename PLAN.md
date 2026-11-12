@@ -28,7 +28,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | `internal/web` | Interaktive HTML-Seite (eine Datei, ohne externe Abhängigkeiten): Puzzle, Lösung und Trace als JSON, dazu `assets/` (HTML, CSS, JS); `Handler` für `serve`, mit Vorrat (`Pool`) und Party-Modus (`Parties`) |
 | `cmd/starbattle` | Befehle mit allen Optionen in `README.md`: `generate [-min-region]`, `show`, `html [-o] [-title]`, `serve [-addr]`, `solve [-runner] [-search] [-step] [-verbose] [-nocolor] [-partner-depth] [-dead-max] [-pigeonhole-max] [-non-contiguous]` |
 | `deploy` | Hosting auf dem Raspberry Pi: `deploy.sh [user@]host` (baut passend zu `uname -m`, installiert als systemd-Dienst), `starbattle.service`, Anleitung in `deploy/README.md` |
-| `testdata/hard` | 45 Puzzles, an denen die Basisregeln scheitern (14 davon brauchen auch mit allen Regeln Lookahead). Eingebettet über `hard.go` (Paket `starbattle`), auch die **Bibliothek** im Web (`/bibliothek`, `internal/web/library.go`): Nr. = Position in `bibliothek.idx` (nur anhängen!), Links und Browser-Speicher über `LibraryID` (Hash der normalisierten Regionen), weil die Seeds mit dem heutigen Generator nicht mehr reproduzierbar sind. Lösen dort ohne Hinweise/Prüfen, Lösungsweg erst nach dem Lösen. Kein Vorrechnen: Der Solver startet beim ersten Aufruf eines Puzzles im Hintergrund, die Seite holt Lösung und Trace erst nach dem Lösen von Hand (`/bibliothek/weg?id=…`, wartet auf den Solver, solange Spinner) |
+| `testdata/hard` | 118 Puzzles, an denen die Basisregeln scheitern (87 davon brauchen auch mit allen Regeln Lookahead). Die Tests nehmen nur die Stichprobe aus `sample.idx`, mit `STARBATTLE_ALL_HARD=1` alle. Eingebettet über `hard.go` (Paket `starbattle`), auch die **Bibliothek** im Web (`/bibliothek`, `internal/web/library.go`): Nr. = Position in `bibliothek.idx` (nur anhängen!), Links und Browser-Speicher über `LibraryID` (Hash der normalisierten Regionen), weil die Seeds mit dem heutigen Generator nicht mehr reproduzierbar sind. Lösen dort ohne Hinweise/Prüfen, Lösungsweg erst nach dem Lösen. Kein Vorrechnen: Der Solver startet beim ersten Aufruf eines Puzzles im Hintergrund, die Seite holt Lösung und Trace erst nach dem Lösen von Hand (`/bibliothek/weg?id=…`, wartet auf den Solver, solange Spinner) |
 
 ### Regeln
 | Regel | Inhalt |
@@ -63,7 +63,7 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 ### Entscheidungen
 - Erklärungen sind deutsch; Koordinaten (Zeile, Spalte), beginnend bei 0.
 - Probeläufe im Lookahead immer mit `RunSync`, damit die gewählte Erklärung reproduzierbar ist.
-- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`). Die Dateien in `testdata/hard` stammen vom alten Generator (bis Commit `def8c05`, z. B. `generate -n 5 -seed 29` → `n05_s029.txt`); mit dem neuen Generator ergeben dieselben Seeds andere Puzzles. Die Dateien gelten als feste Testdaten. Ausnahmen: `n14_s002/024/029` stammen von Commit `48ea102` (`generate -n 14 -seed 2` usw., `MinRegionSize` 2, Versuche noch nacheinander); die zehn neuesten (`n10_s396` bis `n14_s025`) von Commit `46ab527` (Versuche parallel, Kopfzeile nennt jeweils den Befehl).
+- CLI und Tests verwenden dieselbe Seeding-Formel (`rand.NewPCG(seed, n)`). Die Dateien in `testdata/hard` stammen vom alten Generator (bis Commit `def8c05`, z. B. `generate -n 5 -seed 29` → `n05_s029.txt`); mit dem neuen Generator ergeben dieselben Seeds andere Puzzles. Die Dateien gelten als feste Testdaten. Ausnahmen: `n14_s002/024/029` stammen von Commit `48ea102` (`generate -n 14 -seed 2` usw., `MinRegionSize` 2, Versuche noch nacheinander); zehn weitere (`n10_s396` bis `n14_s025`) von Commit `46ab527` (Versuche parallel, Kopfzeile nennt jeweils den Befehl). Die 73 neuesten (ab `n10_s453` in `bibliothek.idx`) von Commit `e76b5ce`; der Generator erzeugt dort noch dieselben Puzzles wie bei `46ab527`.
 
 ## Nächste Schritte
 
@@ -74,6 +74,11 @@ _(leer: nächsten Punkt aus „Später“ auswählen)_
 ### Erledigt / verworfen
 
 - ~~**Aufräumen: README mit CLI-Befehlen**~~ umgesetzt: `README.md` (Puzzle-Format, alle Befehle mit Optionen, Aufbau). Betrieb auf dem Pi weiter in `deploy/README.md`, Hintergrund und Messungen hier.
+
+- ~~**Bibliothek über 100 Puzzles, Tests nur mit Stichprobe**~~: 73 neue Puzzles in `testdata/hard` (jetzt 118), alle brauchen auch mit allen Regeln Lookahead. Die Tests prüfen nur noch die 9 Puzzles aus `sample.idx` (siehe „Verifikation“).
+   - Suche wie zuletzt, ab den Seeds der letzten Suche. Treffer (Lookahead mit allen Regeln) / davon übernommen (mindestens 4 Lookahead-Schritte) / durchsuchte Seeds: N = 10: 15 / 9 / 2000 (Seeds 401 bis 2400), N = 11: 14 / 3 / 2000 (401 bis 2400), N = 12: 13 / 7 / 1600 (401 bis 2000), N = 13: 39 / 25 / 2750 (251 bis 3000), N = 14: 36 / 29 / 1680 (121 bis 1800). Raten war nie nötig.
+   - Die Schwelle liegt höher als zuletzt (2 Schritte), weil es genug Treffer gab. Längste Ketten: `n13_s1787` (53 Schritte), `n14_s1345` (43), `n13_s2107` (35), `n11_s851` (30), `n14_s835` (30).
+   - Am langsamsten zu lösen: `n14_s1262` (12,6 s) und `n13_s1787` (gut 10 s), bisher höchstens 3 s. Auf dem Pi entsprechend länger; die Bibliothek startet den Solver beim Öffnen, wer von Hand löst, braucht ohnehin länger.
 
 - ~~**Neue Testdaten, auch für die neuen Regeln schwer**~~: zehn Puzzles in `testdata/hard`, die auch mit allen Regeln Lookahead brauchen. Suche mit dem aktuellen Generator (Standardoptionen wie `generate`), Treffer pro durchsuchte Seeds ab 1:
    - N = 6 bis 9: 0 von je 400. N = 10: 3/400, N = 11: 4/400, N = 12: 3/400, N = 13: 2/250, N = 14: 4/120. Raten war nie nötig.
