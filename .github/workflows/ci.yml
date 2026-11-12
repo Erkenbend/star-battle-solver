@@ -22,8 +22,13 @@ jobs:
       - run: node --version
       - name: go vet
         run: go vet ./...
-      - name: go test
-        run: go test ./...
+      # Every hard puzzle of the library, not just the sample in
+      # testdata/hard/sample.idx. About 6 min locally and longer on the
+      # runner, hence more than the default 10 min timeout per package.
+      - name: go test (all hard puzzles)
+        env:
+          STARBATTLE_ALL_HARD: "1"
+        run: go test -timeout 45m ./...
       - name: go test -race
         run: go test -race -short ./...
 

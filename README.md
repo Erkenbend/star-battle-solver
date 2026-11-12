@@ -86,7 +86,7 @@ go test -race ./...
 STARBATTLE_ALL_HARD=1 go test ./...   # alle schweren Puzzles statt der Stichprobe
 ```
 
-Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`), die alle Größen und Regeln abdeckt. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa sechs Minuten).
+Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`), die alle Größen und Regeln abdeckt. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa sechs Minuten). Die CI auf GitHub Actions prüft immer alle.
 
 Alle Beispiele unten lassen sich statt mit `starbattle` auch mit `go run ./cmd/starbattle` aufrufen.
 
