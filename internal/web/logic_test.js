@@ -265,6 +265,26 @@ console.log("library ok");
   assert.equal(L.markRuns({ frames: 40 }, 4), 1);
   assert.equal(L.markRuns({ frames: 4 }, 30), 23);
   assert.equal(L.markRuns({ frames: 1 }, 0), 0);
+  // "random": one of the pool by chance, only symbols this page can draw, if
+  // possible not the one named by opts.not.
+  {
+    const pool = [
+      { id: "star", kind: "svg", path: "M0 0Z" }, { id: "heart", kind: "svg", path: "M1 1Z" },
+      { id: "blossom", kind: "glyph", glyph: "✿︎" }, { id: "cat", kind: "sprite", url: "/symbole/cat.svg?v=1", frames: 4, fps: 4 },
+      { id: "broken", kind: "svg", path: "<script>" }, { id: "nested", kind: "random", pool: [] },
+    ];
+    const rnd = { id: "random", kind: "random", pool };
+    assert.ok(L.isRandomMark(rnd) && !L.isRandomMark(pool[0]) && !L.isRandomMark(null));
+    const pick = (r, opts) => L.markSpec(rnd, { rnd: () => r, ...opts }).id;
+    assert.deepEqual([0, 0.3, 0.6, 0.99].map((r) => pick(r, { sprites: true })), ["star", "heart", "blossom", "cat"]);
+    assert.deepEqual([0, 0.5, 0.99].map((r) => pick(r, { sprites: false })), ["star", "heart", "blossom"]); // no images without the server
+    assert.deepEqual([0, 0.5, 0.99].map((r) => pick(r, { sprites: false, not: "heart" })), ["star", "blossom", "blossom"]);
+    const one = { kind: "random", pool: [pool[1]] };
+    assert.equal(L.markSpec(one, { not: "heart" }).id, "heart"); // nothing else to take
+    for (const bad of [{ kind: "random" }, { kind: "random", pool: "x" }, { kind: "random", pool: [{ kind: "random", pool }] }]) {
+      assert.equal(L.markSpec(bad, { sprites: true }), star, JSON.stringify(bad));
+    }
+  }
   // Clips are picked at random, never the last one twice if there are others.
   const seq = (xs) => { let i = 0; return () => xs[i++ % xs.length]; };
   assert.equal(L.pickClip(1, 0, seq([0.9])), 0);

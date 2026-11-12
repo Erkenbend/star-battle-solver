@@ -67,6 +67,7 @@ func TestLoadSymbolsNormalizes(t *testing.T) {
 func TestLoadSymbolsRejects(t *testing.T) {
 	for name, entry := range map[string]string{
 		"bad id":          `{"id": "Stern", "name": "x", "kind": "svg", "path": "M0 0Z"}`,
+		"reserved id":     `{"id": "random", "name": "x", "kind": "svg", "path": "M0 0Z"}`,
 		"no name":         `{"id": "a", "name": "", "kind": "svg", "path": "M0 0Z"}`,
 		"markup in path":  `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0\"/><script>"}`,
 		"unknown kind":    `{"id": "a", "name": "x", "kind": "gif"}`,

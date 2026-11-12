@@ -199,7 +199,7 @@ Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. 
 
 Die Spielseite zeigt unter den Knöpfen, wie die Optionen stehen, mit einem Link dorthin. Eine offene Spielseite übernimmt Änderungen sofort. In einer mit `html` gespeicherten Datei gibt es keine Einstellungsseite, dort stehen die drei Schalter direkt auf der Seite.
 
-Welches Symbol das Brett statt ★ zeigt, wählt man aus Vorschlägen, die in `symbols/symbols.json` stehen und ins Programm eingebaut werden. Es gibt vier Arten:
+Welches Symbol das Brett statt ★ zeigt, wählt man aus Vorschlägen, die in `symbols/symbols.json` stehen und ins Programm eingebaut werden. Mit **Zufällig** würfelt die Spielseite beim Laden eines davon aus und behält es, bis man neu lädt oder „Neu beginnen“ drückt; dann kommt ein anderes. In einer mit `html` gespeicherten Datei kommen nur Symbole ohne Bilddatei in Frage. Die ID `random` ist dafür reserviert. Es gibt vier Arten:
 
 | Art | Beispiel | Eigenschaften |
 |---|---|---|

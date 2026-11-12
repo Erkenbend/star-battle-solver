@@ -2,8 +2,9 @@
 
 // The settings page (/einstellungen): the play options and the symbol of the
 // stars from the server's catalog. Everything is stored on this device only,
-// the symbol as a copy of its catalog entry (see markSpec in app.js). Open
-// puzzle pages take changes over at once (their "storage" listener).
+// the symbol as a copy of its catalog entry (see markSpec in app.js), or
+// "random" with a copy of the whole catalog. Open puzzle pages take changes
+// over at once (their "storage" listener).
 (() => {
   if (typeof document === "undefined" || !document.getElementById("symbol-list")) return;
   const L = Logic;
@@ -29,12 +30,15 @@
   }
 
   // Previews use the page's colors: four region colors, the last cell wrong.
+  // specs: the symbol of each cell (one for all, or one each for "random").
+  // Each cell sits in a wrapper with the classes of its symbol.
   const PREVIEW = [0, 3, 5, 1];
-  function preview(spec) {
+  function preview(specs) {
     const box = el("span", "symbol-preview");
-    L.markClasses(box, spec);
-    const tpl = L.markSVG(spec, document);
     PREVIEW.forEach((reg, k) => {
+      const spec = specs[k % specs.length];
+      const wrap = el("span", "symbol-cell");
+      L.markClasses(wrap, spec);
       const c = el("span", "cell star" + (k === PREVIEW.length - 1 ? " bad" : ""));
       const [h, s, l] = L.regionHSL(8, reg);
       c.style.setProperty("--h", h);
@@ -43,11 +47,26 @@
       c.style.setProperty("--ds", Math.round(s * 0.62) + "%");
       c.style.setProperty("--dl", Math.round(22 + (l - 60) * 0.75) + "%");
       const sym = el("span", "sym");
-      sym.append(tpl.cloneNode(true));
+      sym.append(L.markSVG(spec, document));
       c.append(sym);
-      box.append(c);
+      wrap.append(c);
+      box.append(wrap);
     });
     return box;
+  }
+
+  // The choice "random": the whole catalog as the pool (see randomMark in
+  // app.js), from which each puzzle page picks one; its preview shows four different symbols, shuffled anew when
+  // chosen.
+  const randomEntry = () => ({ id: L.RANDOM_MARK, kind: "random", pool: d.symbols });
+  const allSpecs = d.symbols.map((s) => L.markSpec(s, { sprites: true }));
+  function randomSpecs() {
+    const a = allSpecs.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a.slice(0, PREVIEW.length);
   }
 
   // Play options (see L.pref): saved as soon as switched.
@@ -60,36 +79,43 @@
   // the copy does not go stale.
   const stored = L.loadMark();
   let current = (stored && typeof stored.id === "string" && stored.id) || L.DEFAULT_MARK.id;
-  const fresh = d.symbols.find((s) => s.id === current);
+  const fresh = current === L.RANDOM_MARK ? randomEntry() : d.symbols.find((s) => s.id === current);
   if (stored && fresh && JSON.stringify(fresh) !== JSON.stringify(stored)) L.saveMark(fresh);
 
   const list = $("symbol-list");
-  for (const s of d.symbols) {
+  // An option: entry is what gets stored, specs() the symbols of its preview.
+  function option(id, name, description, entry, specs) {
     const lab = el("label", "symbol-option");
     const input = el("input");
     input.type = "radio";
     input.name = "symbol";
-    input.value = s.id;
-    input.checked = s.id === current;
-    const spec = L.markSpec(s, { sprites: true });
-    const box = preview(spec);
+    input.value = id;
+    input.checked = id === current;
+    let shown = specs();
+    let box = preview(shown);
     // An animated symbol plays as on the board: when chosen, and on hover;
     // each cell a clip of its own.
     const play = () => {
-      for (const c of box.children) L.playMark(c, spec);
+      box.querySelectorAll(".cell").forEach((c, k) => L.playMark(c, shown[k % shown.length]));
     };
     lab.addEventListener("mouseenter", play);
     input.addEventListener("change", () => {
       if (!input.checked) return;
-      L.saveMark(s);
-      current = s.id;
-      $("status").textContent = `„${s.name}“ gespeichert.`;
+      L.saveMark(entry());
+      current = id;
+      $("status").textContent = `„${name}“ gespeichert.`;
+      shown = specs();
+      const next = preview(shown);
+      box.replaceWith(next);
+      box = next;
       play();
     });
     const text = el("span", "symbol-text");
-    text.append(el("strong", "", s.name), el("span", "muted", describe(s)));
+    text.append(el("strong", "", name), el("span", "muted", description));
     lab.append(input, box, text);
     list.append(lab);
   }
-  if (!d.symbols.some((s) => s.id === current)) $("status").textContent = "Dein bisheriges Symbol gibt es nicht mehr; es bleibt, bis du ein anderes wählst.";
+  d.symbols.forEach((s, k) => option(s.id, s.name, describe(s), () => s, () => [allSpecs[k]]));
+  option(L.RANDOM_MARK, "Zufällig", "Jedes Puzzle bekommt eines der Symbole, neu ausgewürfelt beim Laden und bei „Neu beginnen“", randomEntry, randomSpecs);
+  if (current !== L.RANDOM_MARK && !d.symbols.some((s) => s.id === current)) $("status").textContent = "Dein bisheriges Symbol gibt es nicht mehr; es bleibt, bis du ein anderes wählst.";
 })();

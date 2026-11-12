@@ -338,8 +338,10 @@ const Logic = (() => {
   // A drawable spec {id, kind, tint, scale, frames, fps, clips, path|glyph|url}
   // for a stored entry. Sprites need the server: with opts.sprites false (a page
   // opened as a file) they fall back to the star, as does anything broken.
+  // The choice "random" picks one by chance (see randomMark).
   function markSpec(e, opts) {
     if (!e || typeof e !== "object") return DEFAULT_MARK;
+    if (e.kind === "random") return randomMark(e, opts);
     const id = typeof e.id === "string" ? e.id : "";
     const scale = Number.isFinite(e.scale) && e.scale > 0 && e.scale <= 2 ? e.scale : 1;
     const base = { id, scale, frames: 1, fps: 0 };
@@ -361,6 +363,25 @@ const Logic = (() => {
     }
     return DEFAULT_MARK;
   }
+
+  // The choice "random" on /einstellungen: {id: "random", kind: "random",
+  // pool: catalog entries}. A page picks one of the pool that it can draw,
+  // with opts.rnd (default Math.random), if possible not the one with the ID
+  // opts.not. It keeps it until "Neu beginnen" or a reload.
+  const RANDOM_MARK = "random";
+  const MAX_POOL = 64;
+  function randomMark(e, opts) {
+    if (!Array.isArray(e.pool)) return DEFAULT_MARK;
+    const o = opts || {};
+    let usable = e.pool.slice(0, MAX_POOL)
+      .filter((x) => x && typeof x === "object" && x.kind !== "random")
+      .map((x) => markSpec(x, o))
+      .filter((x) => x !== DEFAULT_MARK);
+    if (usable.some((x) => x.id !== o.not)) usable = usable.filter((x) => x.id !== o.not);
+    if (usable.length === 0) return DEFAULT_MARK;
+    return usable[Math.floor((o.rnd || Math.random)() * usable.length) % usable.length];
+  }
+  const isRandomMark = (e) => !!e && e.kind === "random";
 
   // The clips {start, frames} of an animated sprite (see Clip in symbols.go):
   // the given ones if all fit, else one of all frames.
@@ -466,7 +487,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, markSpec, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -514,7 +535,8 @@ function boot() {
   // Marks as vector shapes sized to the cell (font glyphs were small and thin),
   // the star replaced by the symbol chosen on /einstellungen; CSS shows the
   // one matching the cell's class. Image symbols need the server.
-  let mark = L.markSpec(L.loadMark(), { sprites: /^https?:$/.test(location.protocol) });
+  const markOpts = { sprites: /^https?:$/.test(location.protocol) };
+  let mark = L.markSpec(L.loadMark(), markOpts);
   const symTpl = L.markSVG(mark, document);
   const boardEl = $("board");
   boardEl.style.setProperty("--n", n);
@@ -1041,15 +1063,24 @@ function boot() {
       applyPrefs();
       if (mode === "play") setMode("play");
     } else if (ev.key === L.MARK_KEY) {
-      mark = L.markSpec(L.loadMark(), { sprites: /^https?:$/.test(location.protocol) });
-      const tpl = L.markSVG(mark, document);
-      L.markClasses(boardEl, mark);
-      for (const e of cellEls) {
-        e.classList.remove("fresh"); // its clip belongs to the old symbol
-        e.querySelector(".sym").replaceChildren(tpl.cloneNode(true));
-      }
+      showMark(L.markSpec(L.loadMark(), markOpts));
     }
   });
+  // Draws the stars with spec from now on, by rebuilding the cells' symbol layer.
+  function showMark(spec) {
+    mark = spec;
+    const tpl = L.markSVG(mark, document);
+    L.markClasses(boardEl, mark);
+    for (const e of cellEls) {
+      e.classList.remove("fresh"); // its clip belongs to the old symbol
+      e.querySelector(".sym").replaceChildren(tpl.cloneNode(true));
+    }
+  }
+  // Under "random", starting anew brings another symbol.
+  function rerollMark() {
+    const stored = L.loadMark();
+    if (L.isRandomMark(stored)) showMark(L.markSpec(stored, { ...markOpts, not: mark.id }));
+  }
   let drag = null; // {start, last, erase, before, moved, straight, x, y, cell}
   const cellAt = (ev) => {
     const e = document.elementFromPoint ? document.elementFromPoint(ev.clientX, ev.clientY) : ev.target;
@@ -1130,9 +1161,11 @@ function boot() {
     if (party) { // only the marks: time and hints count on
       if (locked() || !marks.some((v) => v !== L.FREE)) return;
       if (coop && !confirm("Das Brett für alle löschen?")) return;
+      rerollMark();
       setMarks(new Uint8Array(n * n));
       return;
     }
+    rerollMark();
     elapsed = 0;
     hintCount = 0;
     paid.clear();

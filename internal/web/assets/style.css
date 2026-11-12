@@ -524,6 +524,7 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .symbol-option:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .symbol-option input { margin: 0; flex: none; }
 .symbol-preview { display: flex; flex: none; }
+.symbol-cell { display: contents; } /* carries the classes of its cell's symbol */
 .symbol-preview .cell { width: 38px; cursor: inherit; touch-action: auto; }
 .symbol-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
 .symbol-text .muted { font-size: 12.5px; }

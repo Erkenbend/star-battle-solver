@@ -28,6 +28,10 @@ const (
 	KindSprite = "sprite" // Src: an image file, Frames side by side if animated
 )
 
+// RandomID is the settings' choice of a random symbol per puzzle (see
+// randomMark in app.js), so no symbol may have it.
+const RandomID = "random"
+
 // MaxSymbolFile is the size limit of an image file of the catalog.
 const MaxSymbolFile = 256 << 10
 
@@ -115,8 +119,8 @@ func LoadSymbols(fsys fs.FS, dir string) (*Symbols, error) {
 		if !symbolID.MatchString(sym.ID) {
 			return nil, bad("id must be lower case letters, digits and dashes")
 		}
-		if ids[sym.ID] {
-			return nil, bad("duplicate id")
+		if ids[sym.ID] || sym.ID == RandomID {
+			return nil, bad("duplicate or reserved id")
 		}
 		ids[sym.ID] = true
 		if strings.TrimSpace(sym.Name) == "" {
