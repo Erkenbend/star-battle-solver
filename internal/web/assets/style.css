@@ -235,11 +235,12 @@ dialog textarea {
 .mark-emoji .cell.star .sym { filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.45)); }
 .untinted .cell.star.bad .sym { filter: drop-shadow(0 0 2px var(--bad)) drop-shadow(0 0 3px var(--bad)); }
 /* Animated sprites: frames side by side, moved frame by frame through a
-   100×100 window. They play a few runs when set (.fresh, see drawBoard),
-   then the first frame stays; without motion it stays all along. */
+   100×100 window. When set, a cell plays a few runs of one clip of them
+   (.fresh and the --clip variables, see playMark in app.js), then the first
+   frame stays; without motion it stays all along. */
 .cell .sym .g-sprite svg { overflow: hidden; }
-.cell.fresh .g-frames { animation: frames var(--frames-dur) steps(var(--frames)) var(--frames-runs); }
-@keyframes frames { to { transform: translateX(var(--frames-shift)); } }
+.cell.fresh .g-frames { animation: frames var(--clip-dur) steps(var(--clip-frames)) var(--clip-runs); }
+@keyframes frames { from { transform: translateX(var(--clip-from)); } to { transform: translateX(var(--clip-to)); } }
 @media (prefers-reduced-motion: reduce) { .g-frames { animation: none; } }
 
 /* Overlays: referenced units (tint), new marks, hints, problems. */

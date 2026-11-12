@@ -242,22 +242,41 @@ console.log("library ok");
   }
   const heart = L.markSpec({ id: "heart", kind: "svg", path: "M50 90C20 68Z", scale: 5 });
   assert.deepEqual([heart.kind, heart.tint, heart.scale], ["svg", true, 1]);
-  const club = L.markSpec({ id: "club", kind: "glyph", glyph: "♣︎", scale: 0.8 });
-  assert.deepEqual([club.kind, club.tint, club.scale, club.glyph], ["glyph", true, 0.8, "♣︎"]);
-  assert.equal(L.markSpec({ id: "clover", kind: "emoji", glyph: "🍀️" }).tint, false);
-  const sprite = { id: "sparkle", kind: "sprite", url: "/symbole/sparkle.svg?v=abc123", frames: 8, fps: 8 };
+  const blossom = L.markSpec({ id: "blossom", kind: "glyph", glyph: "✿︎", scale: 0.8 });
+  assert.deepEqual([blossom.kind, blossom.tint, blossom.scale, blossom.glyph], ["glyph", true, 0.8, "✿︎"]);
+  assert.equal(L.markSpec({ id: "cat-face", kind: "emoji", glyph: "🐱️" }).tint, false);
+  const sprite = { id: "hop", kind: "sprite", url: "/symbole/hop.svg?v=abc123", frames: 8, fps: 8 };
   const s = L.markSpec(sprite, { sprites: true });
   assert.deepEqual([s.kind, s.tint, s.url, s.frames, s.fps], ["sprite", false, sprite.url, 8, 8]);
+  assert.deepEqual(s.clips, [{ start: 0, frames: 8 }]); // without clips: all frames
   assert.equal(L.markSpec(sprite, { sprites: false }), star); // page opened as a file
   assert.equal(L.markSpec(sprite), star);
   // Frames without a usable speed: a still image of the first frame.
   const still = L.markSpec({ ...sprite, fps: 0 }, { sprites: true });
   assert.deepEqual([still.frames, still.fps], [1, 0]);
-  // Played for about three seconds in whole runs, at least one; still images never.
-  assert.equal(L.markRuns(s), 3); // 8 frames at 8 fps: 1 s per run
-  assert.equal(L.markRuns({ frames: 40, fps: 4 }), 1);
-  assert.equal(L.markRuns({ frames: 4, fps: 30 }), 23);
-  assert.equal(L.markRuns(still), 0);
+  // Clips are taken over if all fit the frames, else all frames are one.
+  const clips = [{ name: "a", start: 1, frames: 3 }, { start: 4, frames: 4 }];
+  assert.deepEqual(L.markSpec({ ...sprite, clips }, { sprites: true }).clips, [{ start: 1, frames: 3 }, { start: 4, frames: 4 }]);
+  for (const bad of [[], "x", [{ start: 5, frames: 4 }], [{ start: 0, frames: 0 }], [{ start: -1, frames: 2 }], [null], [{ start: 0.5, frames: 2 }]]) {
+    assert.deepEqual(L.markSpec({ ...sprite, clips: bad }, { sprites: true }).clips, [{ start: 0, frames: 8 }], JSON.stringify(bad));
+  }
+  // A clip plays for about three seconds in whole runs, at least one; still images never.
+  assert.equal(L.markRuns({ frames: 8 }, 8), 3); // 1 s per run
+  assert.equal(L.markRuns({ frames: 40 }, 4), 1);
+  assert.equal(L.markRuns({ frames: 4 }, 30), 23);
+  assert.equal(L.markRuns({ frames: 1 }, 0), 0);
+  // Clips are picked at random, never the last one twice if there are others.
+  const seq = (xs) => { let i = 0; return () => xs[i++ % xs.length]; };
+  assert.equal(L.pickClip(1, 0, seq([0.9])), 0);
+  assert.deepEqual([0, 0.4, 0.6, 0.99].map((r) => L.pickClip(3, -1, seq([r]))), [0, 1, 1, 2]);
+  assert.deepEqual([0, 0.4, 0.6, 0.99].map((r) => L.pickClip(3, 1, seq([r]))), [0, 0, 2, 2]);
+  assert.deepEqual([0, 0.99].map((r) => L.pickClip(2, 0, seq([r]))), [1, 1]);
+  assert.equal(L.pickClip(3, 7, seq([0.99])), 2); // a last pick of another symbol
+  for (let prev = 0; prev < 4; prev++) {
+    const seen = new Set();
+    for (let r = 0; r < 1; r += 0.01) seen.add(L.pickClip(4, prev, () => r));
+    assert.deepEqual([...seen].sort(), [0, 1, 2, 3].filter((k) => k !== prev));
+  }
 }
 console.log("symbols ok");
 

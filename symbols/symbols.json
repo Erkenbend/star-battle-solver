@@ -7,7 +7,20 @@
   {"id": "cat-face", "name": "Katze", "kind": "emoji", "glyph": "🐱"},
   {"id": "dog-face", "name": "Hund", "kind": "emoji", "glyph": "🐶"},
   {"id": "diamond", "name": "Diamant", "kind": "sprite", "src": "diamond.svg"},
-  {"id": "mlem-cat", "name": "Schleckende Katze", "kind": "sprite", "src": "cat.svg", "frames": 12, "fps": 8},
-  {"id": "curious-dog", "name": "Neugieriger Hund", "kind": "sprite", "src": "dog.svg", "frames": 12, "fps": 8},
-  {"id": "hop-star", "name": "Hüpfstern", "kind": "sprite", "src": "hop.svg", "frames": 10, "fps": 12}
+  {"id": "mlem-cat", "name": "Kätzchen", "kind": "sprite", "src": "cat.svg", "frames": 39, "fps": 8, "clips": [
+    {"name": "mlem", "start": 1, "frames": 8},
+    {"name": "ears", "start": 9, "frames": 10},
+    {"name": "yawn", "start": 19, "frames": 12},
+    {"name": "love", "start": 31, "frames": 8}
+  ]},
+  {"id": "curious-dog", "name": "Hündchen", "kind": "sprite", "src": "dog.svg", "frames": 27, "fps": 8, "clips": [
+    {"name": "tilt", "start": 1, "frames": 9},
+    {"name": "pant", "start": 10, "frames": 6},
+    {"name": "bark", "start": 16, "frames": 11}
+  ]},
+  {"id": "hop-star", "name": "Hüpfstern", "kind": "sprite", "src": "hop.svg", "frames": 32, "fps": 12, "clips": [
+    {"name": "hop", "start": 1, "frames": 9},
+    {"name": "spin", "start": 10, "frames": 10},
+    {"name": "wobble", "start": 20, "frames": 12}
+  ]}
 ]

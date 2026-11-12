@@ -22,9 +22,12 @@ func TestLoadSymbolsCatalog(t *testing.T) {
 		if s.Kind == KindSprite && s.Frames > 1 {
 			kinds["animated"] = true
 		}
+		if len(s.Clips) > 1 {
+			kinds["clips"] = true
+		}
 	}
 	// The catalog shows an example of every kind.
-	for _, k := range []string{KindSVG, KindGlyph, KindEmoji, KindSprite, "animated"} {
+	for _, k := range []string{KindSVG, KindGlyph, KindEmoji, KindSprite, "animated", "clips"} {
 		if !kinds[k] {
 			t.Errorf("no symbol of kind %s", k)
 		}
@@ -39,7 +42,9 @@ func TestLoadSymbolsNormalizes(t *testing.T) {
 		"s/symbols.json": {Data: []byte(`[
 			{"id": "club", "name": "Kreuz", "kind": "glyph", "glyph": "♣️"},
 			{"id": "clover", "name": "Klee", "kind": "emoji", "glyph": "🍀"},
-			{"id": "img", "name": "Bild", "kind": "sprite", "src": "a.svg"}
+			{"id": "img", "name": "Bild", "kind": "sprite", "src": "a.svg"},
+			{"id": "anim", "name": "Film", "kind": "sprite", "src": "a.svg", "frames": 9, "fps": 8,
+			 "clips": [{"name": "eins", "start": 1, "frames": 4}, {"start": 5, "frames": 4}]}
 		]`)},
 		"s/a.svg": {Data: []byte("<svg/>")},
 	}
@@ -54,22 +59,31 @@ func TestLoadSymbolsNormalizes(t *testing.T) {
 	if l[2].Frames != 1 || !strings.HasPrefix(l[2].URL, "/symbole/a.svg?v=") {
 		t.Errorf("sprite frames %d url %q", l[2].Frames, l[2].URL)
 	}
+	if c := l[3].Clips; len(c) != 2 || c[0] != (Clip{"eins", 1, 4}) || c[1] != (Clip{"", 5, 4}) {
+		t.Errorf("clips %+v", c)
+	}
 }
 
 func TestLoadSymbolsRejects(t *testing.T) {
 	for name, entry := range map[string]string{
-		"bad id":         `{"id": "Stern", "name": "x", "kind": "svg", "path": "M0 0Z"}`,
-		"no name":        `{"id": "a", "name": "", "kind": "svg", "path": "M0 0Z"}`,
-		"markup in path": `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0\"/><script>"}`,
-		"unknown kind":   `{"id": "a", "name": "x", "kind": "gif"}`,
-		"long glyph":     `{"id": "a", "name": "x", "kind": "glyph", "glyph": "abcdefghij"}`,
-		"missing file":   `{"id": "a", "name": "x", "kind": "sprite", "src": "none.svg"}`,
-		"path in src":    `{"id": "a", "name": "x", "kind": "sprite", "src": "../a.svg"}`,
-		"gif":            `{"id": "a", "name": "x", "kind": "sprite", "src": "a.gif"}`,
-		"no fps":         `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "frames": 4}`,
-		"mixed fields":   `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0Z", "glyph": "x"}`,
-		"url given":      `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "url": "https://example.com/a.svg"}`,
-		"unknown field":  `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0Z", "color": "red"}`,
+		"bad id":          `{"id": "Stern", "name": "x", "kind": "svg", "path": "M0 0Z"}`,
+		"no name":         `{"id": "a", "name": "", "kind": "svg", "path": "M0 0Z"}`,
+		"markup in path":  `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0\"/><script>"}`,
+		"unknown kind":    `{"id": "a", "name": "x", "kind": "gif"}`,
+		"long glyph":      `{"id": "a", "name": "x", "kind": "glyph", "glyph": "abcdefghij"}`,
+		"missing file":    `{"id": "a", "name": "x", "kind": "sprite", "src": "none.svg"}`,
+		"path in src":     `{"id": "a", "name": "x", "kind": "sprite", "src": "../a.svg"}`,
+		"gif":             `{"id": "a", "name": "x", "kind": "sprite", "src": "a.gif"}`,
+		"no fps":          `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "frames": 4}`,
+		"clips no frames": `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "clips": [{"start": 0, "frames": 1}]}`,
+		"no clips":        `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "frames": 4, "fps": 4, "clips": []}`,
+		"clip too long":   `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "frames": 4, "fps": 4, "clips": [{"start": 2, "frames": 3}]}`,
+		"clip empty":      `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "frames": 4, "fps": 4, "clips": [{"start": 1, "frames": 0}]}`,
+		"clip negative":   `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "frames": 4, "fps": 4, "clips": [{"start": -1, "frames": 2}]}`,
+		"clips of svg":    `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0Z", "clips": [{"start": 0, "frames": 1}]}`,
+		"mixed fields":    `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0Z", "glyph": "x"}`,
+		"url given":       `{"id": "a", "name": "x", "kind": "sprite", "src": "a.svg", "url": "https://example.com/a.svg"}`,
+		"unknown field":   `{"id": "a", "name": "x", "kind": "svg", "path": "M0 0Z", "color": "red"}`,
 	} {
 		fsys := fstest.MapFS{
 			"s/symbols.json": {Data: []byte("[" + entry + "]")},

@@ -22,7 +22,11 @@
     emoji: "Emoji, sieht auf jedem Gerät anders aus",
     sprite: "Bild",
   };
-  const describe = (s) => (s.kind === "sprite" && s.frames > 1 ? "Animiertes Bild, spielt kurz nach dem Setzen" : KIND[s.kind] || "");
+  function describe(s) {
+    if (s.kind !== "sprite" || !(s.frames > 1)) return KIND[s.kind] || "";
+    const n = s.clips ? s.clips.length : 1;
+    return n > 1 ? `Animiertes Bild, spielt nach dem Setzen eine von ${n} Animationen` : "Animiertes Bild, spielt kurz nach dem Setzen";
+  }
 
   // Previews use the page's colors: four region colors, the last cell wrong.
   const PREVIEW = [0, 3, 5, 1];
@@ -67,14 +71,12 @@
     input.name = "symbol";
     input.value = s.id;
     input.checked = s.id === current;
-    const box = preview(L.markSpec(s, { sprites: true }));
-    // An animated symbol plays as on the board: when chosen, and on hover.
+    const spec = L.markSpec(s, { sprites: true });
+    const box = preview(spec);
+    // An animated symbol plays as on the board: when chosen, and on hover;
+    // each cell a clip of its own.
     const play = () => {
-      for (const c of box.children) {
-        c.classList.remove("fresh");
-        void c.offsetWidth; // restart the animation
-        c.classList.add("fresh");
-      }
+      for (const c of box.children) L.playMark(c, spec);
     };
     lab.addEventListener("mouseenter", play);
     input.addEventListener("change", () => {

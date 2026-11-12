@@ -335,8 +335,8 @@ const Logic = (() => {
   const PATH_RE = /^[MmLlHhVvCcSsQqTtAaZz0-9 ,.eE+-]+$/;
   const URL_RE = /^\/symbole\/[a-z0-9-]+\.(svg|png|webp)(\?v=[0-9a-f]+)?$/;
 
-  // A drawable spec {id, kind, tint, scale, frames, fps, path|glyph|url} for
-  // a stored entry. Sprites need the server: with opts.sprites false (a page
+  // A drawable spec {id, kind, tint, scale, frames, fps, clips, path|glyph|url}
+  // for a stored entry. Sprites need the server: with opts.sprites false (a page
   // opened as a file) they fall back to the star, as does anything broken.
   function markSpec(e, opts) {
     if (!e || typeof e !== "object") return DEFAULT_MARK;
@@ -355,10 +355,19 @@ const Logic = (() => {
         if (!(opts && opts.sprites) || typeof e.url !== "string" || !URL_RE.test(e.url)) break;
         const frames = Number.isInteger(e.frames) && e.frames >= 1 && e.frames <= 64 ? e.frames : 1;
         const fps = frames > 1 && Number.isInteger(e.fps) && e.fps >= 1 && e.fps <= 30 ? e.fps : 0;
-        return { ...base, kind: "sprite", tint: false, url: e.url, frames: fps ? frames : 1, fps };
+        if (!fps) return { ...base, kind: "sprite", tint: false, url: e.url };
+        return { ...base, kind: "sprite", tint: false, url: e.url, frames, fps, clips: markClips(e.clips, frames) };
       }
     }
     return DEFAULT_MARK;
+  }
+
+  // The clips {start, frames} of an animated sprite (see Clip in symbols.go):
+  // the given ones if all fit, else one of all frames.
+  function markClips(clips, frames) {
+    const ok = Array.isArray(clips) && clips.length >= 1 && clips.length <= 16 && clips.every((c) =>
+      c && Number.isInteger(c.start) && Number.isInteger(c.frames) && c.start >= 0 && c.frames >= 1 && c.start + c.frames <= frames);
+    return ok ? clips.map((c) => ({ start: c.start, frames: c.frames })) : [{ start: 0, frames }];
   }
 
   const loadMark = () => {
@@ -420,24 +429,44 @@ const Logic = (() => {
     return svg;
   }
 
-  // Classes and variables for spec on the element around the cells.
+  // Classes for spec on the element around the cells.
   function markClasses(el, spec) {
     el.classList.toggle("untinted", !spec.tint);
     el.classList.toggle("mark-emoji", spec.kind === "emoji");
-    if (spec.frames > 1) {
-      el.style.setProperty("--frames", spec.frames);
-      el.style.setProperty("--frames-shift", -100 * spec.frames + "px");
-      el.style.setProperty("--frames-dur", spec.frames / spec.fps + "s");
-      el.style.setProperty("--frames-runs", markRuns(spec));
-    }
   }
 
-  // An animated mark plays when set, whole runs for about MARK_PLAY_S
-  // seconds, and then stays on its first frame.
+  // An animated mark plays when set: one of its clips, whole runs for about
+  // MARK_PLAY_S seconds, and then it stays on its first frame.
   const MARK_PLAY_S = 3;
-  const markRuns = (spec) => (spec.frames > 1 ? Math.max(1, Math.round((MARK_PLAY_S * spec.fps) / spec.frames)) : 0);
+  const markRuns = (clip, fps) => (fps > 0 ? Math.max(1, Math.round((MARK_PLAY_S * fps) / clip.frames)) : 0);
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, markSpec, loadMark, saveMark, markSVG, markClasses, markRuns };
+  // A random index below n, not prev if there is another choice.
+  function pickClip(n, prev, rnd) {
+    if (n <= 1) return 0;
+    if (!(prev >= 0 && prev < n)) return Math.floor(rnd() * n) % n;
+    const k = Math.floor(rnd() * (n - 1)) % (n - 1);
+    return k >= prev ? k + 1 : k;
+  }
+
+  // Plays the mark of spec in the cell el (class fresh, see style.css), if it
+  // is animated: a clip at random, if possible another than the last one.
+  let lastClip = -1;
+  function playMark(el, spec, rnd = Math.random) {
+    el.classList.remove("fresh");
+    if (!(spec.frames > 1)) return;
+    const k = pickClip(spec.clips.length, lastClip, rnd);
+    lastClip = k;
+    const c = spec.clips[k];
+    el.style.setProperty("--clip-from", -100 * c.start + "px");
+    el.style.setProperty("--clip-to", -100 * (c.start + c.frames) + "px");
+    el.style.setProperty("--clip-frames", c.frames);
+    el.style.setProperty("--clip-dur", c.frames / spec.fps + "s");
+    el.style.setProperty("--clip-runs", markRuns(c, spec.fps));
+    void el.offsetWidth; // restart a running animation
+    el.classList.add("fresh");
+  }
+
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, markSpec, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -556,7 +585,10 @@ function boot() {
       const e = cellEls[i], v = view.cells[i];
       const auto = view.auto && view.auto[i];
       if (v !== L.STAR) e.classList.remove("fresh");
-      else if (!e.classList.contains("star")) e.classList.toggle("fresh", play);
+      else if (!e.classList.contains("star")) {
+        if (play) L.playMark(e, mark);
+        else e.classList.remove("fresh");
+      }
       e.classList.toggle("star", v === L.STAR);
       e.classList.toggle("cross", v === L.CROSS && !auto);
       e.classList.toggle("auto", !!auto);
@@ -1012,7 +1044,10 @@ function boot() {
       mark = L.markSpec(L.loadMark(), { sprites: /^https?:$/.test(location.protocol) });
       const tpl = L.markSVG(mark, document);
       L.markClasses(boardEl, mark);
-      for (const e of cellEls) e.querySelector(".sym").replaceChildren(tpl.cloneNode(true));
+      for (const e of cellEls) {
+        e.classList.remove("fresh"); // its clip belongs to the old symbol
+        e.querySelector(".sym").replaceChildren(tpl.cloneNode(true));
+      }
     }
   });
   let drag = null; // {start, last, erase, before, moved, straight, x, y, cell}

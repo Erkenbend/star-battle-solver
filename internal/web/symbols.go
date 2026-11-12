@@ -45,7 +45,21 @@ type Symbol struct {
 	Frames int     `json:"frames,omitempty"` // sprite: frames of 100×100 side by side
 	FPS    int     `json:"fps,omitempty"`    // sprite: frames per second if animated
 	Scale  float64 `json:"scale,omitempty"`  // size relative to the cell, default 1
+	Clips  []Clip  `json:"clips,omitempty"`  // sprite: animations to choose from, default all frames
 }
+
+// Clip is one animation of an animated sprite: Frames frames from Start on.
+// When a star is set, the page plays one of a symbol's clips at random and
+// then shows frame 0, so frame 0 is the resting pose and need not be part of
+// any clip.
+type Clip struct {
+	Name   string `json:"name,omitempty"` // for the catalog's readers only
+	Start  int    `json:"start"`
+	Frames int    `json:"frames"`
+}
+
+// MaxClips is the number of clips a symbol may have.
+const MaxClips = 16
 
 // Symbols is the catalog of star symbols with its image files.
 type Symbols struct {
@@ -142,6 +156,17 @@ func LoadSymbols(fsys fs.FS, dir string) (*Symbols, error) {
 			if sym.Frames > 1 && (sym.FPS < 1 || sym.FPS > 30) {
 				return nil, bad("an animated sprite needs fps from 1 to 30")
 			}
+			if sym.Clips != nil && sym.Frames == 1 {
+				return nil, bad("clips need frames")
+			}
+			if sym.Clips != nil && (len(sym.Clips) < 1 || len(sym.Clips) > MaxClips) {
+				return nil, bad("1 to %d clips", MaxClips)
+			}
+			for _, c := range sym.Clips {
+				if c.Start < 0 || c.Frames < 1 || c.Start+c.Frames > sym.Frames {
+					return nil, bad("clip %q: frames %d to %d outside the %d frames", c.Name, c.Start, c.Start+c.Frames-1, sym.Frames)
+				}
+			}
 			f, ok := s.files[sym.Src]
 			if !ok {
 				data, err := fs.ReadFile(fsys, path.Join(dir, sym.Src))
@@ -160,7 +185,7 @@ func LoadSymbols(fsys fs.FS, dir string) (*Symbols, error) {
 			return nil, bad("unknown kind %q", sym.Kind)
 		}
 		if sym.Kind != KindSVG && sym.Path != "" || sym.Kind != KindGlyph && sym.Kind != KindEmoji && sym.Glyph != "" ||
-			sym.Kind != KindSprite && (sym.Src != "" || sym.Frames != 0 || sym.FPS != 0) {
+			sym.Kind != KindSprite && (sym.Src != "" || sym.Frames != 0 || sym.FPS != 0 || sym.Clips != nil) {
 			return nil, bad("fields of another kind")
 		}
 	}
