@@ -203,10 +203,10 @@ Welches Symbol das Brett statt ★ zeigt, wählt man aus Vorschlägen, die in `s
 
 | Art | Beispiel | Eigenschaften |
 |---|---|---|
-| `svg` | Stern, Herz, Krone | Pfad in einem 100×100-Feld. Sieht überall gleich aus, nimmt die Sternfarbe an und wird bei Fehlern rot. |
-| `glyph` | ♣, ✿ | Schriftzeichen, als Text dargestellt (nie als Emoji). Nimmt die Farben an, sieht aber je nach Schrift des Geräts etwas anders aus. |
-| `emoji` | 🌟, 🍀 | Emoji aus der Schrift des Geräts. Behält die eigenen Farben und sieht auf jedem System anders aus; fehlt eine Emoji-Schrift, erscheint ein leeres Kästchen. |
-| `sprite` | Diamant, funkelnder Stern | Bilddatei (`.svg`, `.png`, `.webp`, höchstens 256 KiB) im Verzeichnis `symbols/`. Mit `frames` und `fps` ein animiertes Bild: alle Einzelbilder (je 100×100) nebeneinander, z. B. aus `symbols/sparkle.py`. Die Animation spielt nur nach dem Setzen eines Sterns etwa drei Sekunden lang, danach bleibt das erste Bild stehen; wünscht das System reduzierte Bewegung, gar nicht. |
+| `svg` | Stern, Herz | Pfad in einem 100×100-Feld. Sieht überall gleich aus, nimmt die Sternfarbe an und wird bei Fehlern rot. |
+| `glyph` | ✿ | Schriftzeichen, als Text dargestellt (nie als Emoji). Nimmt die Farben an, sieht aber je nach Schrift des Geräts etwas anders aus. |
+| `emoji` | 🐱, 🐶 | Emoji aus der Schrift des Geräts. Behält die eigenen Farben und sieht auf jedem System anders aus; fehlt eine Emoji-Schrift, erscheint ein leeres Kästchen. |
+| `sprite` | Diamant, schleckende Katze, neugieriger Hund, Hüpfstern | Bilddatei (`.svg`, `.png`, `.webp`, höchstens 256 KiB) im Verzeichnis `symbols/`. Mit `frames` und `fps` ein animiertes Bild: alle Einzelbilder (je 100×100) nebeneinander, z. B. aus `symbols/cat.py`, `dog.py` oder `hop.py` (jeweils `python3 symbols/cat.py > symbols/cat.svg`). Das erste Bild sollte für sich gut aussehen, denn es bleibt stehen. Die Animation spielt nur nach dem Setzen eines Sterns etwa drei Sekunden lang, danach bleibt das erste Bild stehen; wünscht das System reduzierte Bewegung, gar nicht. |
 
 Was die Farben nicht annimmt, leuchtet bei Fehlern rot. Bilder lädt die Seite vom Server; in einer mit `html` gespeicherten Datei erscheint stattdessen der Stern. GIF und animiertes PNG/WebP sind absichtlich nicht vorgesehen, weil sie sich nicht anhalten lassen.
 
