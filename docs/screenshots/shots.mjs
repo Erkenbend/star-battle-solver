@@ -170,16 +170,16 @@ const shots = {
     await fresh();
     await go("/bibliothek");
     const entries = await js(`JSON.parse(document.getElementById("data").textContent).entries`);
-    const times = { 1: 151, 2: 263, 3: 418, 4: 372, 6: 545, 7: 690 };
+    const times = { "5-1": 151, "6-1": 263, "6-2": 418, "7-1": 372, "7-3": 545, "8-1": 690 };
     const solved = {};
-    for (const e of entries) if (times[e.nr]) solved[e.id] = { time: times[e.nr] * 1000 + 400, at: "2026-11-08" };
+    for (const e of entries) if (times[e.name]) solved[e.id] = { time: times[e.name] * 1000 + 400, at: "2026-11-08" };
     await js(`localStorage.setItem("starbattle:library:solved", ${JSON.stringify(JSON.stringify(solved))})`);
     await go("/bibliothek");
     await shot("bibliothek");
   },
   async "bibliothek-geloest"() {
     await go("/bibliothek");
-    const e = (await js(`JSON.parse(document.getElementById("data").textContent).entries`)).find((e) => e.nr === 9);
+    const e = (await js(`JSON.parse(document.getElementById("data").textContent).entries`)).find((e) => e.name === "9-1");
     const d = await (await fetch(`${BASE}/bibliothek/weg?id=${encodeURIComponent(e.id)}`)).json();
     const marks = new Array(d.n * d.n).fill(0);
     d.solution.forEach((c, r) => { marks[r * d.n + c] = 2; });

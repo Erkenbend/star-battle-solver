@@ -21,12 +21,14 @@ import (
 )
 
 // LibraryIndex is the file in a library directory that lists its puzzles in
-// order: one file name per line, '#' starts a comment. The position is the
-// puzzle's number, so new puzzles are only ever appended.
+// order: one file name per line, '#' starts a comment. A puzzle's number
+// counts the puzzles of its size up to it, so new puzzles are only ever
+// appended.
 const LibraryIndex = "bibliothek.idx"
 
 // Library is a fixed collection of (hard) puzzles to browse and solve without
-// help. Each puzzle has a number for people and an ID derived from its regions
+// help. Each puzzle has a name for people ("10-3": the third 10×10 puzzle)
+// and an ID derived from its regions
 // for links and the browser's storage, so neither depends on the generator,
 // the file name or the order.
 type Library struct {
@@ -36,7 +38,7 @@ type Library struct {
 }
 
 type libEntry struct {
-	nr    int
+	nr    int // among the puzzles of size p.N, from 1
 	id    string
 	p     *puzzle.Puzzle
 	once  sync.Once
@@ -54,6 +56,7 @@ func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
 	}
 	lib := &Library{solve: solve, byID: map[string]*libEntry{}}
 	files := map[string]bool{}
+	perSize := map[int]int{}
 	for _, name := range names {
 		if files[name] {
 			return nil, fmt.Errorf("%s: %s doppelt", LibraryIndex, name)
@@ -70,9 +73,10 @@ func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
 		if p.N < MinN || p.N > MaxN {
 			return nil, fmt.Errorf("%s: Größe %d außerhalb von %d bis %d", name, p.N, MinN, MaxN)
 		}
-		e := &libEntry{nr: len(lib.entries) + 1, id: LibraryID(p), p: p, ready: make(chan struct{})}
+		perSize[p.N]++
+		e := &libEntry{nr: perSize[p.N], id: LibraryID(p), p: p, ready: make(chan struct{})}
 		if prev := lib.byID[e.id]; prev != nil {
-			return nil, fmt.Errorf("%s: dasselbe Puzzle wie Nr. %d", name, prev.nr)
+			return nil, fmt.Errorf("%s: dasselbe Puzzle wie %s", name, prev.name())
 		}
 		lib.entries = append(lib.entries, e)
 		lib.byID[e.id] = e
@@ -103,6 +107,9 @@ func LibraryID(p *puzzle.Puzzle) string {
 	return hex.EncodeToString(h.Sum(nil))[:10]
 }
 
+// name is what people call e: its size and number, "10-3".
+func (e *libEntry) name() string { return fmt.Sprintf("%d-%d", e.p.N, e.nr) }
+
 // Len is the number of puzzles.
 func (lib *Library) Len() int { return len(lib.entries) }
 
@@ -117,12 +124,12 @@ func (lib *Library) start(e *libEntry) {
 			t := time.Now()
 			sols := bruteforce.Solve(e.p, 2)
 			if len(sols) != 1 {
-				e.err = fmt.Errorf("Bibliothek Nr. %d hat %d Lösungen", e.nr, len(sols))
+				e.err = fmt.Errorf("Bibliothek %s hat %d Lösungen", e.name(), len(sols))
 				return
 			}
 			e.sol = sols[0]
 			e.res, e.err = lib.solve(e.p)
-			log.Printf("Bibliothek Nr. %d gelöst (%.1f s)", e.nr, time.Since(t).Seconds())
+			log.Printf("Bibliothek %s gelöst (%.1f s)", e.name(), time.Since(t).Seconds())
 		}()
 	})
 }
@@ -139,7 +146,7 @@ func (e *libEntry) done() bool {
 
 // data is the page data of e, with the solver's result if it is there.
 func (lib *Library) data(e *libEntry) Data {
-	title := fmt.Sprintf("Star Battle %d×%d · Bibliothek Nr. %d", e.p.N, e.p.N, e.nr)
+	title := fmt.Sprintf("Star Battle %d×%d · Bibliothek %s", e.p.N, e.p.N, e.name())
 	var d Data
 	if e.done() && e.err == nil {
 		d = Build(title, e.p, e.sol, e.res)
@@ -149,14 +156,14 @@ func (lib *Library) data(e *libEntry) Data {
 	}
 	d.Served = true
 	d.Text = e.p.String()
-	d.Library = &LibraryInfo{ID: e.id, Nr: e.nr, Entries: lib.refs(false), Pending: d.Status == "pending"}
+	d.Library = &LibraryInfo{ID: e.id, Name: e.name(), Entries: lib.refs(false), Pending: d.Status == "pending"}
 	return d
 }
 
 // LibraryInfo places a page's puzzle in the library.
 type LibraryInfo struct {
 	ID      string   `json:"id"`
-	Nr      int      `json:"nr"`
+	Name    string   `json:"name"`
 	Entries []LibRef `json:"entries"` // all puzzles, for "next unsolved"
 	// The solver is still at work: solution and trace are missing, the page
 	// gets them from /bibliothek/weg once it needs them.
@@ -166,7 +173,8 @@ type LibraryInfo struct {
 // LibRef is one puzzle of the library in the overview.
 type LibRef struct {
 	ID      string  `json:"id"`
-	Nr      int     `json:"nr"`
+	Name    string  `json:"name"` // "10-3"
+	Nr      int     `json:"nr"`   // among the puzzles of size N, from 1
 	N       int     `json:"n"`
 	Regions [][]int `json:"regions,omitempty"` // overview only
 }
@@ -179,7 +187,7 @@ type LibraryPage struct {
 func (lib *Library) refs(regions bool) []LibRef {
 	out := make([]LibRef, len(lib.entries))
 	for i, e := range lib.entries {
-		out[i] = LibRef{ID: e.id, Nr: e.nr, N: e.p.N}
+		out[i] = LibRef{ID: e.id, Name: e.name(), Nr: e.nr, N: e.p.N}
 		if regions {
 			out[i].Regions = e.p.Regions
 		}

@@ -89,10 +89,10 @@
         a.href = "/bibliothek?id=" + encodeURIComponent(e.id);
         const s = solved[e.id];
         a.classList.toggle("solved", !!s);
-        a.setAttribute("aria-label", `Nr. ${e.nr}, ${n}×${n}${s ? ", gelöst" : ""}`);
+        a.setAttribute("aria-label", `${e.name}${s ? ", gelöst" : ""}`);
         a.append(preview(e));
         const meta = el("div", "meta");
-        meta.append(el("span", "nr", `Nr. ${e.nr}`));
+        meta.append(el("span", "nr", e.name));
         if (s) meta.append(el("span", "done", Number.isFinite(s.time) ? `✓ ${fmtTime(s.time)}` : "✓"));
         a.append(meta);
         grid.append(a);

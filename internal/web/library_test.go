@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,9 +30,11 @@ func TestLibraryIndex(t *testing.T) {
 	if len(files) == 0 || lib.Len() != len(files) {
 		t.Fatalf("index lists %d puzzles, testdata/hard has %d", lib.Len(), len(files))
 	}
+	perSize := map[int]int{}
 	for i, e := range lib.entries {
-		if e.nr != i+1 || len(e.id) != 10 {
-			t.Errorf("entry %d: nr %d, id %q", i, e.nr, e.id)
+		perSize[e.p.N]++
+		if e.nr != perSize[e.p.N] || e.name() != fmt.Sprintf("%d-%d", e.p.N, e.nr) || len(e.id) != 10 {
+			t.Errorf("entry %d: %s, id %q", i, e.name(), e.id)
 		}
 	}
 	// The sample the tests run (sample.idx) is part of the library, once each.
@@ -51,9 +54,9 @@ func TestLibraryIndex(t *testing.T) {
 		}
 		seen[name] = true
 	}
-	// The first numbers are fixed: shared results name them.
-	if e := lib.entries[0]; e.p.N != 5 {
-		t.Errorf("Nr. 1 is %d×%d", e.p.N, e.p.N)
+	// The names are fixed: shared results use them.
+	if e := lib.entries[0]; e.name() != "5-1" {
+		t.Errorf("first entry is %s", e.name())
 	}
 }
 
@@ -84,7 +87,7 @@ func TestLibraryServer(t *testing.T) {
 	}
 	for _, e := range lib.entries {
 		if !strings.Contains(rec.Body.String(), `"id":"`+e.id+`"`) {
-			t.Errorf("overview lacks Nr. %d", e.nr)
+			t.Errorf("overview lacks %s", e.name())
 		}
 	}
 
@@ -96,10 +99,10 @@ func TestLibraryServer(t *testing.T) {
 		t.Fatalf("puzzle: %d %s", rec.Code, rec.Body)
 	}
 	d := pageData(t, rec.Body.String())
-	if d.Library == nil || d.Library.ID != e.id || d.Library.Nr != 1 || len(d.Library.Entries) != lib.Len() {
+	if d.Library == nil || d.Library.ID != e.id || d.Library.Name != "5-1" || len(d.Library.Entries) != lib.Len() {
 		t.Fatalf("library info: %+v", d.Library)
 	}
-	if !d.Served || !d.Library.Pending || d.Solution != nil || d.Status != "pending" || len(d.Steps) != 0 || !strings.Contains(d.Title, "Nr. 1") {
+	if !d.Served || !d.Library.Pending || d.Solution != nil || d.Status != "pending" || len(d.Steps) != 0 || !strings.Contains(d.Title, "Bibliothek 5-1") {
 		t.Errorf("first page: served %v, pending %v, solution %v, status %s, %d steps, title %q", d.Served, d.Library.Pending, d.Solution, d.Status, len(d.Steps), d.Title)
 	}
 	if d.Library.Entries[0].Regions != nil {

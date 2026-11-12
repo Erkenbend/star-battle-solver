@@ -288,12 +288,14 @@ const Logic = (() => {
     return [Math.round(rank * (360 / n) + 25) % 360, 60, rank % 2 ? 74 : 82];
   };
 
-  // The library puzzle after number nr (wrapping around) that is not in
-  // solved (an object keyed by ID), or null if all are solved.
-  function nextUnsolved(entries, solved, nr) {
-    const sorted = [...entries].sort((a, b) => a.nr - b.nr);
-    const after = sorted.filter((e) => e.nr > nr).concat(sorted.filter((e) => e.nr <= nr));
-    return after.find((e) => e.nr !== nr && !(solved && Object.hasOwn(solved, e.id))) || null;
+  // The library puzzle after the one with ID id, in the overview's order (by
+  // size, then number; wrapping around), that is not in solved (an object
+  // keyed by ID), or null if all are solved.
+  function nextUnsolved(entries, solved, id) {
+    const sorted = [...entries].sort((a, b) => a.n - b.n || a.nr - b.nr);
+    const i = sorted.findIndex((e) => e.id === id);
+    const after = sorted.slice(i + 1).concat(sorted.slice(0, i + 1));
+    return after.find((e) => e.id !== id && !(solved && Object.hasOwn(solved, e.id))) || null;
   }
 
   // The server's board string ("0120…") as cells.
@@ -775,8 +777,8 @@ function boot() {
         $("banner").append(" ", share);
       }
       if (lib) {
-        const next = L.nextUnsolved(lib.entries, libSolved(), lib.nr);
-        const a = el("a", "next", next ? `Weiter: Nr. ${next.nr} (${next.n}×${next.n})` : "Alle gelöst: zur Bibliothek");
+        const next = L.nextUnsolved(lib.entries, libSolved(), lib.id);
+        const a = el("a", "next", next ? `Weiter: ${next.name}` : "Alle gelöst: zur Bibliothek");
         a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek";
         $("banner").append(" ", a);
       }
@@ -830,7 +832,7 @@ function boot() {
   function shareText(with_) {
     const web = d.served && /^https?:$/.test(location.protocol);
     if (lib) {
-      let t = `Schweres Star Battle Nr. ${lib.nr} (${n}×${n}) aus der Bibliothek in ${fmtTime(clockMs())} gelöst, ${with_}!`;
+      let t = `Schweres Star Battle ${lib.name} (${n}×${n}) aus der Bibliothek in ${fmtTime(clockMs())} gelöst, ${with_}!`;
       if (web) t += " " + location.origin + "/bibliothek?id=" + encodeURIComponent(lib.id);
       return t;
     }

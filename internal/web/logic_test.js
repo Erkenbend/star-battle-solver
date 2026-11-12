@@ -215,14 +215,15 @@ console.log("swatches ok");
 }
 console.log("coop ops ok");
 
-// Library: the next unsolved puzzle after the current number, wrapping around.
+// Library: the next unsolved puzzle after the current one, by size and
+// number, wrapping around.
 {
-  const entries = [{ id: "c", nr: 3, n: 6 }, { id: "a", nr: 1, n: 5 }, { id: "b", nr: 2, n: 5 }, { id: "d", nr: 4, n: 7 }];
-  assert.equal(L.nextUnsolved(entries, {}, 1).id, "b");
-  assert.equal(L.nextUnsolved(entries, { b: {}, c: {} }, 1).id, "d");
-  assert.equal(L.nextUnsolved(entries, { a: {} }, 4).id, "b"); // wraps, skips solved
-  assert.equal(L.nextUnsolved(entries, { a: {}, b: {}, c: {} }, 4), null); // the current one does not count
-  assert.equal(L.nextUnsolved(entries, null, 2).id, "c");
+  const entries = [{ id: "c", nr: 1, n: 6 }, { id: "b", nr: 2, n: 5 }, { id: "d", nr: 1, n: 7 }, { id: "a", nr: 1, n: 5 }];
+  assert.equal(L.nextUnsolved(entries, {}, "a").id, "b");
+  assert.equal(L.nextUnsolved(entries, { b: {}, c: {} }, "a").id, "d");
+  assert.equal(L.nextUnsolved(entries, { a: {} }, "d").id, "b"); // wraps, skips solved
+  assert.equal(L.nextUnsolved(entries, { a: {}, b: {}, c: {} }, "d"), null); // the current one does not count
+  assert.equal(L.nextUnsolved(entries, null, "b").id, "c");
   // Region colors: every region gets one, and n ≤ 12 stays in the palette.
   for (const n of [4, 9, 14]) {
     for (let r = 0; r < n; r++) assert.equal(L.regionHSL(n, r).length, 3);

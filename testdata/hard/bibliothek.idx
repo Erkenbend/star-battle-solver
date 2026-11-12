@@ -1,6 +1,6 @@
-# Bibliothek: Reihenfolge der Puzzles. Die Zeile (ohne Kommentare) ist die Puzzle-Nr.
-# Nur unten anhängen, nie umsortieren oder löschen: Die Nummern stehen in geteilten Ergebnissen.
-# Gespeichert und verlinkt wird über eine ID aus den Regionen, nicht über Nr. oder Dateiname.
+# Bibliothek: Reihenfolge der Puzzles. Gezählt wird je Größe: das dritte 10×10 hier heißt 10-3.
+# Nur unten anhängen, nie umsortieren oder löschen: Die Namen stehen in geteilten Ergebnissen.
+# Gespeichert und verlinkt wird über eine ID aus den Regionen, nicht über Name oder Dateiname.
 n05_s029.txt
 n06_s071.txt
 n06_s092.txt
