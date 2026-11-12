@@ -1,0 +1,11 @@
+# generate -n 10 -seed 2025 at commit e76b5ce (parallel attempts, MinRegionSize 2); needs lookahead even with all rules (16 lookahead steps)
+GGFFFFCCCB
+GFFFIICBBB
+GGFJIIBBBB
+GFFJJIIBBH
+GGGGIIIHHH
+GGGGGGHHHH
+EEGGHHHHHH
+EGGGHGHHHH
+DGGGGGAHHH
+DDDGGGAAHH

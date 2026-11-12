@@ -1,0 +1,13 @@
+# generate -n 12 -seed 1954 at commit e76b5ce (parallel attempts, MinRegionSize 2); needs lookahead even with all rules (6 lookahead steps)
+EEELLLLLLLGG
+ELLLLLLCCLLG
+EEELLLCCCCLK
+JEECLLCLCLLK
+JJJCLLCLLLAA
+JCCCCCCAAAAA
+JCCCCCCAAAAA
+HCCCBBCAAIII
+HFFCCDDIAIII
+HFFCCFDIIIII
+HFFCFFDIIIII
+HHFFFDDIIIII
