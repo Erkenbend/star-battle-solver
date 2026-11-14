@@ -319,6 +319,34 @@ const Logic = (() => {
     return after.find((e) => e.id !== id && !(solved && Object.hasOwn(solved, e.id))) || null;
   }
 
+  // ---------- tutorial (/anleitung, see tutorial.go) ----------
+  // The first of the tutorial's steps not done on cells, steps.length once the
+  // puzzle is solved (however it got there).
+  function tutorialStep(d, steps, cells) {
+    if (solved(d, cells)) return steps.length;
+    const all = (list, v) => (list || []).every(([r, c]) => cells[idx(d, r, c)] === v);
+    const k = steps.findIndex((s) => s.solve || !(all(s.stars, STAR) && all(s.crosses, CROSS)));
+    return k < 0 ? steps.length : k;
+  }
+
+  // Whether this browser should see the tutorial first, remembered in storage
+  // so it is shown once. Anybody with other traces of the site in storage has
+  // been here before and is not sent there. Without working storage, never:
+  // nothing would remember it was shown.
+  const TUTORIAL_KEY = "starbattle.tutorial";
+  function tutorialDue(storage) {
+    try {
+      if (storage.getItem(TUTORIAL_KEY)) return false;
+      let before = false;
+      for (let i = 0; i < storage.length; i++) if (/^starbattle[.:]/.test(storage.key(i))) before = true;
+      storage.setItem(TUTORIAL_KEY, "1");
+      return !before && storage.getItem(TUTORIAL_KEY) === "1";
+    } catch { return false; }
+  }
+
+  // Where to go after the tutorial: a path on this site, else the start page.
+  const returnPath = (p) => (typeof p === "string" && /^\/(?![/\\])[^\s\\]*$/.test(p) ? p : "/");
+
   // The server's board string ("0120…") as cells.
   const decodeBoard = (str) => Uint8Array.from(str, (ch) => ch.charCodeAt(0) - 48);
 
@@ -508,7 +536,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -517,6 +545,17 @@ if (typeof document !== "undefined" && document.getElementById("board")) boot();
 function boot() {
   const L = Logic;
   const d = JSON.parse(document.getElementById("data").textContent);
+  // A new visitor of a solo page or library puzzle gets the tutorial first,
+  // once, and comes back here afterwards. Not in a party round: it runs.
+  if (d.served && !d.party && !d.tutorial) {
+    let due = false;
+    try { due = L.tutorialDue(localStorage); } catch { /* storage blocked */ }
+    if (due) {
+      location.replace("/anleitung?weiter=" + encodeURIComponent(location.pathname + location.search + location.hash));
+      return;
+    }
+  }
+  const tut = d.tutorial ? { step: -1, tour: null } : null; // see "tutorial" below
   const n = d.n;
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => {
@@ -688,6 +727,10 @@ function boot() {
       $("summary").textContent = `${n}×${n} · ohne Hinweise`;
       return;
     }
+    if (tut) {
+      $("summary").textContent = "Ein kleines Puzzle zum Ausprobieren";
+      return;
+    }
     if (d.party && d.party.mode === "clock") {
       $("summary").textContent = `${n}×${n} · Gegen die Uhr · ohne Hinweise`;
       return;
@@ -710,9 +753,11 @@ function boot() {
     ? "starbattle:library:" + d.library.id
     : (d.party ? `starbattle:party:${d.party.code}:${d.party.round}:` : "starbattle:") + n + ":" + d.regions.map((row) => row.join(",")).join(";");
   const load = () => {
+    if (tut) return null; // starts afresh every time and keeps nothing
     try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
   };
   const save = (v) => {
+    if (tut) return;
     try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode etc. */ }
   };
 
@@ -723,6 +768,10 @@ function boot() {
   // Options of this device (see L.pref), set on /einstellungen. A page saved
   // as a file cannot reach that page and shows them itself.
   const prefs = { autocross: L.pref("autocross"), straight: L.pref("straight"), showProblems: L.pref("showProblems") };
+  if (tut) { // the steps cross by hand and rely on mistakes showing at once
+    prefs.autocross = false;
+    prefs.showProblems = true;
+  }
 
   // Solving time and hints shown, saved with the marks. The clock runs only
   // while the page is visible and stops for good once the puzzle is solved.
@@ -896,7 +945,7 @@ function boot() {
       done = true;
       if (party) partySolve();
     }
-    if (solved && !race) { // against the clock, the party banner tells how it goes on
+    if (solved && !race && !tut) { // against the clock, the party banner tells how it goes on; in the tutorial its card
       if (lib) libRecord(clockMs(), bare ? 0 : hintCount);
       const with_ = bare ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
       banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
@@ -928,6 +977,7 @@ function boot() {
       $("tab-watch").hidden = !done;
       if (done && lib.pending) loadTrace();
     }
+    if (tut) tutDraw(eff.cells);
   }
 
   // A library page may come before the solver is done (lib.pending): the
@@ -1128,8 +1178,8 @@ function boot() {
       `Nachbarn kreuzen: ${onOff(prefs.autocross)} · Fat-Finger-Schutz: ${onOff(prefs.straight)} · Regelverstöße: ${onOff(prefs.showProblems)} · `;
   }
   applyPrefs();
-  if (d.served) $("options-link").hidden = false;
-  else $("play-options").hidden = false;
+  if (!d.served) $("play-options").hidden = false;
+  else if (!tut) $("options-link").hidden = false;
   for (const [k, id] of OPTION_IDS) {
     $(id).onchange = () => {
       prefs[k] = $(id).checked;
@@ -1142,6 +1192,7 @@ function boot() {
   // symbol too, by rebuilding the cells' symbol layer.
   window.addEventListener("storage", (ev) => {
     const k = L.prefOfKey(ev.key);
+    if (k && tut) return; // fixed for the tutorial's steps
     if (k) {
       prefs[k] = L.pref(k);
       applyPrefs();
@@ -1972,12 +2023,108 @@ function boot() {
     });
   }
 
+  // ---------- tutorial (/anleitung, d.tutorial, see tutorial.go) ----------
+  // A card above the board guides through the steps, marking the cells each
+  // one asks for; the player's moves decide which step is shown. Once solved,
+  // a tour points at the page's buttons one by one, then the player goes on
+  // to the page they came from.
+  if (tut) {
+    try { L.tutorialDue(localStorage); } catch { /* storage blocked */ } // shown: not again by itself
+    document.body.classList.add("tutorial-mode");
+    $("clock").hidden = true;
+  }
+  function tutLeave() {
+    let from = new URLSearchParams(location.search).get("weiter");
+    if (from == null) { // the "?" link: back to where it was clicked
+      try {
+        const u = new URL(document.referrer);
+        if (u.origin === location.origin && u.pathname !== location.pathname) from = u.pathname + u.search;
+      } catch { /* no referrer */ }
+    }
+    location.href = L.returnPath(from);
+  }
+  function tutDraw(cells) {
+    const steps = d.tutorial.steps;
+    const k = L.tutorialStep(d, steps, cells);
+    const goal = new Set();
+    if (k < steps.length) {
+      for (const [list, v] of [[steps[k].stars, L.STAR], [steps[k].crosses, L.CROSS]]) {
+        for (const [r, c] of list || []) if (cells[L.idx(d, r, c)] !== v) goal.add(L.idx(d, r, c));
+      }
+    }
+    cellEls.forEach((e, i) => e.classList.toggle("goal", goal.has(i)));
+    if (k === tut.step) return;
+    tut.step = k;
+    const skip = el("button", "quiet", "Überspringen");
+    skip.onclick = tutLeave;
+    const head = el("div", "head");
+    if (k < steps.length) {
+      head.append(el("span", null, `Anleitung · Schritt ${k + 1} von ${steps.length}`), skip);
+      $("tutorial").replaceChildren(head, el("strong", null, steps[k].action), elr("p", null, steps[k].text));
+    } else {
+      const go = el("button", "primary", "Weiter");
+      go.onclick = () => tourShow(0);
+      const actions = el("div", "actions");
+      actions.append(go);
+      head.append(el("span", null, "Anleitung"), skip);
+      $("tutorial").replaceChildren(head, el("strong", null, "Gelöst!"), el("p", null, "Zum Schluss ein kurzer Blick auf die Knöpfe."), actions);
+    }
+    $("tutorial").hidden = false;
+  }
+
+  // The tour: a dimmed page with a hole around the element of stop k and a
+  // tip next to it. The page below takes no clicks meanwhile.
+  function tourShow(k) {
+    const stops = d.tutorial.tour;
+    const target = k < stops.length ? $(stops[k].target) : null;
+    if (k < stops.length && (!target || !target.getClientRects().length)) return tourShow(k + 1); // not on this page
+    if (!target) return tutLeave();
+    if (mode !== "play") setMode("play");
+    if (!tut.tour) {
+      const block = el("div", "tour-block"), spot = el("div", "tour-spot"), tip = el("div", "tour-tip");
+      tip.setAttribute("role", "dialog");
+      tip.setAttribute("aria-live", "polite");
+      document.body.append(block, spot, tip);
+      tut.tour = { block, spot, tip, target: null };
+      const place = () => tut.tour && tourPlace();
+      window.addEventListener("resize", place);
+      window.addEventListener("scroll", place, { passive: true });
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape" && tut.tour) tutLeave();
+      });
+    }
+    const last = k === stops.length - 1;
+    const ok = el("button", "primary", last ? "Fertig" : "OK");
+    ok.onclick = () => tourShow(k + 1);
+    const skip = el("button", "quiet", "Überspringen");
+    skip.onclick = tutLeave;
+    const actions = el("div", "actions");
+    actions.append(el("span", "muted", `${k + 1}/${stops.length}`), ...(last ? [] : [skip]), ok);
+    tut.tour.tip.replaceChildren(el("p", null, stops[k].text), actions);
+    if (tut.tour.target) tut.tour.target.classList.remove("tour-target");
+    target.classList.add("tour-target");
+    tut.tour.target = target;
+    target.scrollIntoView({ block: "nearest" });
+    tourPlace();
+    ok.focus({ preventScroll: true });
+  }
+  function tourPlace() {
+    const { spot, tip, target } = tut.tour;
+    const r = target.getBoundingClientRect(), pad = 4, gap = 10, margin = 12;
+    Object.assign(spot.style, { left: r.left - pad + "px", top: r.top - pad + "px", width: r.width + 2 * pad + "px", height: r.height + 2 * pad + "px" });
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    const left = Math.max(margin, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - margin));
+    let top = r.bottom + pad + gap; // below, or above if there is no room
+    if (top + h > innerHeight - margin && r.top - pad - gap - h >= margin) top = r.top - pad - gap - h;
+    Object.assign(tip.style, { left: left + "px", top: top + "px" });
+  }
+
   // ---------- served by `starbattle serve`: new puzzles ----------
   if (d.served) {
     $("site-nav").hidden = false;
-    $(party ? "nav-party" : lib ? "nav-library" : "nav-solo").setAttribute("aria-current", "page");
+    $(party ? "nav-party" : lib ? "nav-library" : tut ? "nav-help" : "nav-solo").setAttribute("aria-current", "page");
   }
-  if (d.served && !party) {
+  if (d.served && !party && !tut) {
     const sizes = $("newgame-n");
     for (let k = 4; k <= 14; k++) {
       const o = el("option", null, `${k}×${k}`);

@@ -367,14 +367,14 @@ kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); borde
 .site-nav a:hover { border-color: var(--border); color: var(--fg); }
 .site-nav a.home, .site-nav a.settings { display: inline-flex; align-items: center; padding: 3px 9px; }
 .site-nav a.home svg, .site-nav a.settings svg { width: 15px; height: 15px; fill: currentColor; }
-.site-nav a.settings { margin-left: auto; }
+.site-nav a.help { margin-left: auto; font-weight: 700; padding: 3px 11px; }
 /* Narrow screens: tighter, and if still too wide, the gear moves to its own
    line rather than the page scrolling sideways. */
 .site-nav { flex-wrap: wrap; }
 .site-nav a { white-space: nowrap; }
 @media (max-width: 420px) {
   .site-nav { gap: 0; font-size: 13px; }
-  .site-nav a, .site-nav a.home, .site-nav a.settings { padding: 3px 6px; }
+  .site-nav a, .site-nav a.home, .site-nav a.settings, .site-nav a.help { padding: 3px 6px; }
 }
 .site-nav a[aria-current="page"] { color: var(--fg); border-color: var(--border); background: var(--card); font-weight: 600; }
 
@@ -524,3 +524,48 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .symbol-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
 .symbol-text .muted { font-size: 12.5px; }
 .settings-status { min-height: 1.45em; margin: 0; font-size: 14px; color: var(--muted); }
+
+/* ---------- tutorial (/anleitung) ---------- */
+.tutorial-mode .board-frame { --size: min(440px, calc(100vw - 32px)); }
+.tutorial {
+  width: min(440px, calc(100vw - 32px)); /* as wide as the board: no jumps between steps */
+  margin-bottom: 10px;
+  padding: 8px 12px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--card);
+}
+.tutorial .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 13px; }
+.tutorial .head button { font-size: 13px; padding: 2px 10px; }
+.tutorial strong { display: block; margin: 2px 0 2px; }
+.tutorial p { margin: 0; }
+.tutorial .actions { margin-top: 8px; }
+/* The cells the current step asks for. */
+body:not(.watch) .cell.goal:not(.bad)::after { box-shadow: inset 0 0 0 3px var(--accent); animation: goal 1.1s ease-in-out infinite alternate; }
+@keyframes goal { to { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { body:not(.watch) .cell.goal::after { animation: none; } }
+
+/* The tour: a transparent layer takes the clicks, the spot dims everything
+   around the element it points at, the tip explains it. */
+.tour-block { position: fixed; inset: 0; z-index: 40; }
+.tour-spot {
+  position: fixed; z-index: 41;
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: left 0.2s, top 0.2s, width 0.2s, height 0.2s;
+}
+.tour-tip {
+  position: fixed; z-index: 42;
+  width: min(300px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.tour-target:disabled { opacity: 1; } /* e.g. "Annahme" once solved: shown as it normally looks */
+.tour-tip p { margin: 0; }
+.tour-tip .actions { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.tour-tip .actions .muted { margin-right: auto; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }

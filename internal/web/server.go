@@ -39,7 +39,7 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 // parties (may be nil), /party and below serve the party mode (party_server.go).
 // With libraries (may be none), /bibliothek serves them (library.go). With a
 // symbol catalog (may be nil), /einstellungen lets players choose the symbol
-// of their stars (symbols.go).
+// of their stars (symbols.go). /anleitung is the tutorial (tutorial.go).
 func Handler(solve SolveFunc, pool *Pool, parties *Parties, libs []*Library, syms *Symbols) http.Handler {
 	mux := http.NewServeMux()
 	if parties != nil {
@@ -51,6 +51,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *Parties, libs []*Library, sym
 	if syms != nil {
 		symbolRoutes(mux, syms)
 	}
+	tutorialRoutes(mux, solve)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		n := DefaultN

@@ -2,6 +2,12 @@
 
 `starbattle serve` startet die Seite unter `http://localhost:6369/` (Optionen in [commands.md](commands.md#serve-im-browser-spielen)). Dort gibt es vier Bereiche: ein Puzzle selbst lösen oder den Lösungsweg abspielen, die Bibliothek mit Motiven und schweren Puzzles, Partys mit mehreren Leuten und die Einstellungen.
 
+## Anleitung
+
+Unter `/anleitung` (das „?“ oben rechts) löst man ein kleines 5×5-Puzzle Schritt für Schritt: Doppelklick setzt einen Stern, Klick ein Kreuz, Ziehen viele Kreuze; die Felder, um die es gerade geht, sind markiert. Den Rest löst man selbst, danach zeigt ein kurzer Rundgang auf Zusammen spielen, Bibliothek, Annahme, Lösungsweg und Einstellungen. „Überspringen“ beendet die Anleitung jederzeit.
+
+Wer zum ersten Mal ein Solo- oder Bibliotheks-Puzzle öffnet, landet einmal dort und kommt danach zu diesem Puzzle zurück. Ob die Anleitung schon gezeigt wurde, merkt sich der Browser. Wer schon andere Spuren der Seite im Browser hat (Einstellungen, Fortschritt), gilt nicht als neu; eine Party-Runde leitet nie um.
+
 ## Selbst lösen und Lösungsweg
 
 | | |

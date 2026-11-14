@@ -137,6 +137,20 @@ func TestJSLogic(t *testing.T) {
 		}
 		args = append(args, out)
 	}
+	// The tutorial's puzzle, with its steps.
+	td, err := tutorialData(testSolve)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tdJSON, err := json.Marshal(td)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tdFile := filepath.Join(dir, "tutorial.json")
+	if err := os.WriteFile(tdFile, tdJSON, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	args = append(args, tdFile)
 	cmd := exec.Command(node, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

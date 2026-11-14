@@ -77,6 +77,9 @@ type Data struct {
 
 	// Set for a puzzle of the library (see library.go): no help while solving.
 	Library *LibraryInfo `json:"library,omitempty"`
+
+	// Set for the tutorial (see tutorial.go).
+	Tutorial *Tutorial `json:"tutorial,omitempty"`
 }
 
 // PartyInfo identifies the party round a page belongs to.

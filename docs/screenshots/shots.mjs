@@ -79,7 +79,7 @@ async function shot(name) {
 }
 async function fresh() {
   await go("/party"); // any page of the origin
-  await js("localStorage.clear()");
+  await js(`localStorage.clear(); localStorage.setItem("starbattle.tutorial", "1")`); // no tutorial first
 }
 async function api(path, body) {
   const r = await fetch(BASE + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

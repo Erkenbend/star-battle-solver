@@ -96,7 +96,7 @@ starbattle serve                        # http://localhost:6369/
 starbattle serve -addr :6369            # im ganzen Netz erreichbar
 ```
 
-Dieselbe Seite wie bei `html`, dazu „Neues Puzzle“ (Größe 4 bis 14), die Bibliothek (Motive und schwere Puzzles) unter `/bibliothek`, der Party-Modus unter `/party` und die Einstellungen unter `/einstellungen`. Was es dort alles gibt, beschreibt [Spielen im Browser](playing.md).
+Dieselbe Seite wie bei `html`, dazu „Neues Puzzle“ (Größe 4 bis 14), die Bibliothek (Motive und schwere Puzzles) unter `/bibliothek`, der Party-Modus unter `/party`, die Einstellungen unter `/einstellungen` und eine Anleitung unter `/anleitung`. Was es dort alles gibt, beschreibt [Spielen im Browser](playing.md).
 
 Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `generate -n 8 -seed 42`.
 

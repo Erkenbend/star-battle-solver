@@ -339,3 +339,61 @@ console.log("options ok");
   assert.equal(L.hypRoot(base, cells, Uint8Array.from([S, X, F, S, S, X]), 2), 3);
 }
 console.log("hypothesis ok");
+
+// Tutorial: the steps follow one another as they are done, the hints finish
+// the puzzle; where to go afterwards; shown once to new visitors.
+for (const f of files) {
+  const d = JSON.parse(require("node:fs").readFileSync(f, "utf8"));
+  if (!d.tutorial) continue;
+  const steps = d.tutorial.steps;
+  const cells = new Uint8Array(d.n * d.n);
+  assert.equal(L.tutorialStep(d, steps, cells), 0);
+  steps.forEach((s, k) => {
+    assert.equal(L.tutorialStep(d, steps, cells), k, `tutorial step ${k}`);
+    if (s.solve) return;
+    // Half done is not done.
+    const marks = [...(s.stars || []).map((p) => [p, L.STAR]), ...(s.crosses || []).map((p) => [p, L.CROSS])];
+    const [[r0, c0], v0] = marks[0];
+    cells[L.idx(d, r0, c0)] = v0 === L.STAR ? L.CROSS : L.STAR;
+    assert.equal(L.tutorialStep(d, steps, cells), k, `tutorial step ${k} with a wrong mark`);
+    for (const [[r, c], v] of marks) cells[L.idx(d, r, c)] = v;
+    assert.equal(L.problems(d, cells).length, 0, `tutorial step ${k} breaks a rule`);
+  });
+  for (let guard = 0; !L.solved(d, cells); guard++) {
+    const h = L.nextHint(d, cells);
+    assert.ok(h && guard < d.steps.length, "tutorial: hints do not solve it");
+    for (const [r, c, s] of h.marks) cells[L.idx(d, r, c)] = s ? L.STAR : L.CROSS;
+  }
+  assert.equal(L.tutorialStep(d, steps, cells), steps.length);
+  // Solved without the steps' crosses: done all the same.
+  const stars = new Uint8Array(d.n * d.n);
+  d.solution.forEach((c, r) => (stars[L.idx(d, r, c)] = L.STAR));
+  assert.equal(L.tutorialStep(d, steps, stars), steps.length);
+  console.log("tutorial steps ok");
+}
+{
+  assert.equal(L.returnPath("/?n=8&seed=42#weg"), "/?n=8&seed=42#weg");
+  assert.equal(L.returnPath("/bibliothek?id=14cd642742"), "/bibliothek?id=14cd642742");
+  for (const bad of [null, undefined, "", "https://example.com/", "//example.com/x", "/\\example.com", "javascript:alert(1)", "/a b"]) {
+    assert.equal(L.returnPath(bad), "/", String(bad));
+  }
+
+  const store = (init) => {
+    const m = new Map(Object.entries(init));
+    return {
+      get length() { return m.size; },
+      key: (i) => [...m.keys()][i] ?? null,
+      getItem: (k) => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => m.set(k, String(v)),
+    };
+  };
+  const fresh = store({});
+  assert.equal(L.tutorialDue(fresh), true);
+  assert.equal(L.tutorialDue(fresh), false, "shown twice");
+  assert.equal(L.tutorialDue(store({ "starbattle.symbol": "{}" })), false, "an earlier visitor");
+  assert.equal(L.tutorialDue(store({ "starbattle:8:0,1": "{}" })), false, "an earlier visitor");
+  assert.equal(L.tutorialDue(store({ other: "1" })), true, "another site's key");
+  const broken = { length: 0, key: () => null, getItem: () => null, setItem: () => { throw new Error("full"); } };
+  assert.equal(L.tutorialDue(broken), false, "storage that forgets");
+}
+console.log("tutorial ok");
