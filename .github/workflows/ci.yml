@@ -110,6 +110,7 @@ jobs:
           mkdir -p "$dir" dist
           go build -trimpath -ldflags="-s -w" -o "$dir/$exe" ./cmd/starbattle
           cp README.md LICENSE "$dir/"
+          mkdir -p "$dir/docs" && cp docs/*.md "$dir/docs/"
           # Genau eine Datei pro Plattform; sie wird ohne zusätzliches zip
           # hochgeladen (archive: false). tar.gz behält das Ausführbar-Bit.
           if [[ $GOOS == windows ]]; then

@@ -1,0 +1,54 @@
+# Spielen im Browser
+
+`starbattle serve` startet die Seite unter `http://localhost:6369/` (Optionen in [commands.md](commands.md#serve-im-browser-spielen)). Dort gibt es vier Bereiche: ein Puzzle selbst lösen oder den Lösungsweg abspielen, die Bibliothek der schweren Puzzles, Partys mit mehreren Leuten und die Einstellungen.
+
+## Selbst lösen und Lösungsweg
+
+| | |
+|---|---|
+| ![Selbst lösen](screenshots/spielen.png) | ![Lösungsweg](screenshots/loesungsweg.png) |
+| **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Lösungsweg:** jeder Schritt mit Regel und Begründung, die betroffenen Felder sind hervorgehoben. |
+
+„Neues Puzzle“ erzeugt eines der Größe 4 bis 14. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.
+
+![Gedankenexperiment](screenshots/annahme.png)
+
+Bei schweren Puzzles zeigt der Lösungsweg auch die **Gedankenexperimente**: die ganze Kette von der Annahme „Was wäre, wenn hier ein Stern stünde?“ bis zum Widerspruch.
+
+## Bibliothek
+
+| | |
+|---|---|
+| ![Bibliothek](screenshots/bibliothek.png) | ![Bibliothek: gelöst](screenshots/bibliothek-geloest.png) |
+| **Bibliothek:** besonders schwere Puzzles zum Stöbern, an denen die einfachen Regeln scheitern. | **Ohne Hilfe lösen:** keine Hinweise, kein Prüfen. Danach gibt es den Lösungsweg des Solvers, einen Link zum Teilen und das nächste ungelöste Puzzle. |
+
+Unter `/bibliothek` liegen die Puzzles aus `testdata/hard`, nach Größe sortiert und mit Vorschau. Gelöst wird dort ohne Hilfe: Es gibt keine Hinweise, kein Prüfen und den Lösungsweg erst nach dem Lösen. Welche Puzzles gelöst sind (und die beste Zeit), merkt sich der Browser. Nach dem Lösen geht es mit „Weiter“ zum nächsten ungelösten Puzzle, und „Ergebnis kopieren“ gibt einen Link der Form `/bibliothek?id=14cd642742` mit.
+
+Die ID wird aus den Regionen berechnet. Links und gespeicherte Ergebnisse bleiben deshalb gültig, auch wenn sich der Generator ändert (die Seeds in den Dateien erzeugen heute schon andere Puzzles). Die angezeigte Nummer ergibt sich aus der Reihenfolge in `testdata/hard/bibliothek.idx`. Neue Puzzles werden dort nur unten angehängt. Vorgerechnet wird in der Bibliothek nichts: Der Solver startet beim ersten Aufruf eines Puzzles im Hintergrund.
+
+## Zusammen spielen
+
+| | |
+|---|---|
+| ![Party anlegen](screenshots/party-anlegen.png) | ![Gegeneinander](screenshots/party-runde.png) |
+| **Party anlegen:** Größen und Spielweise wählen, Code oder Link weitergeben. | **Gegeneinander:** alle lösen dasselbe Puzzle auf dem eigenen Brett und sehen den Fortschritt der anderen live. |
+
+Unter `/party` spielen mehrere Leute dieselben Runden, wahlweise:
+
+- **gegeneinander:** jede Person auf ihrem eigenen Brett, Wertung nach Hinweisen und Zeit;
+- **miteinander:** alle markieren auf demselben Brett, mit gemeinsamer Zeit und ohne Hinweise. Gleichzeitige Änderungen derselben Zelle entscheidet der Server: Wer zuerst ankommt, gewinnt.
+
+![Miteinander](screenshots/party-gemeinsam.png)
+
+## Einstellungen
+
+Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. Sie gelten in allen Spielmodi und werden im Browser gespeichert, also pro Gerät:
+
+- **Nachbarn eines Sterns automatisch kreuzen:** Felder, auf denen wegen eines Sterns kein weiterer stehen kann, bekommen einen Punkt.
+- **Fat-Finger-Schutz:** Beim Ziehen wird nur in gerader Zeile oder Spalte gekreuzt. Auf Touchscreens ist er von Anfang an an.
+- **Regelverstöße sofort rot markieren:** Ist das aus, zeigt nur noch „Prüfen“ Fehler.
+- **Symbol für Sterne:** statt ★ zum Beispiel Herz, Pfote, 🐱 oder ein animiertes Kätzchen. Mit **Zufällig** würfelt die Spielseite beim Laden eines aus und behält es, bis man neu lädt oder „Neu beginnen“ drückt; dann kommt ein anderes. Animierte Symbole bewegen sich nur kurz nach dem Setzen eines Sterns, und gar nicht, wenn das System reduzierte Bewegung wünscht. Wie man neue Symbole hinzufügt, steht in [symbols/README.md](../symbols/README.md).
+
+Die Spielseite zeigt unter den Knöpfen, wie die Optionen stehen, mit einem Link dorthin. Eine offene Spielseite übernimmt Änderungen sofort.
+
+In einer mit `starbattle html` gespeicherten Datei gibt es keine Einstellungsseite, dort stehen die drei Schalter direkt auf der Seite. Symbole mit Bilddatei lädt die Seite vom Server; in der Datei erscheint stattdessen der Stern, und „Zufällig“ wählt nur unter den Symbolen ohne Bilddatei.
