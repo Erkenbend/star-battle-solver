@@ -1,13 +1,13 @@
 # Star Battle Solver
 
+[![Bibliothek](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FErkenbend%2Fstar-battle-solver%2Fbadges%2Flibrary.json)](testdata/hard/bibliothek.idx)
+[![Vibe-coded mit Claude](https://img.shields.io/badge/vibe--coded-Claude%20Opus%205.5-D97757)](grober_plan.md)
+[![Lizenz: MIT](https://img.shields.io/github/license/Erkenbend/star-battle-solver?label=Lizenz)](LICENSE)
+
 [![CI](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml?query=branch%3Amain)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FErkenbend%2Fstar-battle-solver%2Fbadges%2Fcoverage.json)](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml?query=branch%3Amain)
-[![Bibliothek](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FErkenbend%2Fstar-battle-solver%2Fbadges%2Flibrary.json)](testdata/hard/bibliothek.idx)
-[![Plattformen](https://img.shields.io/badge/Plattformen-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows%20%C2%B7%20Raspberry%20Pi-informational)](#herunterladen)
 [![Go](https://img.shields.io/github/go-mod/go-version/Erkenbend/star-battle-solver)](go.mod)
 [![Abhängigkeiten: keine](https://img.shields.io/badge/Abh%C3%A4ngigkeiten-keine-brightgreen)](go.mod)
-[![Lizenz: MIT](https://img.shields.io/github/license/Erkenbend/star-battle-solver?label=Lizenz)](LICENSE)
-[![Vibe-coded mit Claude](https://img.shields.io/badge/vibe--coded-Claude%20Opus%205.5-D97757)](grober_plan.md)
 
 Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) und erklärt jeden Lösungsschritt auf Deutsch.
 
@@ -29,9 +29,8 @@ Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) un
 
 Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer, eine Goroutine pro Regel, die ihre Folgerungen über Channels austauschen. Regeln, Messungen und Entscheidungen stehen in [PLAN.md](PLAN.md).
 
-| | |
-|---|---|
 | ![Gedankenexperiment](docs/screenshots/annahme.png) | ![Selbst lösen](docs/screenshots/spielen.png) |
+|---|---|
 | **Gedankenexperiment:** Bei schweren Puzzles zeigt der Solver die ganze Kette bis zum Widerspruch. | **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. |
 | ![Gegeneinander](docs/screenshots/party-runde.png) | ![Bibliothek](docs/screenshots/bibliothek.png) |
 | **Zusammen spielen:** gegeneinander auf eigenen Brettern oder miteinander auf einem. | **Bibliothek:** besonders schwere Puzzles, an denen die einfachen Regeln scheitern. |
@@ -54,6 +53,8 @@ $ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
 ```
 
 ## Herunterladen
+
+[![Plattformen](https://img.shields.io/badge/Plattformen-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows%20%C2%B7%20Raspberry%20Pi-informational)](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess)
 
 Das Programm ist eine einzelne Datei ohne Abhängigkeiten. Bei jedem Push baut GitHub Actions es für alle Plattformen: unter [Actions](../../actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess) den letzten erfolgreichen Lauf auf `main` öffnen und unten bei „Artifacts“ die passende Datei herunterladen (nur mit GitHub-Konto; GitHub löscht Artefakte nach 90 Tagen).
 
@@ -86,7 +87,7 @@ Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.d
 
 ## Weiterlesen
 
-| | |
+| Dokument | Inhalt |
 |---|---|
 | [Spielen im Browser](docs/playing.md) | Lösungsweg, Bibliothek, Partys, Einstellungen |
 | [Befehle](docs/commands.md) | Puzzle-Format, `generate`, `show`, `solve`, `html`, `serve` mit allen Optionen |
