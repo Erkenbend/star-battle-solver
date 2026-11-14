@@ -1,4 +1,4 @@
-package web
+package designer
 
 import (
 	"bytes"
@@ -10,10 +10,15 @@ import (
 	"strings"
 	"testing"
 
+	"starbattle"
+	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/collection"
 	"starbattle/internal/generator"
 	"starbattle/internal/puzzle"
+	"starbattle/internal/solver"
+	"starbattle/internal/solver/observers"
+	"starbattle/internal/web"
 )
 
 // patternOf reads a pattern: '.' is free, letters are regions (A = 0).
@@ -29,6 +34,42 @@ func patternOf(rows ...string) [][]int {
 		}
 	}
 	return out
+}
+
+func testSolve(p *puzzle.Puzzle) (solver.Result, error) {
+	return solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true}), nil
+}
+
+// get requests path from h and returns the response.
+func get(h http.Handler, path string) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+	return rec
+}
+
+// TestDesignerPlay: the designer's "try it" opens the play page, which links
+// to the settings, so the designer serves them too.
+func TestDesignerPlay(t *testing.T) {
+	syms, err := web.LoadSymbols(starbattle.Symbols, "symbols")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := Handler(t.TempDir(), testSolve, syms)
+	paths := []string{"/play?p=DBBBB/DDBCC/DDBAA/EDDAA/EAAAA", "/einstellungen", "/symbole.json"}
+	for _, s := range syms.List() {
+		if s.Kind == web.KindSprite {
+			paths = append(paths, s.URL)
+			break
+		}
+	}
+	for _, p := range paths {
+		if rec := get(h, p); rec.Code != http.StatusOK {
+			t.Errorf("%s: %d", p, rec.Code)
+		}
+	}
+	if rec := get(Handler(t.TempDir(), testSolve, nil), "/einstellungen"); rec.Code != http.StatusNotFound {
+		t.Errorf("without symbols: /einstellungen %d", rec.Code)
+	}
 }
 
 func postDesign(t *testing.T, h http.Handler, path string, body any) *httptest.ResponseRecorder {
@@ -68,7 +109,7 @@ var heart = patternOf(
 )
 
 func TestDesignerPage(t *testing.T) {
-	h := DesignerHandler(t.TempDir(), testSolve, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id="canvas"`) {
@@ -76,14 +117,14 @@ func TestDesignerPage(t *testing.T) {
 	}
 	// Not part of serve.
 	rec = httptest.NewRecorder()
-	Handler(testSolve, nil, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest("POST", "/api/complete", nil))
+	web.Handler(testSolve, nil, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest("POST", "/api/complete", nil))
 	if rec.Code == http.StatusOK {
 		t.Fatal("serve answers /api/complete")
 	}
 }
 
 func TestDesignerCheck(t *testing.T) {
-	h := DesignerHandler(t.TempDir(), testSolve, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	rec := postDesign(t, h, "/api/check", designRequest{Pattern: heart})
 	if got := strings.TrimSpace(rec.Body.String()); got != "null" {
 		t.Fatalf("valid pattern: got %s", got)
@@ -101,7 +142,7 @@ func TestDesignerCheck(t *testing.T) {
 
 func TestDesignerCompleteAndSave(t *testing.T) {
 	dir := t.TempDir()
-	h := DesignerHandler(dir, testSolve, nil)
+	h := Handler(dir, testSolve, nil)
 	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: heart, Candidates: 3})
 	evs := designEvents(t, rec)
 	last := evs[len(evs)-1]
@@ -148,13 +189,16 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 		t.Fatalf("same puzzle again: %d %s", rec.Code, rec.Body)
 	}
 	// It is in the library's index, which loads.
-	motifs, err := LoadMotifs(os.DirFS(dir), ".", testSolve)
-	if err != nil || motifs.Len() != 1 || motifs.entries[0].name() != "Herz" {
+	motifs, err := web.LoadMotifs(os.DirFS(dir), ".", testSolve)
+	if err != nil || motifs.Len() != 1 {
 		t.Fatalf("index: %v", err)
+	}
+	if entries, _ := collection.Load(os.DirFS(dir), "."); collection.Name(entries[0].File, entries[0].Text) != "Herz" {
+		t.Errorf("motif name in %s", entries[0].File)
 	}
 	// Without a name: numbered.
 	save.Name = ""
-	if rec = postDesign(t, DesignerHandler(t.TempDir(), testSolve, nil), "/api/save", save); !strings.Contains(rec.Body.String(), "n08_d001.txt") {
+	if rec = postDesign(t, Handler(t.TempDir(), testSolve, nil), "/api/save", save); !strings.Contains(rec.Body.String(), "n08_d001.txt") {
 		t.Fatalf("unnamed save: %s", rec.Body)
 	}
 	// A name is used once across sizes: n10_herz.txt would be "Herz" too.
@@ -183,7 +227,7 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 }
 
 func TestDesignerCompleteInvalid(t *testing.T) {
-	h := DesignerHandler(t.TempDir(), testSolve, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: patternOf("AAAA", "....", "AAAA", "...."), Candidates: 2})
 	evs := designEvents(t, rec)
 	if len(evs) != 1 || evs[0].Problem == nil {
@@ -193,7 +237,7 @@ func TestDesignerCompleteInvalid(t *testing.T) {
 
 func TestDesignerStrict(t *testing.T) {
 	dir := t.TempDir()
-	h := DesignerHandler(dir, testSolve, nil)
+	h := Handler(dir, testSolve, nil)
 	// Not connected as drawn: fine normally, not strictly.
 	parts := patternOf("A..A....", "........", "........", "........", "........", "........", "........", "........")
 	if rec := postDesign(t, h, "/api/check", designRequest{Pattern: parts}); strings.TrimSpace(rec.Body.String()) != "null" {

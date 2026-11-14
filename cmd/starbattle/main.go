@@ -34,6 +34,7 @@ import (
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/collection"
+	"starbattle/internal/designer"
 	"starbattle/internal/generator"
 	"starbattle/internal/hardsearch"
 	"starbattle/internal/puzzle"
@@ -348,7 +349,7 @@ func cmdDesign(args []string) error {
 	defer stop()
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           web.DesignerHandler(*dir, solve, syms),
+		Handler:           designer.Handler(*dir, solve, syms),
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

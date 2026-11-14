@@ -78,34 +78,38 @@ something far away.
 ## 3. The parts
 
 ```
-                 ┌──────────────────────── cmd/starbattle ───────────────────────┐
-                 │ generate · show · solve · html · serve   │ design · hard (dev)│
-                 └───────┬──────────────┬───────────────┬───┴──────────┬────────┘
-                         │              │               │              │
-                   internal/render  internal/web   internal/hardsearch │
-                    (terminal)      (pages, site,   (find hard puzzles,│
-                         │           parties,        rate them)        │
-                         │           library,             │            │
-                         │           designer)            │            │
-                         │              │                 │            │
-          ┌──────────────┴──────────────┴─────────────────┴────────────┘
-          │                         │
-   internal/solver ◄── internal/solver/observers      internal/generator
-   (runners, search,    (the rules + German text)     (unique puzzles, also
-    trace)                                             around a drawn pattern)
-          │                                                   │
-   internal/board  (cell states, implied crosses,      internal/bruteforce
-                    contradictions)                    (referee / oracle)
-          │                                                   │
-          └────────────── internal/puzzle (layout, units, text format) ─┘
+ commands     cmd/starbattle
+              generate · show · solve · html · serve · design (dev) · hard (dev)
 
-   internal/collection: format of testdata/hard and designs/ (index, file names,
-                        header lines, ID); used by web, `hard` and the root package
-   module root package `starbattle` (hard.go): embeds testdata/hard, designs/, symbols/
+ delivery     internal/render     internal/web ──────────► internal/party
+              (terminal)          (pages, site, library,   (the party game,
+                                   party HTTP)              no HTTP)
+                                       ▲
+              internal/designer ───────┘      internal/hardsearch
+              (`design`: draw, complete,      (`hard`: find hard puzzles,
+               save motifs)                    rate them)
+
+ content      internal/collection: format of testdata/hard and designs/
+              root package `starbattle` (hard.go): embeds testdata/hard,
+              designs/, symbols/
+
+ reasoning    internal/solver ◄──── internal/solver/observers
+              (runners, search,     (the rules + German text)
+               trace)
+
+ production   internal/generator ──► internal/bruteforce
+              (unique puzzles,       (referee / oracle)
+               also around a pattern)
+
+ model        internal/board ──► internal/puzzle
+              (marks, implied      (layout, units,
+               crosses, conflicts)  text format)
 ```
 
-Dependencies only point downwards. `puzzle` knows nothing else; `board` adds
-state; `solver` adds deduction mechanics; `observers` adds the actual rules.
+Dependencies only point downwards: a package uses packages in its own row
+(along the arrows) or in rows below it, never above. `puzzle` knows nothing
+else; `board` adds state; `solver` adds deduction mechanics; `observers` adds
+the actual rules.
 The generator deliberately depends on brute force, not on the solver (it was
 tried and was slower, see `PLAN.md`).
 
@@ -156,22 +160,35 @@ There are **two runners with identical semantics**:
   1–3 star difficulty rating shown in the library. It powers the developer
   command `starbattle hard`.
 
-### 3.4 Delivery: `cmd/starbattle`, `render`, `web`
+### 3.4 Delivery: `cmd/starbattle`, `render`, `web`, `party`, `designer`
 
 `cmd/starbattle` is a thin dispatcher: one subcommand per use, flag parsing,
 and wiring of the packages. The solver flags are defined once and shared by
 every command that solves. `render` draws boards in the terminal.
 
-`web` is the browser side and the largest package. Its parts:
+`web` is the browser side. Its parts:
 
 | Part | Purpose |
 |---|---|
 | page rendering (`web.go`, `assets/`) | turns a puzzle + solution + trace into **one self-contained HTML page**: template, CSS, JS and the data as inline JSON. `html` writes it to a file, `serve` sends it. |
 | site (`server.go`, `pool.go`, `tutorial.go`) | the routes of `serve`: generated puzzles under stable URLs, pasted puzzles, the tutorial. The pool keeps one solved puzzle per size ready so "new puzzle" is instant. |
 | library (`library.go`) | the embedded collections (hard puzzles, motifs) as browsable pages; each puzzle is solved lazily in the background on first visit. |
-| parties (`party*.go`, `coop.go`, `clock.go`) | multiplayer rounds in three modes: against each other, together on one board, against the clock. A server-side state machine in memory, pushed to browsers via server-sent events. |
+| parties (`party_server.go`) | HTTP and server-sent events of the party mode, and the page of a round. The game itself is `internal/party` (below). |
 | settings / symbols (`symbols.go`) | the catalog of star symbols players can pick. |
-| designer (`designer.go`) | the developer tool behind `starbattle design`; deliberately a separate handler, not part of `serve`. |
+
+`designer` is the developer tool behind `starbattle design`, deliberately not
+part of `serve`: draw a pattern, let the generator complete it, save the
+result to a collection. Its page is built like the site's pages
+(`web.ServePage`, with the shared style and `app.js`) from its own assets, and
+it reuses `web`'s play page for "try it".
+
+`party` is the multiplayer game on its own: parties, players, rounds in three
+modes (against each other, together on one board, against the clock),
+presence, ranking. It is a state machine in memory behind one mutex and knows
+neither HTTP nor pages: `web` gives it puzzles (`Config.Prepare`, from the pool
+or the generator), carries actions and snapshots over HTTP and server-sent
+events, maps its error kinds to status codes, and builds a round's page from
+`Manager.Page`. Tests drive it with a fake clock.
 
 The browser code is plain JavaScript without a build step. `app.js` has two
 layers: a pure `Logic` module (board rules, hints, coop operations, …) that is
@@ -286,6 +303,6 @@ is CI's job.
 | more hard puzzles | `starbattle hard`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges recorded in `PLAN.md` |
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
 | a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `app.js` with a node test; text in German |
-| party modes | `party.go` (shared lifecycle), `coop.go`, `clock.go`, `party_server.go` (HTTP/SSE), `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
+| party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/` | see `symbols/README.md` |
 | a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |

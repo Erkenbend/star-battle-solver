@@ -16,9 +16,9 @@ small, focused packages.
 
 The pressure is at the edges, where features have accumulated:
 
-- `internal/web` holds over 40 % of all non-test Go code and mixes six
+- `internal/web` held over 40 % of all non-test Go code and mixed six
   concerns (page rendering, site routes, library, parties, symbols, the
-  developer designer).
+  developer designer) (done, see 2).
 - `assets/app.js` (~2,150 lines) is one file whose `boot()` builds the UI for
   every kind of page.
 - The format of the puzzle *collections* (index files, header lines such as
@@ -27,31 +27,6 @@ The pressure is at the edges, where features have accumulated:
 
 The suggestions are ordered by value for effort. None is urgent; each is worth
 doing when the area is touched next anyway.
-
-## 2. Split `internal/web` along its concerns (recommended, when next touching parties)
-
-**Now:** one package of ~3,400 lines (without tests). The party engine
-(`party.go`, `coop.go`, `clock.go`, ~1,500 lines) is a state machine that
-does not need HTTP, but it shares the package with routes and page rendering
-and hands out finished page data (`RoundData` builds a `web.Data`).
-
-**Suggestion:**
-
-- `internal/party`: parties, rounds, the three modes, ranking; no HTTP. It
-  returns puzzles, solutions and solver results, and `web` turns them into
-  pages. Its HTTP/SSE layer (`party_server.go`) stays in `web`.
-- `internal/designer` (or `internal/web/designer`): the developer tool, which
-  is not part of `serve` anyway. It needs the shared page helpers, which would
-  then be exported from `web` (or moved into a small `internal/web/page`).
-- `web` keeps rendering, site routes, library, pool, symbols, tutorial.
-
-**Why:** the boundary "game rules vs. transport" already exists in the file
-split and the comments; making it a package boundary keeps it from eroding
-and makes the party tests independent of page rendering. The designer split
-makes visible that it is not shipped as part of the site.
-
-**Effort:** medium. Mostly moving code and deciding which names to export.
-Do it as a pure move, without behaviour changes in the same commit.
 
 ## 3. Split `app.js` into files (recommended for `Logic`, optional beyond)
 
@@ -117,3 +92,14 @@ worth more than the convenience.
   only the embeds, `web` only the library pages, and the designer and `hard`
   (still in `main.go`: its search loop, provenance header and output) call
   the package instead of knowing the format themselves.
+- **2. Split `internal/web` along its concerns** (November 2026):
+  - `internal/party` is the party game without HTTP or pages. It gets its
+    puzzles through `Config.Prepare` and returns errors with a kind that `web`
+    maps to status codes. It hands out `Manager.Page` (puzzle and round)
+    instead of finished page data; `web` builds the page and decides that
+    rounds against the clock get no help.
+  - `internal/designer` is the `design` tool with its own assets. It uses
+    `web.ServePage`, the only new export, and `web`'s play page.
+  - `web` went from ~3,400 to ~1,450 lines of non-test code. The page data of
+    party rounds is no longer cached per round (it is cheap to build); the
+    wire format of the party mode is unchanged.

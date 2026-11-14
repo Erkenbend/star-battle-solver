@@ -164,14 +164,6 @@ func TestSymbolRoutes(t *testing.T) {
 		}
 	}
 
-	// The designer's play page links to the settings, so it serves them too.
-	dh := DesignerHandler(t.TempDir(), testSolve, syms)
-	for _, p := range []string{"/einstellungen", "/symbole.json", sprite.URL} {
-		if rec := get(dh, p); rec.Code != http.StatusOK {
-			t.Errorf("designer %s: %d", p, rec.Code)
-		}
-	}
-
 	// Without a catalog there are no settings.
 	if rec := get(Handler(testSolve, nil, nil, nil, nil), "/einstellungen"); rec.Code != http.StatusNotFound {
 		t.Errorf("no catalog: /einstellungen %d", rec.Code)

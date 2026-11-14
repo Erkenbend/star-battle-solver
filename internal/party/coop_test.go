@@ -1,7 +1,6 @@
-package web
+package party
 
 import (
-	"net/http"
 	"slices"
 	"testing"
 	"time"
@@ -9,7 +8,7 @@ import (
 
 // solutionOps returns operations setting the stars of the solution, numbered
 // from first.
-func solutionOps(rp *RoundPuzzle, first int) [][4]int {
+func solutionOps(rp *Puzzle, first int) [][4]int {
 	var ops [][4]int
 	for r, c := range rp.Solution {
 		ops = append(ops, [4]int{first + r, r*rp.N + c, cellFree, cellStar})
@@ -19,7 +18,7 @@ func solutionOps(rp *RoundPuzzle, first int) [][4]int {
 
 func TestCoopModeDefault(t *testing.T) {
 	pm, _ := newTestParties(t)
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: "chess"})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: "chess"})
 	must(t, err)
 	if s := snap(t, pm, code, ""); s.Mode != ModeVersus || s.Coop != nil {
 		t.Fatalf("mode %q, coop %v; want versus without board", s.Mode, s.Coop)
@@ -28,12 +27,12 @@ func TestCoopModeDefault(t *testing.T) {
 	pm2, clk := newTestParties(t)
 	code, toks := startRound(t, pm2, clk, "Ann")
 	_, err = pm2.Mark(code, toks[0], 1, [][4]int{{1, 0, cellFree, cellCross}})
-	wantStatus(t, err, http.StatusConflict)
+	wantKind(t, err, Conflict)
 }
 
 func TestCoopBoard(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ModeCoop})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ModeCoop})
 	must(t, err)
 	waitPrepared(t, pm, code)
 	ann, bob := mustJoin(t, pm, code, "Ann"), mustJoin(t, pm, code, "Bob")
@@ -46,8 +45,8 @@ func TestCoopBoard(t *testing.T) {
 	}
 	// Not before the start.
 	_, err = pm.Mark(code, ann, 1, [][4]int{{1, 0, cellFree, cellCross}})
-	wantStatus(t, err, http.StatusConflict)
-	clk.add(partyCountdown)
+	wantKind(t, err, Conflict)
+	clk.add(Countdown)
 
 	// Both saw cell 0 free: the first change wins, the second is rejected.
 	rej, err := pm.Mark(code, ann, 1, [][4]int{{1, 0, cellFree, cellCross}})
@@ -99,14 +98,14 @@ func TestCoopBoard(t *testing.T) {
 	// Invalid operations.
 	for _, op := range [][4]int{{0, 0, 0, 1}, {9, -1, 0, 1}, {9, 25, 0, 1}, {9, 0, 0, 3}, {9, 0, 1, 1}} {
 		_, err = pm.Mark(code, ann, 1, [][4]int{op})
-		wantStatus(t, err, http.StatusBadRequest)
+		wantKind(t, err, Invalid)
 	}
 	_, err = pm.Mark(code, ann, 1, make([][4]int, 51))
-	wantStatus(t, err, http.StatusBadRequest)
+	wantKind(t, err, Invalid)
 	_, err = pm.Mark(code, ann, 2, [][4]int{{9, 0, 0, 1}})
-	wantStatus(t, err, http.StatusConflict)
+	wantKind(t, err, Conflict)
 	_, err = pm.Mark(code, "nope", 1, [][4]int{{9, 0, 0, 1}})
-	wantStatus(t, err, http.StatusForbidden)
+	wantKind(t, err, Forbidden)
 }
 
 func TestCoopSolve(t *testing.T) {
@@ -134,7 +133,7 @@ func TestCoopSolve(t *testing.T) {
 		}
 	}
 	_, err = pm.Mark(code, toks[0], 1, [][4]int{{9, 0, cellFree, cellCross}})
-	wantStatus(t, err, http.StatusConflict)
+	wantKind(t, err, Conflict)
 }
 
 func TestCoopWrongStarsNotSolved(t *testing.T) {
@@ -180,7 +179,7 @@ func TestCoopVote(t *testing.T) {
 	if s := snap(t, pm, code, ""); s.Phase != PhasePlaying {
 		t.Fatalf("phase %s while Cid is present", s.Phase)
 	}
-	clk.add(partyAbsentAfter + time.Second)
+	clk.add(absentAfter + time.Second)
 	pm.Tick()
 	s = snap(t, pm, code, "")
 	if s.Phase != PhaseResults {
@@ -191,7 +190,7 @@ func TestCoopVote(t *testing.T) {
 			t.Fatalf("entry %+v", e)
 		}
 	}
-	wantStatus(t, pm.Vote(code, toks[0], 1, true), http.StatusConflict)
+	wantKind(t, pm.Vote(code, toks[0], 1, true), Conflict)
 }
 
 func TestCoopLateJoin(t *testing.T) {
@@ -218,12 +217,12 @@ func TestCoopLateJoin(t *testing.T) {
 	}
 }
 
-func TestCoopRoundData(t *testing.T) {
+func TestCoopPage(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, _ := startRoundMode(t, pm, clk, ModeCoop, "Ann")
-	d, err := pm.RoundData(code, 1, 0)
+	pg, err := pm.Page(code, 1, 0)
 	must(t, err)
-	if d.Party == nil || d.Party.Mode != ModeCoop {
-		t.Fatalf("party info %+v", d.Party)
+	if pg.Mode != ModeCoop || pg.K != 0 {
+		t.Fatalf("page %+v", pg)
 	}
 }

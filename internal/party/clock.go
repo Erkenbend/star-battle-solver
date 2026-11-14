@@ -1,13 +1,9 @@
-package web
+package party
 
 import (
 	"cmp"
-	"fmt"
-	"net/http"
 	"slices"
 	"time"
-
-	"starbattle/internal/solver"
 )
 
 // Rounds against the clock ("Gegen die Uhr"): every participant solves as
@@ -64,12 +60,11 @@ func (c ClockRules) normalize(mode string) ClockRules {
 func (c ClockRules) duration() time.Duration { return time.Duration(c.Minutes) * time.Minute }
 
 // clockRound is the state of a round against the clock. It is guarded by
-// Parties.mu like the rest of the party.
+// Manager.mu like the rest of the party.
 type clockRound struct {
 	rules    ClockRules
 	deadline time.Time
-	seq      []*RoundPuzzle        // the round's puzzles so far, in order
-	data     map[int]*Data         // page data per index into seq, built on first request
+	seq      []*Puzzle             // the round's puzzles so far, in order
 	players  map[string]*clockTurn // participant ID → their state
 }
 
@@ -81,12 +76,11 @@ type clockTurn struct {
 	stars  int // right minus wrong stars on the current puzzle, as reported
 }
 
-func newClockRound(rules ClockRules, start time.Time, first *RoundPuzzle) *clockRound {
+func newClockRound(rules ClockRules, start time.Time, first *Puzzle) *clockRound {
 	return &clockRound{
 		rules:    rules,
 		deadline: start.Add(rules.duration()),
-		seq:      []*RoundPuzzle{first},
-		data:     map[int]*Data{},
+		seq:      []*Puzzle{first},
 		players:  map[string]*clockTurn{},
 	}
 }
@@ -128,7 +122,7 @@ func (p *Party) clockFeed() {
 // player with this token, who must be at puzzle k (from 1) of it, or past it
 // (past is true then). The round must have started, and the deadline may be
 // at most grace ago. pm.mu must be held.
-func (pm *Parties) clockAt(code, token string, num, k int, grace time.Duration) (p *Party, r *Round, t *clockTurn, past bool, err error) {
+func (pm *Manager) clockAt(code, token string, num, k int, grace time.Duration) (p *Party, r *Round, t *clockTurn, past bool, err error) {
 	p, pl, err := pm.player(code, token)
 	if err != nil {
 		return nil, nil, nil, false, err
@@ -138,30 +132,30 @@ func (pm *Parties) clockAt(code, token string, num, k int, grace time.Duration) 
 	}
 	c := r.clock
 	if c == nil {
-		return nil, nil, nil, false, partyErr(http.StatusConflict, "In dieser Party wird nicht gegen die Uhr gespielt.")
+		return nil, nil, nil, false, errorf(Conflict, "In dieser Party wird nicht gegen die Uhr gespielt.")
 	}
 	now := pm.now()
 	if now.Before(r.Start) {
-		return nil, nil, nil, false, partyErr(http.StatusConflict, "Die Runde hat noch nicht begonnen.")
+		return nil, nil, nil, false, errorf(Conflict, "Die Runde hat noch nicht begonnen.")
 	}
 	if !now.Before(c.deadline.Add(grace)) {
-		return nil, nil, nil, false, partyErr(http.StatusConflict, "Die Zeit ist um.")
+		return nil, nil, nil, false, errorf(Conflict, "Die Zeit ist um.")
 	}
 	t = c.turn(pl.ID)
 	switch {
 	case k-1 < t.idx:
 		return p, r, t, true, nil // e.g. a repeated request
 	case k-1 > t.idx:
-		return nil, nil, nil, false, partyErr(http.StatusConflict, "Bei Puzzle %d bist du noch nicht.", k)
+		return nil, nil, nil, false, errorf(Conflict, "Bei Puzzle %d bist du noch nicht.", k)
 	case t.idx >= len(c.seq):
-		return nil, nil, nil, false, partyErr(http.StatusConflict, "Puzzle %d wird noch vorbereitet.", k)
+		return nil, nil, nil, false, errorf(Conflict, "Puzzle %d wird noch vorbereitet.", k)
 	}
 	return p, r, t, false, nil
 }
 
 // ClockSolve records the player's solution (star column per row) of puzzle
 // k of round num and moves them on to the next one. Repeating it is harmless.
-func (pm *Parties) ClockSolve(code, token string, num, k int, stars []int) error {
+func (pm *Manager) ClockSolve(code, token string, num, k int, stars []int) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, r, t, past, err := pm.clockAt(code, token, num, k, clockGrace)
@@ -169,7 +163,7 @@ func (pm *Parties) ClockSolve(code, token string, num, k int, stars []int) error
 		return err
 	}
 	if !slices.Equal(stars, r.clock.seq[t.idx].Solution) {
-		return partyErr(http.StatusBadRequest, "Das ist nicht die Lösung.")
+		return errorf(Invalid, "Das ist nicht die Lösung.")
 	}
 	t.solved++
 	t.advance()
@@ -179,7 +173,7 @@ func (pm *Parties) ClockSolve(code, token string, num, k int, stars []int) error
 
 // ClockSkip moves the player on from puzzle k of round num without solving
 // it, if they have skips left.
-func (pm *Parties) ClockSkip(code, token string, num, k int) error {
+func (pm *Manager) ClockSkip(code, token string, num, k int) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, r, t, past, err := pm.clockAt(code, token, num, k, 0)
@@ -187,7 +181,7 @@ func (pm *Parties) ClockSkip(code, token string, num, k int) error {
 		return err
 	}
 	if lim := r.clock.rules.Skips; lim >= 0 && t.skips >= lim {
-		return partyErr(http.StatusConflict, "Du kannst nicht mehr überspringen.")
+		return errorf(Conflict, "Du kannst nicht mehr überspringen.")
 	}
 	t.skips++
 	t.advance()
@@ -197,7 +191,7 @@ func (pm *Parties) ClockSkip(code, token string, num, k int) error {
 
 // ClockProgress records the stars the player has set on puzzle k of round
 // num, as cell indices (row-major).
-func (pm *Parties) ClockProgress(code, token string, num, k int, cells []int) error {
+func (pm *Manager) ClockProgress(code, token string, num, k int, cells []int) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, r, t, past, err := pm.clockAt(code, token, num, k, clockGrace)
@@ -207,13 +201,13 @@ func (pm *Parties) ClockProgress(code, token string, num, k int, cells []int) er
 	rp := r.clock.seq[t.idx]
 	n := rp.N
 	if len(cells) > n*n {
-		return partyErr(http.StatusBadRequest, "Zu viele Sterne.")
+		return errorf(Invalid, "Zu viele Sterne.")
 	}
 	seen := map[int]bool{}
 	score := 0
 	for _, i := range cells {
 		if i < 0 || i >= n*n {
-			return partyErr(http.StatusBadRequest, "Ungültiges Feld.")
+			return errorf(Invalid, "Ungültiges Feld.")
 		}
 		if seen[i] {
 			continue
@@ -230,26 +224,6 @@ func (pm *Parties) ClockProgress(code, token string, num, k int, cells []int) er
 		pm.update(p)
 	}
 	return nil
-}
-
-// clockData returns the page data of puzzle k (from 1) of round r: without
-// solution and solving trace, there is no help against the clock.
-func (p *Party) clockData(r *Round, k int) (Data, error) {
-	c := r.clock
-	if k > len(c.seq) {
-		return Data{}, partyErr(http.StatusNotFound, "Puzzle %d von Runde %d gibt es (noch) nicht.", k, r.Num)
-	}
-	if c.data[k-1] == nil {
-		rp := c.seq[k-1]
-		d := Build(fmt.Sprintf("Party %s · Runde %d · Puzzle %d · %d×%d", p.Code, r.Num, k, rp.N, rp.N), rp.P, nil, solver.Result{})
-		d.Status, d.Steps = "pending", []Step{}
-		d.Served = true
-		d.Text = rp.P.String()
-		c.data[k-1] = &d
-	}
-	d := *c.data[k-1]
-	d.Party = &PartyInfo{Code: p.Code, Round: r.Num, Mode: p.Mode, Puzzle: k}
-	return d, nil
 }
 
 // ClockSnap is a party's play against the clock as sent to the players.

@@ -2,12 +2,81 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
+
+	"starbattle/internal/party"
+	"starbattle/internal/solver"
 )
+
+// NewParties returns the manager of the party mode for serve: sizes MinN to
+// MaxN, puzzles taken from pool (may be nil) if it has one ready, else
+// generated (with a new seed) and solved with solve.
+func NewParties(solve SolveFunc, pool *Pool) *party.Manager {
+	return party.New(party.Config{MinN: MinN, MaxN: MaxN, Prepare: partyPuzzle(solve, pool)})
+}
+
+// partyPuzzle returns the Prepare function of NewParties.
+func partyPuzzle(solve SolveFunc, pool *Pool) func(n int) (*party.Puzzle, error) {
+	return func(n int) (*party.Puzzle, error) {
+		if e := pool.takePuzzle(n); e != nil && e.sol != nil {
+			return &party.Puzzle{N: n, Seed: e.seed, P: e.p, Solution: e.sol, Res: e.res}, nil
+		}
+		seed := newSeed()
+		p, sol, err := generate(n, seed)
+		if err != nil {
+			return nil, err
+		}
+		if sol == nil {
+			return nil, fmt.Errorf("%d×%d Nr. %d: keine eindeutige Lösung", n, n, seed)
+		}
+		res, err := solve(p)
+		if err != nil {
+			return nil, err
+		}
+		return &party.Puzzle{N: n, Seed: seed, P: p, Solution: sol, Res: res}, nil
+	}
+}
+
+// roundData is the page data of a round's page. Against the clock it has
+// neither the solution nor the solving trace: there is no help.
+func roundData(pg party.Page) Data {
+	rp := pg.Puzzle
+	var d Data
+	if pg.Mode == party.ModeClock {
+		d = Build(fmt.Sprintf("Party %s · Runde %d · Puzzle %d · %d×%d", pg.Code, pg.Round, pg.K, rp.N, rp.N), rp.P, nil, solver.Result{})
+		d.Status, d.Steps = "pending", []Step{}
+	} else {
+		d = Build(fmt.Sprintf("Party %s · Runde %d · %d×%d", pg.Code, pg.Round, rp.N, rp.N), rp.P, rp.Solution, rp.Res)
+	}
+	d.Served = true
+	d.Text = rp.P.String()
+	d.Party = &PartyInfo{Code: pg.Code, Round: pg.Round, Mode: pg.Mode, Puzzle: pg.K}
+	return d
+}
+
+// errorStatus returns the HTTP status for an error of the party manager.
+func errorStatus(err error) int {
+	if pe, ok := errors.AsType[*party.Error](err); ok {
+		switch pe.Kind {
+		case party.NotFound:
+			return http.StatusNotFound
+		case party.Invalid:
+			return http.StatusBadRequest
+		case party.Forbidden:
+			return http.StatusForbidden
+		case party.Conflict:
+			return http.StatusConflict
+		case party.Busy:
+			return http.StatusServiceUnavailable
+		}
+	}
+	return http.StatusInternalServerError
+}
 
 // partyRoutes adds the party mode to mux:
 //
@@ -21,7 +90,7 @@ import (
 //	                               in coop mode mark, vote, and against the
 //	                               clock progress, solve, skip with "puzzle" (JSON)
 //	GET  /party/{code}/events      the party's state as server-sent events
-func partyRoutes(mux *http.ServeMux, pm *Parties) {
+func partyRoutes(mux *http.ServeMux, pm *party.Manager) {
 	mux.HandleFunc("GET /party", func(w http.ResponseWriter, r *http.Request) {
 		writeParty(w, http.StatusOK, PartyPage{})
 	})
@@ -36,9 +105,9 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 				sizes = append(sizes, n)
 			}
 		}
-		o := PartyOptions{Sizes: sizes, Mode: r.Form.Get("mode")}
+		o := party.Options{Sizes: sizes, Mode: r.Form.Get("mode")}
 		o.Clock.Minutes, _ = strconv.Atoi(r.Form.Get("minutes"))
-		o.Clock.Skips = ClockDefaultSkips
+		o.Clock.Skips = party.ClockDefaultSkips
 		if v, err := strconv.Atoi(r.Form.Get("skips")); err == nil {
 			o.Clock.Skips = v // negative: as many as you like
 		}
@@ -51,8 +120,8 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 	})
 	mux.HandleFunc("GET /party/{code}", func(w http.ResponseWriter, r *http.Request) {
 		code := r.PathValue("code")
-		if NormalizeCode(code) != code {
-			http.Redirect(w, r, "/party/"+NormalizeCode(code), http.StatusFound)
+		if party.NormalizeCode(code) != code {
+			http.Redirect(w, r, "/party/"+party.NormalizeCode(code), http.StatusFound)
 			return
 		}
 		if _, err := pm.Snapshot(code, ""); err != nil {
@@ -72,12 +141,12 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 			writeError(w, http.StatusNotFound, "Diese Runde gibt es nicht.", toParty...)
 			return
 		}
-		d, err := pm.RoundData(r.PathValue("code"), num, k)
+		pg, err := pm.Page(r.PathValue("code"), num, k)
 		if err != nil {
 			writeError(w, errorStatus(err), err.Error(), toParty...)
 			return
 		}
-		writePage(w, d)
+		writePage(w, roundData(pg))
 	}
 	mux.HandleFunc("GET /party/{code}/round/{num}", round)
 	mux.HandleFunc("GET /party/{code}/round/{num}/{k}", round)

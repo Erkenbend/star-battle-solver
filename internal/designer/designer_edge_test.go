@@ -1,4 +1,4 @@
-package web
+package designer
 
 import (
 	"net/http"
@@ -92,7 +92,7 @@ func TestSaveDesignErrors(t *testing.T) {
 }
 
 func TestDesignerBadRequests(t *testing.T) {
-	h := DesignerHandler(t.TempDir(), testSolve, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	for _, path := range []string{"/api/check", "/api/complete", "/api/save"} {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{kaputt"))
 		rec := httptest.NewRecorder()

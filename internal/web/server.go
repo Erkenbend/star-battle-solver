@@ -11,6 +11,7 @@ import (
 
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/generator"
+	"starbattle/internal/party"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
 )
@@ -40,7 +41,7 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 // With libraries (may be none), /bibliothek serves them (library.go). With a
 // symbol catalog (may be nil), /einstellungen lets players choose the symbol
 // of their stars (symbols.go). /anleitung is the tutorial (tutorial.go).
-func Handler(solve SolveFunc, pool *Pool, parties *Parties, libs []*Library, syms *Symbols) http.Handler {
+func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Library, syms *Symbols) http.Handler {
 	mux := http.NewServeMux()
 	if parties != nil {
 		partyRoutes(mux, parties)

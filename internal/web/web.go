@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net/http"
 	"strings"
 
 	"starbattle/internal/board"
@@ -41,12 +42,6 @@ var libraryHTML string
 //go:embed assets/library.js
 var libraryJS string
 
-//go:embed assets/designer.html
-var designerHTML string
-
-//go:embed assets/designer.js
-var designerJS string
-
 //go:embed assets/error.html
 var errorHTML string
 
@@ -72,7 +67,7 @@ type Data struct {
 	Served bool   `json:"served,omitempty"`
 	Text   string `json:"text,omitempty"` // the puzzle in the text format
 
-	// Set for a round of a party (see party.go).
+	// Set for a round of a party (see party_server.go).
 	Party *PartyInfo `json:"party,omitempty"`
 
 	// Set for a puzzle of the library (see library.go): no help while solving.
@@ -86,7 +81,7 @@ type Data struct {
 type PartyInfo struct {
 	Code   string `json:"code"`
 	Round  int    `json:"round"`
-	Mode   string `json:"mode"`             // ModeVersus, ModeCoop or ModeClock
+	Mode   string `json:"mode"`             // party.ModeVersus, ModeCoop or ModeClock
 	Puzzle int    `json:"puzzle,omitempty"` // ModeClock: which of the round's puzzles, from 1
 }
 
@@ -214,6 +209,16 @@ func WriteError(w io.Writer, title, msg string, links ...Link) error {
 	return err
 }
 
+// ServePage sends a page of the site built from tmpl, a template like
+// assets/page.html: with the site's style, d as its data, app.js and then
+// script (the page's own, e.g. the designer's).
+func ServePage(w http.ResponseWriter, tmpl, title string, d any, script string) {
+	writeHTML(w, http.StatusOK, func(b io.Writer) error { return render(b, tmpl, title, d, appJS, script) })
+}
+
+// render fills tmpl: title, the style, d as JSON, then the scripts app and
+// party (in the slot of the party script, which other pages use for their
+// own).
 func render(w io.Writer, tmpl, title string, d any, app, party string) error {
 	data, err := json.Marshal(d) // escapes <, > and &, so it is safe inside <script>
 	if err != nil {

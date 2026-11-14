@@ -251,7 +251,7 @@ const Logic = (() => {
   // [num, i, from, to]: cell i, seen as from, becomes to. It applies if the
   // cell still is from, is fine if it already is to, and is rejected
   // otherwise, so a change never overwrites one made meanwhile by somebody
-  // else (the same rule as the server, coop.go).
+  // else (the same rule as the server, internal/party/coop.go).
   // applyOps returns a copy of cells with ops applied and the numbers of the
   // rejected ones.
   function applyOps(cells, ops) {
@@ -1777,7 +1777,7 @@ function boot() {
   }
 
   // ---------- coop mode: one board for all (d.party.mode "coop") ----------
-  // The server keeps the board and orders everybody's changes (coop.go). We
+  // The server keeps the board and orders everybody's changes (internal/party/coop.go). We
   // show its board plus our own changes not yet confirmed (pending), so input
   // never waits for the network. Changes are operations [num, i, from, to]
   // (L.applyOps): a change based on an outdated view of a cell is rejected

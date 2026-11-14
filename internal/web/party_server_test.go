@@ -4,13 +4,152 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"starbattle/internal/party"
+	"starbattle/internal/puzzle"
+	"starbattle/internal/solver"
 )
+
+// testClock is a settable clock, safe for the preparation goroutines.
+type testClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *testClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *testClock) add(d time.Duration) {
+	c.mu.Lock()
+	c.t = c.t.Add(d)
+	c.mu.Unlock()
+}
+
+var (
+	testPuzzlesMu sync.Mutex
+	testPuzzles   = map[int]*party.Puzzle{}
+)
+
+// testPuzzle returns a generated and solved n×n puzzle, the same for all tests.
+func testPuzzle(t *testing.T, n int) *party.Puzzle {
+	testPuzzlesMu.Lock()
+	defer testPuzzlesMu.Unlock()
+	if rp := testPuzzles[n]; rp != nil {
+		return rp
+	}
+	for seed := uint64(1); ; seed++ {
+		p, sol, err := generate(n, seed)
+		if err != nil || sol == nil {
+			continue
+		}
+		res, _ := testSolve(p)
+		rp := &party.Puzzle{N: n, Seed: seed, P: p, Solution: sol, Res: res}
+		testPuzzles[n] = rp
+		return rp
+	}
+}
+
+// newTestParties returns a party manager with a settable clock, whose rounds
+// do not end on time by themselves, and that prepares testPuzzle.
+func newTestParties(t *testing.T) (*party.Manager, *testClock) {
+	t.Helper()
+	clk := &testClock{t: time.Date(2026, 11, 7, 20, 0, 0, 0, time.UTC)}
+	pm := party.New(party.Config{
+		MinN:       MinN,
+		MaxN:       MaxN,
+		Prepare:    func(n int) (*party.Puzzle, error) { return testPuzzle(t, n), nil },
+		Now:        clk.now,
+		RetryDelay: time.Nanosecond,
+		After:      func(time.Duration, func()) {},
+	})
+	return pm, clk
+}
+
+// waitPrepared waits until the party has its next puzzle ready.
+func waitPrepared(t *testing.T, pm *party.Manager, code string) {
+	t.Helper()
+	waitFor(t, func() bool { return !snap(t, pm, code, "").Preparing })
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !cond(); {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustJoin(t *testing.T, pm *party.Manager, code, name string) string {
+	t.Helper()
+	tok, _, err := pm.Join(code, name, "")
+	must(t, err)
+	return tok
+}
+
+func snap(t *testing.T, pm *party.Manager, code, tok string) party.Snapshot {
+	t.Helper()
+	s, err := pm.Snapshot(code, tok)
+	must(t, err)
+	return s
+}
+
+// solutionCells returns the cells of the stars of rp's solution.
+func solutionCells(rp *party.Puzzle) []int {
+	var out []int
+	for r, c := range rp.Solution {
+		out = append(out, r*rp.N+c)
+	}
+	return out
+}
+
+// TestPartyPuzzle: the puzzles for parties come from the pool or are
+// generated and solved.
+func TestPartyPuzzle(t *testing.T) {
+	rp, err := partyPuzzle(testSolve, nil)(5)
+	if err != nil || rp.P.N != 5 || len(rp.Solution) != 5 || rp.Res.Status != solver.Solved {
+		t.Fatalf("got %+v, %v", rp, err)
+	}
+	failing := func(*puzzle.Puzzle) (solver.Result, error) { return solver.Result{}, errors.New("kaputt") }
+	if _, err := partyPuzzle(failing, nil)(5); err == nil || err.Error() != "kaputt" {
+		t.Fatalf("solve error: got %v", err)
+	}
+}
+
+func TestErrorStatus(t *testing.T) {
+	for err, want := range map[error]int{
+		&party.Error{Kind: party.NotFound}:  http.StatusNotFound,
+		&party.Error{Kind: party.Invalid}:   http.StatusBadRequest,
+		&party.Error{Kind: party.Forbidden}: http.StatusForbidden,
+		&party.Error{Kind: party.Conflict}:  http.StatusConflict,
+		&party.Error{Kind: party.Busy}:      http.StatusServiceUnavailable,
+		errors.New("other"):                 http.StatusInternalServerError,
+	} {
+		if got := errorStatus(err); got != want {
+			t.Errorf("errorStatus(%v) = %d, want %d", err, got, want)
+		}
+	}
+}
 
 // postJSON posts body as JSON to h and decodes the reply into out (may be nil).
 func postJSON(t *testing.T, h http.Handler, path string, body any, out any) int {
@@ -74,9 +213,9 @@ func TestPartyServer(t *testing.T) {
 
 	// Join, ready: the round starts.
 	var joined struct {
-		Token    string   `json:"token"`
-		ID       string   `json:"id"`
-		Snapshot Snapshot `json:"snapshot"`
+		Token    string         `json:"token"`
+		ID       string         `json:"id"`
+		Snapshot party.Snapshot `json:"snapshot"`
 	}
 	if c := postJSON(t, h, loc+"/join", map[string]any{"name": "Anna"}, &joined); c != http.StatusOK || joined.Token == "" || joined.Snapshot.You != joined.ID {
 		t.Fatalf("join: %d %+v", c, joined)
@@ -97,8 +236,8 @@ func TestPartyServer(t *testing.T) {
 		t.Fatalf("round page before the round: %d", rec.Code)
 	}
 	waitPrepared(t, pm, code)
-	var ready struct{ Snapshot Snapshot }
-	if c := postJSON(t, h, loc+"/ready", map[string]any{"token": joined.Token, "ready": true}, &ready); c != http.StatusOK || ready.Snapshot.Phase != PhasePlaying {
+	var ready struct{ Snapshot party.Snapshot }
+	if c := postJSON(t, h, loc+"/ready", map[string]any{"token": joined.Token, "ready": true}, &ready); c != http.StatusOK || ready.Snapshot.Phase != party.PhasePlaying {
 		t.Fatalf("ready: %d %+v", c, ready.Snapshot)
 	}
 
@@ -119,7 +258,7 @@ func TestPartyServer(t *testing.T) {
 		}
 	}
 
-	clk.add(partyCountdown)
+	clk.add(party.Countdown)
 	if c := postJSON(t, h, loc+"/progress", map[string]any{"token": joined.Token, "round": 1, "count": 2, "hints": 1}, nil); c != http.StatusOK {
 		t.Fatalf("progress: %d", c)
 	}
@@ -127,14 +266,14 @@ func TestPartyServer(t *testing.T) {
 		t.Fatalf("wrong solution: %d", c)
 	}
 	var solved struct {
-		Result   Result
-		Snapshot Snapshot
+		Result   party.Result
+		Snapshot party.Snapshot
 	}
 	sol := testPuzzle(t, 5).Solution
-	if c := postJSON(t, h, loc+"/solve", map[string]any{"token": joined.Token, "round": 1, "stars": sol}, &solved); c != http.StatusOK || !solved.Result.Solved || solved.Result.Hints != 1 || solved.Snapshot.Phase != PhaseResults {
+	if c := postJSON(t, h, loc+"/solve", map[string]any{"token": joined.Token, "round": 1, "stars": sol}, &solved); c != http.StatusOK || !solved.Result.Solved || solved.Result.Hints != 1 || solved.Snapshot.Phase != party.PhaseResults {
 		t.Fatalf("solve: %d %+v", c, solved)
 	}
-	var left struct{ Snapshot Snapshot }
+	var left struct{ Snapshot party.Snapshot }
 	if c := postJSON(t, h, loc+"/leave", map[string]any{"token": joined.Token}, &left); c != http.StatusOK || left.Snapshot.You != "" || len(left.Snapshot.Players) != 0 {
 		t.Fatalf("leave: %d %+v", c, left.Snapshot)
 	}
@@ -144,7 +283,7 @@ func TestPartyEvents(t *testing.T) {
 	pm, _ := newTestParties(t)
 	srv := httptest.NewServer(Handler(testSolve, nil, pm, nil, nil))
 	defer srv.Close()
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
+	code, err := pm.Create(party.Options{Sizes: []int{5}, Mode: ""})
 	must(t, err)
 	tok := mustJoin(t, pm, code, "Anna")
 
@@ -161,17 +300,17 @@ func TestPartyEvents(t *testing.T) {
 		t.Fatalf("content type %q", ct)
 	}
 	sc := bufio.NewScanner(res.Body)
-	next := func() Snapshot {
+	next := func() party.Snapshot {
 		t.Helper()
 		for sc.Scan() {
 			if data, ok := strings.CutPrefix(sc.Text(), "data: "); ok {
-				var s Snapshot
+				var s party.Snapshot
 				must(t, json.Unmarshal([]byte(data), &s))
 				return s
 			}
 		}
 		t.Fatalf("stream ended: %v", sc.Err())
-		return Snapshot{}
+		return party.Snapshot{}
 	}
 	if s := next(); s.Code != code || s.You == "" || len(s.Players) != 1 {
 		t.Fatalf("first event %+v", s)
@@ -180,13 +319,10 @@ func TestPartyEvents(t *testing.T) {
 	for s := next(); len(s.Players) != 2; s = next() {
 	}
 
+	// Closing the stream unsubscribes it (party.Manager.Subscribe tests that
+	// the player's connection count goes with it).
 	cancel()
-	waitFor(t, func() bool {
-		pm.mu.Lock()
-		defer pm.mu.Unlock()
-		p := pm.parties[code]
-		return len(p.subs) == 0 && p.players[0].conns == 0
-	})
+	waitFor(t, func() bool { return pm.Subscribers(code) == 0 })
 }
 
 func TestCoopServer(t *testing.T) {
@@ -199,21 +335,21 @@ func TestCoopServer(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	loc := rec.Header().Get("Location")
 	code := strings.TrimPrefix(loc, "/party/")
-	if rec.Code != http.StatusSeeOther || snap(t, pm, code, "").Mode != ModeCoop {
+	if rec.Code != http.StatusSeeOther || snap(t, pm, code, "").Mode != party.ModeCoop {
 		t.Fatalf("create: %d %q", rec.Code, loc)
 	}
 	waitPrepared(t, pm, code)
 	var joined struct{ Token string }
 	postJSON(t, h, loc+"/join", map[string]any{"name": "Anna"}, &joined)
 	postJSON(t, h, loc+"/ready", map[string]any{"token": joined.Token, "ready": true}, nil)
-	if d := pageData(t, get(h, loc+"/round/1").Body.String()); d.Party == nil || d.Party.Mode != ModeCoop {
+	if d := pageData(t, get(h, loc+"/round/1").Body.String()); d.Party == nil || d.Party.Mode != party.ModeCoop {
 		t.Fatalf("round page data: %+v", d.Party)
 	}
-	clk.add(partyCountdown)
+	clk.add(party.Countdown)
 
 	var marked struct {
 		Rejected []int
-		Snapshot Snapshot
+		Snapshot party.Snapshot
 	}
 	ops := [][4]int{{1, 0, 0, 1}, {2, 0, 2, 0}}
 	if c := postJSON(t, h, loc+"/mark", map[string]any{"token": joined.Token, "round": 1, "ops": ops}, &marked); c != http.StatusOK ||
@@ -228,8 +364,92 @@ func TestCoopServer(t *testing.T) {
 	if c := postJSON(t, h, loc+"/mark", map[string]any{"token": joined.Token, "round": 1, "ops": big}, nil); c != http.StatusOK {
 		t.Fatalf("big mark: %d", c)
 	}
-	var voted struct{ Snapshot Snapshot }
-	if c := postJSON(t, h, loc+"/vote", map[string]any{"token": joined.Token, "round": 1, "giveUp": true}, &voted); c != http.StatusOK || voted.Snapshot.Phase != PhaseResults {
+	var voted struct{ Snapshot party.Snapshot }
+	if c := postJSON(t, h, loc+"/vote", map[string]any{"token": joined.Token, "round": 1, "giveUp": true}, &voted); c != http.StatusOK || voted.Snapshot.Phase != party.PhaseResults {
 		t.Fatalf("vote: %d %+v", c, voted.Snapshot)
+	}
+}
+
+func TestClockServer(t *testing.T) {
+	pm, clk := newTestParties(t) // the round does not end on time by itself
+	h := Handler(testSolve, nil, pm, nil, nil)
+
+	form := url.Values{"n": {"5"}, "mode": {"clock"}, "minutes": {"2"}, "skips": {"-1"}}
+	req := httptest.NewRequest("POST", "/party", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	code := strings.TrimPrefix(rec.Header().Get("Location"), "/party/")
+	s := snap(t, pm, code, "")
+	if s.Mode != party.ModeClock || s.Clock.Minutes != 2 || s.Clock.Skips != -1 {
+		t.Fatalf("created %+v, clock %+v", s, s.Clock)
+	}
+	waitPrepared(t, pm, code)
+
+	var joined struct {
+		Token string `json:"token"`
+	}
+	if st := postJSON(t, h, "/party/"+code+"/join", map[string]any{"name": "Ada"}, &joined); st != http.StatusOK {
+		t.Fatalf("join: %d", st)
+	}
+	tok := joined.Token
+	if st := postJSON(t, h, "/party/"+code+"/ready", map[string]any{"token": tok, "ready": true}, nil); st != http.StatusOK {
+		t.Fatalf("ready: %d", st)
+	}
+	clk.add(party.Countdown)
+
+	get := func(path string) int {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+		return rec.Code
+	}
+	for path, want := range map[string]int{
+		"/party/" + code + "/round/1":   http.StatusOK,
+		"/party/" + code + "/round/1/1": http.StatusOK,
+		"/party/" + code + "/round/1/2": http.StatusNotFound,
+		"/party/" + code + "/round/1/0": http.StatusNotFound,
+		"/party/" + code + "/round/1/x": http.StatusNotFound,
+	} {
+		if got := get(path); got != want {
+			t.Errorf("GET %s: %d, want %d", path, got, want)
+		}
+	}
+
+	// The page shows the puzzle, but neither its solution nor the trace.
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/party/"+code+"/round/1/1", nil))
+	d := pageData(t, rec.Body.String())
+	if d.Solution != nil || len(d.Steps) != 0 || d.Status != "pending" || d.Party.Puzzle != 1 || d.Party.Mode != party.ModeClock {
+		t.Fatalf("page data %+v, party %+v", d, d.Party)
+	}
+	if !strings.Contains(d.Title, "Puzzle 1") {
+		t.Errorf("title %q", d.Title)
+	}
+
+	rp := testPuzzle(t, 5)
+	var out struct {
+		Snapshot party.Snapshot `json:"snapshot"`
+	}
+	if st := postJSON(t, h, "/party/"+code+"/progress", map[string]any{"token": tok, "round": 1, "puzzle": 1, "cells": solutionCells(rp)[:3]}, &out); st != http.StatusOK {
+		t.Fatalf("progress: %d", st)
+	}
+	if out.Snapshot.Ranking[0].Stars != 3 {
+		t.Fatalf("stars %+v", out.Snapshot.Ranking[0])
+	}
+	if st := postJSON(t, h, "/party/"+code+"/solve", map[string]any{"token": tok, "round": 1, "puzzle": 1, "stars": rp.Solution}, &out); st != http.StatusOK {
+		t.Fatalf("solve: %d", st)
+	}
+	waitFor(t, func() bool { return len(snap(t, pm, code, "").Clock.Sizes) == 2 })
+	if st := postJSON(t, h, "/party/"+code+"/skip", map[string]any{"token": tok, "round": 1, "puzzle": 2}, &out); st != http.StatusOK {
+		t.Fatalf("skip: %d", st)
+	}
+	if e := out.Snapshot.Ranking[0]; e.Solved != 1 || e.Skips != 1 || e.Puzzle != 3 {
+		t.Fatalf("after solve and skip: %+v", e)
+	}
+	if got := get("/party/" + code + "/round/1/2"); got != http.StatusOK {
+		t.Fatalf("puzzle 2: %d", got)
 	}
 }

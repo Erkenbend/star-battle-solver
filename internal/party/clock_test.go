@@ -1,10 +1,6 @@
-package web
+package party
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,7 +9,7 @@ import (
 // startClock starts a 5×5 round against the clock with the named players,
 // all ready, and moves the clock past the countdown. It returns the code,
 // the tokens and the function that ends the round on time.
-func startClock(t *testing.T, pm *Parties, clk *testClock, rules ClockRules, names ...string) (string, []string, func()) {
+func startClock(t *testing.T, pm *Manager, clk *testClock, rules ClockRules, names ...string) (string, []string, func()) {
 	t.Helper()
 	var mu sync.Mutex
 	var onTime func()
@@ -23,7 +19,7 @@ func startClock(t *testing.T, pm *Parties, clk *testClock, rules ClockRules, nam
 		defer mu.Unlock()
 		wait, onTime = d, f
 	}
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ModeClock, Clock: rules})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ModeClock, Clock: rules})
 	must(t, err)
 	waitPrepared(t, pm, code)
 	var toks []string
@@ -37,17 +33,17 @@ func startClock(t *testing.T, pm *Parties, clk *testClock, rules ClockRules, nam
 		t.Fatalf("phase %s, want playing", s.Phase)
 	}
 	mu.Lock()
-	if want := partyCountdown + time.Duration(rules.Minutes)*time.Minute; wait != want || onTime == nil {
+	if want := Countdown + time.Duration(rules.Minutes)*time.Minute; wait != want || onTime == nil {
 		t.Fatalf("round ends after %v, want %v", wait, want)
 	}
 	f := onTime
 	mu.Unlock()
-	clk.add(partyCountdown)
+	clk.add(Countdown)
 	return code, toks, f
 }
 
 // solutionCells returns the cells of the stars of rp's solution.
-func solutionCells(rp *RoundPuzzle) []int {
+func solutionCells(rp *Puzzle) []int {
 	var out []int
 	for r, c := range rp.Solution {
 		out = append(out, r*rp.N+c)
@@ -84,7 +80,7 @@ func TestClockRules(t *testing.T) {
 	}
 
 	pm, _ := newTestParties(t)
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ModeClock, Clock: ClockRules{10, 3}})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ModeClock, Clock: ClockRules{10, 3}})
 	must(t, err)
 	s := snap(t, pm, code, "")
 	if s.Mode != ModeClock || s.Clock == nil || s.Clock.Minutes != 10 || s.Clock.Skips != 3 || len(s.Clock.Sizes) != 0 {
@@ -100,7 +96,7 @@ func TestClockRules(t *testing.T) {
 	if s := snap(t, pm, code, ""); s.Clock == nil {
 		t.Fatal("no rules in the snapshot")
 	}
-	versus, err := pm.Create(PartyOptions{Sizes: []int{5}})
+	versus, err := pm.Create(Options{Sizes: []int{5}})
 	must(t, err)
 	if s := snap(t, pm, versus, ""); s.Clock != nil {
 		t.Fatalf("versus party with clock %+v", s.Clock)
@@ -122,32 +118,31 @@ func TestClockRound(t *testing.T) {
 		t.Fatalf("puzzles %v", s.Clock.Sizes)
 	}
 
-	// The page shows the puzzle, but neither its solution nor the trace.
-	d, err := pm.RoundData(code, 1, 1)
-	must(t, err)
-	if d.Solution != nil || len(d.Steps) != 0 || d.Status != "pending" || d.Party.Puzzle != 1 || d.Party.Mode != ModeClock {
-		t.Fatalf("page data %+v, party %+v", d, d.Party)
+	// Page 0 is page 1; page 2 needs somebody to get there.
+	for _, k := range []int{0, 1} {
+		pg, err := pm.Page(code, 1, k)
+		must(t, err)
+		if pg.K != 1 || pg.Mode != ModeClock || pg.Puzzle != rp {
+			t.Fatalf("page %d: %+v", k, pg)
+		}
 	}
-	if !strings.Contains(d.Title, "Puzzle 1") {
-		t.Errorf("title %q", d.Title)
-	}
-	if _, err := pm.RoundData(code, 1, 2); err == nil {
+	if _, err := pm.Page(code, 1, 2); err == nil {
 		t.Fatal("puzzle 2 before anybody got there")
 	}
 
 	// Versus actions do not apply.
-	wantStatus(t, pm.Progress(code, a, 1, 2, 0), http.StatusConflict)
-	_, err = pm.Solve(code, a, 1, rp.Solution, 0)
-	wantStatus(t, err, http.StatusConflict)
-	wantStatus(t, pm.GiveUp(code, a, 1, 0), http.StatusConflict)
+	wantKind(t, pm.Progress(code, a, 1, 2, 0), Conflict)
+	_, err := pm.Solve(code, a, 1, rp.Solution, 0)
+	wantKind(t, err, Conflict)
+	wantKind(t, pm.GiveUp(code, a, 1, 0), Conflict)
 
 	// Ada solves the first puzzle and gets the second.
 	wrong := append([]int{}, rp.Solution...)
 	wrong[0], wrong[1] = wrong[1], wrong[0]
-	wantStatus(t, pm.ClockSolve(code, a, 1, 1, wrong), http.StatusBadRequest)
+	wantKind(t, pm.ClockSolve(code, a, 1, 1, wrong), Invalid)
 	must(t, pm.ClockSolve(code, a, 1, 1, rp.Solution))
 	must(t, pm.ClockSolve(code, a, 1, 1, rp.Solution)) // repeated: harmless
-	wantStatus(t, pm.ClockSolve(code, a, 1, 3, rp.Solution), http.StatusConflict)
+	wantKind(t, pm.ClockSolve(code, a, 1, 3, rp.Solution), Conflict)
 	s = snap(t, pm, code, a)
 	if e := entry(t, s, ida); e.Puzzle != 2 || e.Solved != 1 {
 		t.Fatalf("after solving: %+v", e)
@@ -155,7 +150,7 @@ func TestClockRound(t *testing.T) {
 	if len(s.Clock.Sizes) != 2 {
 		t.Fatalf("puzzles %v, want 2", s.Clock.Sizes)
 	}
-	if _, err := pm.RoundData(code, 1, 2); err != nil {
+	if _, err := pm.Page(code, 1, 2); err != nil {
 		t.Fatal(err)
 	}
 
@@ -166,7 +161,7 @@ func TestClockRound(t *testing.T) {
 		bad = sol[0] - 1
 	}
 	must(t, pm.ClockProgress(code, b, 1, 1, []int{sol[0], sol[1], bad, sol[1]}))
-	wantStatus(t, pm.ClockProgress(code, b, 1, 1, []int{25}), http.StatusBadRequest)
+	wantKind(t, pm.ClockProgress(code, b, 1, 1, []int{25}), Invalid)
 	if e := entry(t, snap(t, pm, code, b), idb); e.Stars != 1 {
 		t.Fatalf("Bob's stars %d, want 1", e.Stars)
 	}
@@ -178,7 +173,7 @@ func TestClockRound(t *testing.T) {
 
 	// One skip each.
 	must(t, pm.ClockSkip(code, b, 1, 1))
-	wantStatus(t, pm.ClockSkip(code, b, 1, 2), http.StatusConflict)
+	wantKind(t, pm.ClockSkip(code, b, 1, 2), Conflict)
 	if e := entry(t, snap(t, pm, code, b), idb); e.Puzzle != 2 || e.Skips != 1 || e.Stars != 0 {
 		t.Fatalf("Bob after skipping: %+v", e)
 	}
@@ -193,13 +188,13 @@ func TestClockRound(t *testing.T) {
 	}
 	// Reports arriving a little late still count, skips do not.
 	must(t, pm.ClockProgress(code, a, 1, 2, sol[:2]))
-	wantStatus(t, pm.ClockSkip(code, a, 1, 2), http.StatusConflict)
+	wantKind(t, pm.ClockSkip(code, a, 1, 2), Conflict)
 	s = snap(t, pm, code, a)
 	if e := s.Ranking[0]; e.ID != ida || e.Status != "done" || e.Solved != 1 || e.Stars != 2 {
 		t.Fatalf("winner %+v", e)
 	}
 	clk.add(clockGrace)
-	wantStatus(t, pm.ClockProgress(code, a, 1, 2, sol), http.StatusConflict)
+	wantKind(t, pm.ClockProgress(code, a, 1, 2, sol), Conflict)
 
 	// Ready for the next round, as in the other modes (Bob first: by now he
 	// counts as absent, and Ada alone would start without him).
@@ -236,26 +231,26 @@ func TestClockWaitsForPuzzle(t *testing.T) {
 	pm, clk := newTestParties(t)
 	gate := make(chan struct{})
 	defer close(gate)
-	pm.prepare = func(n int) (*RoundPuzzle, error) {
+	pm.prepare = func(n int) (*Puzzle, error) {
 		<-gate
 		return testPuzzle(t, n), nil
 	}
 	pm.after = func(time.Duration, func()) {}
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ModeClock, Clock: ClockRules{5, 0}})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ModeClock, Clock: ClockRules{5, 0}})
 	must(t, err)
 	gate <- struct{}{}
 	waitPrepared(t, pm, code)
 	a := mustJoin(t, pm, code, "Ada")
 	must(t, pm.SetReady(code, a, true))
-	clk.add(partyCountdown)
+	clk.add(Countdown)
 	rp := testPuzzle(t, 5)
 	must(t, pm.ClockSolve(code, a, 1, 1, rp.Solution))
 	s := snap(t, pm, code, a)
 	if e := entry(t, s, s.You); e.Puzzle != 2 || len(s.Clock.Sizes) != 1 {
 		t.Fatalf("waiting: %+v, puzzles %v", e, s.Clock.Sizes)
 	}
-	wantStatus(t, pm.ClockSolve(code, a, 1, 2, rp.Solution), http.StatusConflict)
-	wantStatus(t, pm.ClockSkip(code, a, 1, 2), http.StatusConflict)
+	wantKind(t, pm.ClockSolve(code, a, 1, 2, rp.Solution), Conflict)
+	wantKind(t, pm.ClockSkip(code, a, 1, 2), Conflict)
 	gate <- struct{}{}
 	waitFor(t, func() bool { return len(snap(t, pm, code, a).Clock.Sizes) == 2 })
 	must(t, pm.ClockSolve(code, a, 1, 2, rp.Solution))
@@ -276,80 +271,6 @@ func TestClockLateJoin(t *testing.T) {
 func TestClockOnlyInClockMode(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, toks := startRound(t, pm, clk, "Ada")
-	wantStatus(t, pm.ClockSolve(code, toks[0], 1, 1, testPuzzle(t, 5).Solution), http.StatusConflict)
-	wantStatus(t, pm.ClockSkip(code, toks[0], 1, 1), http.StatusConflict)
-}
-
-func TestClockServer(t *testing.T) {
-	pm, clk := newTestParties(t)
-	pm.after = func(time.Duration, func()) {}
-	h := Handler(testSolve, nil, pm, nil, nil)
-
-	form := url.Values{"n": {"5"}, "mode": {"clock"}, "minutes": {"2"}, "skips": {"-1"}}
-	req := httptest.NewRequest("POST", "/party", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("create: %d %s", rec.Code, rec.Body)
-	}
-	code := strings.TrimPrefix(rec.Header().Get("Location"), "/party/")
-	s := snap(t, pm, code, "")
-	if s.Mode != ModeClock || s.Clock.Minutes != 2 || s.Clock.Skips != -1 {
-		t.Fatalf("created %+v, clock %+v", s, s.Clock)
-	}
-	waitPrepared(t, pm, code)
-
-	var joined struct {
-		Token string `json:"token"`
-	}
-	if st := postJSON(t, h, "/party/"+code+"/join", map[string]any{"name": "Ada"}, &joined); st != http.StatusOK {
-		t.Fatalf("join: %d", st)
-	}
-	tok := joined.Token
-	if st := postJSON(t, h, "/party/"+code+"/ready", map[string]any{"token": tok, "ready": true}, nil); st != http.StatusOK {
-		t.Fatalf("ready: %d", st)
-	}
-	clk.add(partyCountdown)
-
-	get := func(path string) int {
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
-		return rec.Code
-	}
-	for path, want := range map[string]int{
-		"/party/" + code + "/round/1":   http.StatusOK,
-		"/party/" + code + "/round/1/1": http.StatusOK,
-		"/party/" + code + "/round/1/2": http.StatusNotFound,
-		"/party/" + code + "/round/1/0": http.StatusNotFound,
-		"/party/" + code + "/round/1/x": http.StatusNotFound,
-	} {
-		if got := get(path); got != want {
-			t.Errorf("GET %s: %d, want %d", path, got, want)
-		}
-	}
-
-	rp := testPuzzle(t, 5)
-	var out struct {
-		Snapshot Snapshot `json:"snapshot"`
-	}
-	if st := postJSON(t, h, "/party/"+code+"/progress", map[string]any{"token": tok, "round": 1, "puzzle": 1, "cells": solutionCells(rp)[:3]}, &out); st != http.StatusOK {
-		t.Fatalf("progress: %d", st)
-	}
-	if out.Snapshot.Ranking[0].Stars != 3 {
-		t.Fatalf("stars %+v", out.Snapshot.Ranking[0])
-	}
-	if st := postJSON(t, h, "/party/"+code+"/solve", map[string]any{"token": tok, "round": 1, "puzzle": 1, "stars": rp.Solution}, &out); st != http.StatusOK {
-		t.Fatalf("solve: %d", st)
-	}
-	waitFor(t, func() bool { return len(snap(t, pm, code, "").Clock.Sizes) == 2 })
-	if st := postJSON(t, h, "/party/"+code+"/skip", map[string]any{"token": tok, "round": 1, "puzzle": 2}, &out); st != http.StatusOK {
-		t.Fatalf("skip: %d", st)
-	}
-	if e := out.Snapshot.Ranking[0]; e.Solved != 1 || e.Skips != 1 || e.Puzzle != 3 {
-		t.Fatalf("after solve and skip: %+v", e)
-	}
-	if got := get("/party/" + code + "/round/1/2"); got != http.StatusOK {
-		t.Fatalf("puzzle 2: %d", got)
-	}
+	wantKind(t, pm.ClockSolve(code, toks[0], 1, 1, testPuzzle(t, 5).Solution), Conflict)
+	wantKind(t, pm.ClockSkip(code, toks[0], 1, 1), Conflict)
 }

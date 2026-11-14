@@ -1,12 +1,17 @@
-package web
+package party
 
 import (
 	"errors"
-	"net/http"
+	"math/rand/v2"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"starbattle/internal/board"
+	"starbattle/internal/generator"
+	"starbattle/internal/solver"
+	"starbattle/internal/solver/observers"
 )
 
 // testClock is a settable clock, safe for the preparation goroutines.
@@ -29,40 +34,43 @@ func (c *testClock) add(d time.Duration) {
 
 var (
 	testPuzzlesMu sync.Mutex
-	testPuzzles   = map[int]*RoundPuzzle{}
+	testPuzzles   = map[int]*Puzzle{}
 )
 
 // testPuzzle returns a generated and solved n×n puzzle, the same for all tests.
-func testPuzzle(t *testing.T, n int) *RoundPuzzle {
+func testPuzzle(t *testing.T, n int) *Puzzle {
 	testPuzzlesMu.Lock()
 	defer testPuzzlesMu.Unlock()
 	if rp := testPuzzles[n]; rp != nil {
 		return rp
 	}
 	for seed := uint64(1); ; seed++ {
-		p, sol, err := generate(n, seed)
+		p, sol, err := generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n)})
 		if err != nil || sol == nil {
 			continue
 		}
-		res, _ := testSolve(p)
-		rp := &RoundPuzzle{n, seed, p, sol, res}
+		res := solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true})
+		rp := &Puzzle{n, seed, p, sol, res}
 		testPuzzles[n] = rp
 		return rp
 	}
 }
 
-func newTestParties(t *testing.T) (*Parties, *testClock) {
+func newTestParties(t *testing.T) (*Manager, *testClock) {
 	t.Helper()
 	clk := &testClock{t: time.Date(2026, 11, 7, 20, 0, 0, 0, time.UTC)}
-	pm := NewParties(testSolve, nil)
-	pm.now = clk.now
-	pm.retryDelay = 0
-	pm.prepare = func(n int) (*RoundPuzzle, error) { return testPuzzle(t, n), nil }
+	pm := New(Config{
+		MinN:       4,
+		MaxN:       14,
+		Prepare:    func(n int) (*Puzzle, error) { return testPuzzle(t, n), nil },
+		Now:        clk.now,
+		RetryDelay: time.Nanosecond,
+	})
 	return pm, clk
 }
 
 // waitPrepared waits until the party has its next puzzle ready.
-func waitPrepared(t *testing.T, pm *Parties, code string) {
+func waitPrepared(t *testing.T, pm *Manager, code string) {
 	t.Helper()
 	waitFor(t, func() bool {
 		pm.mu.Lock()
@@ -81,7 +89,7 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 }
 
-func mustJoin(t *testing.T, pm *Parties, code, name string) string {
+func mustJoin(t *testing.T, pm *Manager, code, name string) string {
 	t.Helper()
 	tok, _, err := pm.Join(code, name, "")
 	if err != nil {
@@ -97,15 +105,14 @@ func must(t *testing.T, err error) {
 	}
 }
 
-func wantStatus(t *testing.T, err error, status int) {
+func wantKind(t *testing.T, err error, kind Kind) {
 	t.Helper()
-	var pe *PartyError
-	if !errors.As(err, &pe) || pe.Status != status {
-		t.Fatalf("got error %v, want status %d", err, status)
+	if pe, ok := errors.AsType[*Error](err); !ok || pe.Kind != kind {
+		t.Fatalf("got error %v, want kind %d", err, kind)
 	}
 }
 
-func snap(t *testing.T, pm *Parties, code, tok string) Snapshot {
+func snap(t *testing.T, pm *Manager, code, tok string) Snapshot {
 	t.Helper()
 	s, err := pm.Snapshot(code, tok)
 	must(t, err)
@@ -114,15 +121,15 @@ func snap(t *testing.T, pm *Parties, code, tok string) Snapshot {
 
 // startRound creates a 5×5 party with the named players, all ready, and
 // moves the clock past the countdown.
-func startRound(t *testing.T, pm *Parties, clk *testClock, names ...string) (string, []string) {
+func startRound(t *testing.T, pm *Manager, clk *testClock, names ...string) (string, []string) {
 	t.Helper()
 	return startRoundMode(t, pm, clk, ModeVersus, names...)
 }
 
 // startRoundMode is startRound for a party in the given mode.
-func startRoundMode(t *testing.T, pm *Parties, clk *testClock, mode string, names ...string) (string, []string) {
+func startRoundMode(t *testing.T, pm *Manager, clk *testClock, mode string, names ...string) (string, []string) {
 	t.Helper()
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: mode})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: mode})
 	must(t, err)
 	waitPrepared(t, pm, code)
 	var toks []string
@@ -135,13 +142,13 @@ func startRoundMode(t *testing.T, pm *Parties, clk *testClock, mode string, name
 	if s := snap(t, pm, code, ""); s.Phase != PhasePlaying {
 		t.Fatalf("phase %s, want playing", s.Phase)
 	}
-	clk.add(partyCountdown)
+	clk.add(Countdown)
 	return code, toks
 }
 
 func TestPartyRound(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create(PartyOptions{Sizes: []int{5, 5, 3, 99}, Mode: ""})
+	code, err := pm.Create(Options{Sizes: []int{5, 5, 3, 99}, Mode: ""})
 	must(t, err)
 	waitPrepared(t, pm, code)
 	a := mustJoin(t, pm, code, "  Anna   Lena ")
@@ -157,25 +164,25 @@ func TestPartyRound(t *testing.T) {
 	}
 	must(t, pm.SetReady(code, b, true))
 	s = snap(t, pm, code, "")
-	if s.Phase != PhasePlaying || s.Round != 1 || s.N != 5 || s.StartInMs != partyCountdown.Milliseconds() {
+	if s.Phase != PhasePlaying || s.Round != 1 || s.N != 5 || s.StartInMs != Countdown.Milliseconds() {
 		t.Fatalf("round snapshot %+v", s)
 	}
-	wantStatus(t, pm.SetReady(code, a, true), http.StatusConflict)
+	wantKind(t, pm.SetReady(code, a, true), Conflict)
 
 	sol := testPuzzle(t, 5).Solution
 	_, err = pm.Solve(code, a, 1, sol, 0)
-	wantStatus(t, err, http.StatusConflict) // countdown still running
+	wantKind(t, err, Conflict) // countdown still running
 
-	clk.add(partyCountdown + time.Second)
+	clk.add(Countdown + time.Second)
 	if s := snap(t, pm, code, ""); s.ElapsedMs != 1000 || s.StartInMs != 0 {
 		t.Fatalf("elapsed %d, start in %d", s.ElapsedMs, s.StartInMs)
 	}
 	wrong := append([]int(nil), sol...)
 	wrong[0], wrong[1] = wrong[1], wrong[0]
 	_, err = pm.Solve(code, a, 1, wrong, 0)
-	wantStatus(t, err, http.StatusBadRequest)
+	wantKind(t, err, Invalid)
 	_, err = pm.Solve(code, a, 2, sol, 0)
-	wantStatus(t, err, http.StatusConflict)
+	wantKind(t, err, Conflict)
 
 	res, err := pm.Solve(code, a, 1, sol, 1)
 	must(t, err)
@@ -218,11 +225,11 @@ func TestPartyGiveUp(t *testing.T) {
 	must(t, pm.GiveUp(code, toks[0], 1, 2))
 	must(t, pm.GiveUp(code, toks[0], 1, 2)) // repeated: fine
 	_, err := pm.Solve(code, toks[0], 1, sol, 0)
-	wantStatus(t, err, http.StatusConflict)
+	wantKind(t, err, Conflict)
 	clk.add(30 * time.Second)
 	_, err = pm.Solve(code, toks[1], 1, sol, 4)
 	must(t, err)
-	wantStatus(t, pm.GiveUp(code, toks[1], 1, 0), http.StatusConflict)
+	wantKind(t, pm.GiveUp(code, toks[1], 1, 0), Conflict)
 	must(t, pm.GiveUp(code, toks[2], 1, 0))
 	s := snap(t, pm, code, "")
 	if s.Phase != PhaseResults {
@@ -255,7 +262,7 @@ func TestPartyAbsence(t *testing.T) {
 	_, cancel, err := pm.Subscribe(code, toks[0]) // A keeps a stream open
 	must(t, err)
 	defer cancel()
-	clk.add(partyAbsentAfter + time.Second)
+	clk.add(absentAfter + time.Second)
 	pm.Tick()
 	s := snap(t, pm, code, "")
 	if !s.Players[0].Present || s.Players[1].Present || s.Ranking[1].Status != "absent" {
@@ -268,7 +275,7 @@ func TestPartyAbsence(t *testing.T) {
 		t.Fatal("absent player blocks the end of the round")
 	}
 	_, err = pm.Solve(code, toks[1], 1, sol, 0)
-	wantStatus(t, err, http.StatusConflict)
+	wantKind(t, err, Conflict)
 
 	// The absent player does not block the start either, until back.
 	waitPrepared(t, pm, code)
@@ -277,7 +284,7 @@ func TestPartyAbsence(t *testing.T) {
 	if s := snap(t, pm, code, ""); s.Phase != PhaseResults {
 		t.Fatal("started without B being ready")
 	}
-	clk.add(partyAbsentAfter + time.Second)
+	clk.add(absentAfter + time.Second)
 	pm.Tick()
 	if s := snap(t, pm, code, ""); s.Phase != PhasePlaying || len(s.Ranking) != 1 {
 		t.Fatalf("round 2 should start with A alone: %+v", s)
@@ -287,7 +294,7 @@ func TestPartyAbsence(t *testing.T) {
 func TestPartyAllAbsent(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, toks := startRound(t, pm, clk, "A")
-	clk.add(partyAbsentAfter + time.Second)
+	clk.add(absentAfter + time.Second)
 	pm.Tick()
 	if s := snap(t, pm, code, ""); s.Phase != PhasePlaying {
 		t.Fatal("round ended with nobody there")
@@ -305,20 +312,20 @@ func TestPartyAllAbsent(t *testing.T) {
 
 func TestPartyLateJoin(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ""})
 	must(t, err)
 	waitPrepared(t, pm, code)
 	a := mustJoin(t, pm, code, "A")
 	must(t, pm.SetReady(code, a, true))
 	clk.add(time.Second)
 	b := mustJoin(t, pm, code, "B") // during the countdown: plays along
-	clk.add(partyCountdown)
+	clk.add(Countdown)
 	c := mustJoin(t, pm, code, "C") // too late: waits for the next round
 	s := snap(t, pm, code, "")
 	if len(s.Ranking) != 2 || !s.Players[1].Playing || s.Players[2].Playing {
 		t.Fatalf("participants %+v", s)
 	}
-	wantStatus(t, pm.Progress(code, c, 1, 1, 0), http.StatusConflict)
+	wantKind(t, pm.Progress(code, c, 1, 1, 0), Conflict)
 	sol := testPuzzle(t, 5).Solution
 	for _, tok := range []string{a, b} {
 		_, err := pm.Solve(code, tok, 1, sol, 0)
@@ -332,7 +339,7 @@ func TestPartyLateJoin(t *testing.T) {
 func TestPartyOnlyLateJoinerPresent(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, _ := startRound(t, pm, clk, "A")
-	clk.add(partyAbsentAfter + time.Second)
+	clk.add(absentAfter + time.Second)
 	c := mustJoin(t, pm, code, "C")
 	pm.Tick()
 	// A is away without a result; C should not wait forever.
@@ -346,7 +353,7 @@ func TestPartyLeave(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, toks := startRound(t, pm, clk, "A", "B")
 	must(t, pm.Leave(code, toks[1]))
-	wantStatus(t, pm.Leave(code, toks[1]), http.StatusForbidden)
+	wantKind(t, pm.Leave(code, toks[1]), Forbidden)
 	_, err := pm.Solve(code, toks[0], 1, testPuzzle(t, 5).Solution, 0)
 	must(t, err)
 	s := snap(t, pm, code, "")
@@ -357,14 +364,14 @@ func TestPartyLeave(t *testing.T) {
 
 func TestPartyRejoinAndLimits(t *testing.T) {
 	pm, _ := newTestParties(t)
-	_, err := pm.Create(PartyOptions{Sizes: []int{2, 15}, Mode: ""})
-	wantStatus(t, err, http.StatusBadRequest)
-	code, err := pm.Create(PartyOptions{Sizes: []int{6}, Mode: ""})
+	_, err := pm.Create(Options{Sizes: []int{2, 15}, Mode: ""})
+	wantKind(t, err, Invalid)
+	code, err := pm.Create(Options{Sizes: []int{6}, Mode: ""})
 	must(t, err)
 	_, err = pm.Snapshot("nope", "")
-	wantStatus(t, err, http.StatusNotFound)
+	wantKind(t, err, NotFound)
 	_, _, err = pm.Join(code, "   ", "")
-	wantStatus(t, err, http.StatusBadRequest)
+	wantKind(t, err, Invalid)
 
 	tok, id, err := pm.Join(strings.ToLower(code), strings.Repeat("x", 30), "")
 	must(t, err)
@@ -374,25 +381,25 @@ func TestPartyRejoinAndLimits(t *testing.T) {
 		t.Fatal("rejoin gave a new player")
 	}
 	s := snap(t, pm, code, tok)
-	if len(s.Players) != 1 || len([]rune(s.Players[0].Name)) != PartyMaxName {
+	if len(s.Players) != 1 || len([]rune(s.Players[0].Name)) != MaxName {
 		t.Fatalf("players %+v", s.Players)
 	}
-	for i := 1; i < PartyMaxPlayers; i++ {
+	for i := 1; i < MaxPlayers; i++ {
 		mustJoin(t, pm, code, "P")
 	}
 	_, _, err = pm.Join(code, "one too many", "")
-	wantStatus(t, err, http.StatusConflict)
-	wantStatus(t, pm.SetReady(code, "bogus", true), http.StatusForbidden)
+	wantKind(t, err, Conflict)
+	wantKind(t, pm.SetReady(code, "bogus", true), Forbidden)
 }
 
 func TestPartyExpiry(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ""})
 	must(t, err)
 	tok := mustJoin(t, pm, code, "A")
 	ch, cancel, err := pm.Subscribe(code, tok)
 	must(t, err)
-	clk.add(partyIdleExpire + time.Minute)
+	clk.add(idleExpire + time.Minute)
 	pm.Tick()
 	if _, err := pm.Snapshot(code, ""); err != nil {
 		t.Fatal("party with an open stream expired")
@@ -400,18 +407,18 @@ func TestPartyExpiry(t *testing.T) {
 	cancel()
 	pm.Tick()
 	_, err = pm.Snapshot(code, "")
-	wantStatus(t, err, http.StatusNotFound)
+	wantKind(t, err, NotFound)
 	<-ch // the stream was told
 }
 
 func TestPartyPrepareAfterReady(t *testing.T) {
 	pm, _ := newTestParties(t)
 	gate := make(chan struct{})
-	pm.prepare = func(n int) (*RoundPuzzle, error) {
+	pm.prepare = func(n int) (*Puzzle, error) {
 		<-gate
 		return testPuzzle(t, n), nil
 	}
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ""})
 	must(t, err)
 	a := mustJoin(t, pm, code, "A")
 	must(t, pm.SetReady(code, a, true))
@@ -427,7 +434,7 @@ func TestPartyPrepareRetries(t *testing.T) {
 	pm, _ := newTestParties(t)
 	var mu sync.Mutex
 	fails := 2
-	pm.prepare = func(n int) (*RoundPuzzle, error) {
+	pm.prepare = func(n int) (*Puzzle, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		if fails > 0 {
@@ -436,7 +443,7 @@ func TestPartyPrepareRetries(t *testing.T) {
 		}
 		return testPuzzle(t, n), nil
 	}
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ""})
 	must(t, err)
 	waitPrepared(t, pm, code)
 	if s := snap(t, pm, code, ""); s.PrepErr != "" || s.Preparing {
@@ -446,33 +453,42 @@ func TestPartyPrepareRetries(t *testing.T) {
 
 func TestPartySubscribe(t *testing.T) {
 	pm, _ := newTestParties(t)
-	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
+	code, err := pm.Create(Options{Sizes: []int{5}, Mode: ""})
 	must(t, err)
 	ch, cancel, err := pm.Subscribe(code, "")
 	must(t, err)
-	mustJoin(t, pm, code, "A")
+	tok := mustJoin(t, pm, code, "A")
 	select {
 	case <-ch:
 	case <-time.After(5 * time.Second):
 		t.Fatal("no signal after a join")
 	}
+	_, cancelA, err := pm.Subscribe(code, tok) // A's own stream
+	must(t, err)
+	if n := pm.Subscribers(code); n != 2 {
+		t.Fatalf("%d subscribers, want 2", n)
+	}
 	cancel()
+	cancelA()
 	pm.mu.Lock()
-	n := len(pm.parties[code].subs)
+	conns := pm.parties[code].players[0].conns
 	pm.mu.Unlock()
-	if n != 0 {
-		t.Fatal("subscriber not removed")
+	if n := pm.Subscribers(code); n != 0 || conns != 0 {
+		t.Fatalf("after cancel: %d subscribers, A has %d streams", n, conns)
+	}
+	if n := pm.Subscribers("QQQQ"); n != 0 {
+		t.Fatalf("unknown party: %d subscribers", n)
 	}
 }
 
-func TestPartyRoundData(t *testing.T) {
+func TestPartyPage(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, _ := startRound(t, pm, clk, "A")
-	_, err := pm.RoundData(code, 2, 0)
-	wantStatus(t, err, http.StatusNotFound)
-	d, err := pm.RoundData(code, 1, 0)
+	_, err := pm.Page(code, 2, 0)
+	wantKind(t, err, NotFound)
+	pg, err := pm.Page(code, 1, 0)
 	must(t, err)
-	if d.Party == nil || d.Party.Code != code || d.Party.Round != 1 || d.N != 5 || !d.Served || len(d.Solution) != 5 {
-		t.Fatalf("data %+v", d)
+	if pg.Code != code || pg.Round != 1 || pg.Mode != ModeVersus || pg.K != 0 || pg.Puzzle != testPuzzle(t, 5) {
+		t.Fatalf("page %+v", pg)
 	}
 }

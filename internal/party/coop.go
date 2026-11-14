@@ -1,7 +1,6 @@
-package web
+package party
 
 import (
-	"net/http"
 	"slices"
 	"strings"
 )
@@ -32,7 +31,7 @@ const (
 )
 
 // coopBoard is the shared board of a cooperative round. It is guarded by
-// Parties.mu like the rest of the party.
+// Manager.mu like the rest of the party.
 type coopBoard struct {
 	cells  []uint8
 	seq    int             // counts the changes of cells
@@ -55,12 +54,12 @@ func newCoopBoard(n int) *coopBoard {
 // numbers of those rejected. Invalid operations reject the whole request.
 func (b *coopBoard) apply(player string, ops [][4]int) ([]int, error) {
 	if len(ops) > 2*len(b.cells) {
-		return nil, partyErr(http.StatusBadRequest, "Zu viele Änderungen auf einmal.")
+		return nil, errorf(Invalid, "Zu viele Änderungen auf einmal.")
 	}
 	for _, op := range ops {
 		num, i, from, to := op[0], op[1], op[2], op[3]
 		if num <= 0 || i < 0 || i >= len(b.cells) || from < cellFree || from > cellStar || to < cellFree || to > cellStar || from == to {
-			return nil, partyErr(http.StatusBadRequest, "Ungültige Änderung.")
+			return nil, errorf(Invalid, "Ungültige Änderung.")
 		}
 	}
 	rejected := []int{}
@@ -118,14 +117,14 @@ func (p *Party) coopRound(pl *Player, num int) (*Round, error) {
 		return nil, err
 	}
 	if r.coop == nil {
-		return nil, partyErr(http.StatusConflict, "In dieser Party spielt jeder für sich.")
+		return nil, errorf(Conflict, "In dieser Party spielt jeder für sich.")
 	}
 	return r, nil
 }
 
 // Mark applies the player's operations to the board of round num and
 // returns the numbers of those rejected.
-func (pm *Parties) Mark(code, token string, num int, ops [][4]int) ([]int, error) {
+func (pm *Manager) Mark(code, token string, num int, ops [][4]int) ([]int, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -137,11 +136,11 @@ func (pm *Parties) Mark(code, token string, num int, ops [][4]int) ([]int, error
 		return nil, err
 	}
 	if p.Phase != PhasePlaying {
-		return nil, partyErr(http.StatusConflict, "Die Runde ist schon vorbei.")
+		return nil, errorf(Conflict, "Die Runde ist schon vorbei.")
 	}
 	now := pm.now()
 	if now.Before(r.Start) {
-		return nil, partyErr(http.StatusConflict, "Die Runde hat noch nicht begonnen.")
+		return nil, errorf(Conflict, "Die Runde hat noch nicht begonnen.")
 	}
 	b := r.coop
 	rejected, err := b.apply(pl.ID, ops)
@@ -160,7 +159,7 @@ func (pm *Parties) Mark(code, token string, num int, ops [][4]int) ([]int, error
 }
 
 // Vote sets or withdraws the player's vote to give up round num.
-func (pm *Parties) Vote(code, token string, num int, giveUp bool) error {
+func (pm *Manager) Vote(code, token string, num int, giveUp bool) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -172,7 +171,7 @@ func (pm *Parties) Vote(code, token string, num int, giveUp bool) error {
 		return err
 	}
 	if p.Phase != PhasePlaying {
-		return partyErr(http.StatusConflict, "Die Runde ist schon vorbei.")
+		return errorf(Conflict, "Die Runde ist schon vorbei.")
 	}
 	if giveUp {
 		r.coop.votes[pl.ID] = true
@@ -201,7 +200,7 @@ func (p *Party) enroll() {
 
 // coopMaybeEnd ends the cooperative round once it is solved, or when every
 // present participant (at least one) votes to give up; pm.mu must be held.
-func (pm *Parties) coopMaybeEnd(p *Party) {
+func (pm *Manager) coopMaybeEnd(p *Party) {
 	r := p.Round
 	if r.coop.solved {
 		p.Phase = PhaseResults

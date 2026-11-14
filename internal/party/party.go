@@ -1,29 +1,8 @@
-package web
-
-import (
-	"cmp"
-	"crypto/rand"
-	"encoding/hex"
-	"errors"
-	"fmt"
-	"log"
-	mrand "math/rand/v2"
-	"net/http"
-	"slices"
-	"strings"
-	"sync"
-	"time"
-	"unicode/utf8"
-
-	"starbattle/internal/puzzle"
-	"starbattle/internal/solver"
-)
-
-// Party mode ("Zusammen spielen"): several players solve the same puzzles in
-// rounds. A round starts when every present player is ready. The next puzzle
+// Package party is the party mode ("Zusammen spielen"): several players
+// solve the same puzzles in rounds. A round starts when every present player is ready. The next puzzle
 // is prepared in the background while a round runs.
 //
-// The party's creator picks one of two modes for all its rounds:
+// The party's creator picks one of three modes for all its rounds:
 //   - versus (default): everybody solves on their own board. The round ends
 //     when every present participant has solved or given up and ranks by
 //     fewest hints, then shortest time (server wall clock from the common
@@ -36,16 +15,41 @@ import (
 //     hints and with a set number of skips.
 //
 // Everything lives in memory behind one mutex; parties expire when idle.
+//
+// The package is the game only: it knows neither HTTP nor pages. Its user
+// (internal/web) supplies the puzzles (Config.Prepare), carries actions and
+// snapshots over the network, and builds the page of a round from Page.
+// Errors are of type *Error, whose Kind the user maps to a reply.
+package party
+
+import (
+	"cmp"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"log"
+	mrand "math/rand/v2"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
+
+	"starbattle/internal/puzzle"
+	"starbattle/internal/solver"
+)
 
 // Party limits and timing.
 const (
-	PartyMaxParties = 50
-	PartyMaxPlayers = 16
-	PartyMaxName    = 20
+	MaxParties = 50
+	MaxPlayers = 16
+	MaxName    = 20
 
-	partyAbsentAfter = 60 * time.Second // without an event stream: absent
-	partyIdleExpire  = 2 * time.Hour    // without any activity: removed
-	partyCountdown   = 3 * time.Second  // between "all ready" and the start
+	// Countdown is the time between "all ready" and the start of a round.
+	Countdown = 3 * time.Second
+
+	absentAfter = 60 * time.Second // without an event stream: absent
+	idleExpire  = 2 * time.Hour    // without any activity: removed
 )
 
 // Party modes.
@@ -66,22 +70,34 @@ const (
 // like 1 and 0.
 const codeLetters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 
-// PartyError is an error with the HTTP status the handler answers with.
-type PartyError struct {
-	Status int
-	Msg    string
+// Kind classifies an Error, so the caller can choose its reply.
+type Kind int
+
+// Kinds of errors.
+const (
+	NotFound  Kind = iota + 1 // no such party, round or puzzle
+	Invalid                   // malformed request or wrong solution
+	Forbidden                 // not (or no longer) a player of the party
+	Conflict                  // not possible in the party's current state
+	Busy                      // too many parties
+)
+
+// Error is an error of the manager. Msg is German, for the players.
+type Error struct {
+	Kind Kind
+	Msg  string
 }
 
-func (e *PartyError) Error() string { return e.Msg }
+func (e *Error) Error() string { return e.Msg }
 
-func partyErr(status int, format string, args ...any) error {
-	return &PartyError{status, fmt.Sprintf(format, args...)}
+func errorf(kind Kind, format string, args ...any) error {
+	return &Error{kind, fmt.Sprintf(format, args...)}
 }
 
-var errNoParty = &PartyError{http.StatusNotFound, "Diese Party gibt es nicht (mehr)."}
+var errNoParty = &Error{NotFound, "Diese Party gibt es nicht (mehr)."}
 
-// RoundPuzzle is a puzzle prepared for a round.
-type RoundPuzzle struct {
+// Puzzle is a puzzle prepared for a round.
+type Puzzle struct {
 	N        int
 	Seed     uint64
 	P        *puzzle.Puzzle
@@ -89,27 +105,42 @@ type RoundPuzzle struct {
 	Res      solver.Result
 }
 
-// Parties manages all parties.
-type Parties struct {
+// Manager manages all parties.
+type Manager struct {
 	mu      sync.Mutex
 	parties map[string]*Party
 
-	// Replaceable in tests.
+	minN, maxN int
+	prepare    func(n int) (*Puzzle, error)
 	now        func() time.Time
-	prepare    func(n int) (*RoundPuzzle, error)
 	pick       func(k int) int // random index below k
 	retryDelay time.Duration
 	after      func(d time.Duration, f func()) // runs f once d has passed
 }
 
-// PartyOptions are the choices of a party's creator.
-type PartyOptions struct {
+// Config is what a Manager needs from its user. The fields after Prepare are
+// for tests; their zero values mean the real thing.
+type Config struct {
+	// MinN and MaxN bound the sizes a party may choose.
+	MinN, MaxN int
+	// Prepare returns a generated and solved n×n puzzle with a unique
+	// solution. It runs in the background while a round is played.
+	Prepare func(n int) (*Puzzle, error)
+
+	Now        func() time.Time                // the clock
+	Pick       func(k int) int                 // a random index below k
+	RetryDelay time.Duration                   // after a failed Prepare (default 5 s)
+	After      func(d time.Duration, f func()) // runs f once d has passed
+}
+
+// Options are the choices of a party's creator.
+type Options struct {
 	Sizes []int
 	Mode  string     // ModeVersus if unknown
 	Clock ClockRules // for ModeClock
 }
 
-// Party is one group playing together. All fields are guarded by Parties.mu.
+// Party is one group playing together. All fields are guarded by Manager.mu.
 type Party struct {
 	Code     string
 	Sizes    []int
@@ -120,7 +151,7 @@ type Party struct {
 	players  []*Player
 	byToken  map[string]*Player
 	nextID   int
-	ready    []*RoundPuzzle // prepared, in the order they are played
+	ready    []*Puzzle // prepared, in the order they are played
 	prepping bool
 	prepGen  int // discards a preparation that outlived its party
 	prepErr  string
@@ -146,12 +177,11 @@ type Player struct {
 // Round is one puzzle played by the party.
 type Round struct {
 	Num          int
-	Puzzle       *RoundPuzzle
+	Puzzle       *Puzzle
 	Start        time.Time
 	Participants []string // player IDs at the start
 	Results      map[string]*Result
 	names        map[string]string // participant names, also after they left
-	data         *Data             // page data, built on first request
 	coop         *coopBoard        // the shared board in coop mode, else nil
 	clock        *clockRound       // the puzzles and scores in clock mode, else nil
 }
@@ -164,38 +194,32 @@ type Result struct {
 	TimeMs int64         `json:"timeMs"`
 }
 
-// NewParties returns a manager that prepares puzzles with solve, taking ready
-// ones from pool (may be nil) first. Call Tick regularly (see Run).
-func NewParties(solve SolveFunc, pool *Pool) *Parties {
-	return &Parties{
-		parties: map[string]*Party{},
-		now:     time.Now,
-		prepare: func(n int) (*RoundPuzzle, error) {
-			if e := pool.takePuzzle(n); e != nil && e.sol != nil {
-				return &RoundPuzzle{n, e.seed, e.p, e.sol, e.res}, nil
-			}
-			seed := newSeed()
-			p, sol, err := generate(n, seed)
-			if err != nil {
-				return nil, err
-			}
-			if sol == nil {
-				return nil, fmt.Errorf("%d×%d Nr. %d: keine eindeutige Lösung", n, n, seed)
-			}
-			res, err := solve(p)
-			if err != nil {
-				return nil, err
-			}
-			return &RoundPuzzle{n, seed, p, sol, res}, nil
-		},
-		pick:       func(k int) int { return mrand.IntN(k) },
-		retryDelay: 5 * time.Second,
-		after:      func(d time.Duration, f func()) { time.AfterFunc(d, f) },
+// New returns a manager. Call Tick regularly (see Run).
+func New(c Config) *Manager {
+	m := &Manager{
+		parties:    map[string]*Party{},
+		minN:       c.MinN,
+		maxN:       c.MaxN,
+		prepare:    c.Prepare,
+		now:        c.Now,
+		pick:       c.Pick,
+		retryDelay: cmp.Or(c.RetryDelay, 5*time.Second),
+		after:      c.After,
 	}
+	if m.now == nil {
+		m.now = time.Now
+	}
+	if m.pick == nil {
+		m.pick = mrand.IntN
+	}
+	if m.after == nil {
+		m.after = func(d time.Duration, f func()) { time.AfterFunc(d, f) }
+	}
+	return m
 }
 
 // Run calls Tick every interval until stop is closed.
-func (pm *Parties) Run(interval time.Duration, stop <-chan struct{}) {
+func (pm *Manager) Run(interval time.Duration, stop <-chan struct{}) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -209,25 +233,25 @@ func (pm *Parties) Run(interval time.Duration, stop <-chan struct{}) {
 }
 
 // Create starts a new party with the chosen options and returns its code.
-func (pm *Parties) Create(o PartyOptions) (string, error) {
+func (pm *Manager) Create(o Options) (string, error) {
 	mode := o.Mode
 	if mode != ModeCoop && mode != ModeClock {
 		mode = ModeVersus
 	}
 	var ok []int
 	for _, n := range o.Sizes {
-		if n >= MinN && n <= MaxN && !slices.Contains(ok, n) {
+		if n >= pm.minN && n <= pm.maxN && !slices.Contains(ok, n) {
 			ok = append(ok, n)
 		}
 	}
 	if len(ok) == 0 {
-		return "", partyErr(http.StatusBadRequest, "Bitte mindestens eine Größe zwischen %d und %d wählen.", MinN, MaxN)
+		return "", errorf(Invalid, "Bitte mindestens eine Größe zwischen %d und %d wählen.", pm.minN, pm.maxN)
 	}
 	slices.Sort(ok)
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	if len(pm.parties) >= PartyMaxParties {
-		return "", partyErr(http.StatusServiceUnavailable, "Gerade laufen zu viele Partys, bitte später noch einmal.")
+	if len(pm.parties) >= MaxParties {
+		return "", errorf(Busy, "Gerade laufen zu viele Partys, bitte später noch einmal.")
 	}
 	code := ""
 	for code == "" || pm.parties[code] != nil {
@@ -256,7 +280,7 @@ func (pm *Parties) Create(o PartyOptions) (string, error) {
 func NormalizeCode(code string) string { return strings.ToUpper(strings.TrimSpace(code)) }
 
 // party returns the party with this code; pm.mu must be held.
-func (pm *Parties) party(code string) (*Party, error) {
+func (pm *Manager) party(code string) (*Party, error) {
 	p := pm.parties[NormalizeCode(code)]
 	if p == nil {
 		return nil, errNoParty
@@ -266,14 +290,14 @@ func (pm *Parties) party(code string) (*Party, error) {
 
 // player returns the party and the player with this token; pm.mu must be
 // held. It counts as activity of the player.
-func (pm *Parties) player(code, token string) (*Party, *Player, error) {
+func (pm *Manager) player(code, token string) (*Party, *Player, error) {
 	p, err := pm.party(code)
 	if err != nil {
 		return nil, nil, err
 	}
 	pl := p.byToken[token]
 	if pl == nil {
-		return p, nil, partyErr(http.StatusForbidden, "Du bist (nicht mehr) in dieser Party, bitte neu beitreten.")
+		return p, nil, errorf(Forbidden, "Du bist (nicht mehr) in dieser Party, bitte neu beitreten.")
 	}
 	now := pm.now()
 	pl.lastSeen = now
@@ -283,10 +307,10 @@ func (pm *Parties) player(code, token string) (*Party, *Player, error) {
 
 // Join adds a player, or with a known token takes the player back in (and
 // renames them if name is given). It returns the token and the public ID.
-func (pm *Parties) Join(code, name, token string) (string, string, error) {
+func (pm *Manager) Join(code, name, token string) (string, string, error) {
 	name = strings.Join(strings.Fields(name), " ")
-	if utf8.RuneCountInString(name) > PartyMaxName {
-		name = string([]rune(name)[:PartyMaxName])
+	if utf8.RuneCountInString(name) > MaxName {
+		name = string([]rune(name)[:MaxName])
 	}
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -305,10 +329,10 @@ func (pm *Parties) Join(code, name, token string) (string, string, error) {
 		return pl.token, pl.ID, nil
 	}
 	if name == "" {
-		return "", "", partyErr(http.StatusBadRequest, "Bitte einen Namen angeben.")
+		return "", "", errorf(Invalid, "Bitte einen Namen angeben.")
 	}
-	if len(p.players) >= PartyMaxPlayers {
-		return "", "", partyErr(http.StatusConflict, "Die Party ist voll (%d Personen).", PartyMaxPlayers)
+	if len(p.players) >= MaxPlayers {
+		return "", "", errorf(Conflict, "Die Party ist voll (%d Personen).", MaxPlayers)
 	}
 	p.nextID++
 	pl := &Player{ID: fmt.Sprintf("p%d", p.nextID), token: newToken(), Name: name, lastSeen: now, present: true}
@@ -331,7 +355,7 @@ func newToken() string {
 }
 
 // Leave removes the player from the party. Their result stays in the round.
-func (pm *Parties) Leave(code, token string) error {
+func (pm *Manager) Leave(code, token string) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -345,7 +369,7 @@ func (pm *Parties) Leave(code, token string) error {
 }
 
 // SetReady marks the player (not) ready for the next round.
-func (pm *Parties) SetReady(code, token string, ready bool) error {
+func (pm *Manager) SetReady(code, token string, ready bool) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -353,7 +377,7 @@ func (pm *Parties) SetReady(code, token string, ready bool) error {
 		return err
 	}
 	if p.Phase == PhasePlaying {
-		return partyErr(http.StatusConflict, "Die Runde läuft noch.")
+		return errorf(Conflict, "Die Runde läuft noch.")
 	}
 	pl.Ready = ready
 	pm.update(p)
@@ -364,10 +388,10 @@ func (pm *Parties) SetReady(code, token string, ready bool) error {
 func (p *Party) participant(pl *Player, num int) (*Round, error) {
 	r := p.Round
 	if r == nil || r.Num != num {
-		return nil, partyErr(http.StatusConflict, "Das ist nicht die aktuelle Runde.")
+		return nil, errorf(Conflict, "Das ist nicht die aktuelle Runde.")
 	}
 	if !slices.Contains(r.Participants, pl.ID) {
-		return nil, partyErr(http.StatusConflict, "Du spielst in dieser Runde nicht mit.")
+		return nil, errorf(Conflict, "Du spielst in dieser Runde nicht mit.")
 	}
 	return r, nil
 }
@@ -380,13 +404,13 @@ func (p *Party) versusRound(pl *Player, num int) (*Round, error) {
 		return nil, err
 	}
 	if r.clock != nil {
-		return nil, partyErr(http.StatusConflict, "In dieser Party wird gegen die Uhr gespielt.")
+		return nil, errorf(Conflict, "In dieser Party wird gegen die Uhr gespielt.")
 	}
 	return r, nil
 }
 
 // Progress reports the stars set and hints taken in round num.
-func (pm *Parties) Progress(code, token string, num, stars, hints int) error {
+func (pm *Manager) Progress(code, token string, num, stars, hints int) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -409,7 +433,7 @@ func (pm *Parties) Progress(code, token string, num, stars, hints int) error {
 
 // Solve records a solution of round num (star column per row). Repeating a
 // successful call returns the same result.
-func (pm *Parties) Solve(code, token string, num int, stars []int, hints int) (Result, error) {
+func (pm *Manager) Solve(code, token string, num int, stars []int, hints int) (Result, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -424,17 +448,17 @@ func (pm *Parties) Solve(code, token string, num int, stars []int, hints int) (R
 		if res.Solved {
 			return *res, nil
 		}
-		return Result{}, partyErr(http.StatusConflict, "Du hast diese Runde aufgegeben.")
+		return Result{}, errorf(Conflict, "Du hast diese Runde aufgegeben.")
 	}
 	if p.Phase != PhasePlaying {
-		return Result{}, partyErr(http.StatusConflict, "Die Runde ist schon vorbei.")
+		return Result{}, errorf(Conflict, "Die Runde ist schon vorbei.")
 	}
 	now := pm.now()
 	if now.Before(r.Start) {
-		return Result{}, partyErr(http.StatusConflict, "Die Runde hat noch nicht begonnen.")
+		return Result{}, errorf(Conflict, "Die Runde hat noch nicht begonnen.")
 	}
 	if !slices.Equal(stars, r.Puzzle.Solution) {
-		return Result{}, partyErr(http.StatusBadRequest, "Das ist nicht die Lösung.")
+		return Result{}, errorf(Invalid, "Das ist nicht die Lösung.")
 	}
 	t := now.Sub(r.Start)
 	res := &Result{Solved: true, Hints: max(hints, pl.Hints), Time: t, TimeMs: t.Milliseconds()}
@@ -445,7 +469,7 @@ func (pm *Parties) Solve(code, token string, num int, stars []int, hints int) (R
 }
 
 // GiveUp ends round num for the player without a solution.
-func (pm *Parties) GiveUp(code, token string, num, hints int) error {
+func (pm *Manager) GiveUp(code, token string, num, hints int) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -458,12 +482,12 @@ func (pm *Parties) GiveUp(code, token string, num, hints int) error {
 	}
 	if res := r.Results[pl.ID]; res != nil {
 		if res.Solved {
-			return partyErr(http.StatusConflict, "Du hast diese Runde schon gelöst.")
+			return errorf(Conflict, "Du hast diese Runde schon gelöst.")
 		}
 		return nil
 	}
 	if p.Phase != PhasePlaying {
-		return partyErr(http.StatusConflict, "Die Runde ist schon vorbei.")
+		return errorf(Conflict, "Die Runde ist schon vorbei.")
 	}
 	t := max(pm.now().Sub(r.Start), 0)
 	r.Results[pl.ID] = &Result{Hints: max(hints, pl.Hints), Time: t, TimeMs: t.Milliseconds()}
@@ -471,38 +495,43 @@ func (pm *Parties) GiveUp(code, token string, num, hints int) error {
 	return nil
 }
 
-// RoundData returns the page data of round num, which must have started its
-// countdown already. Against the clock, it is that of the round's puzzle k
-// (from 1; 0 counts as 1).
-func (pm *Parties) RoundData(code string, num, k int) (Data, error) {
+// Page is what the page of a round shows: its puzzle and where it belongs.
+type Page struct {
+	Code   string
+	Round  int
+	Mode   string
+	K      int // ModeClock: which of the round's puzzles, from 1; else 0
+	Puzzle *Puzzle
+}
+
+// Page returns the page of round num, which must have started its countdown
+// already. Against the clock, it is that of the round's puzzle k (from 1; 0
+// counts as 1), which somebody must have reached.
+func (pm *Manager) Page(code string, num, k int) (Page, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, err := pm.party(code)
 	if err != nil {
-		return Data{}, err
+		return Page{}, err
 	}
 	r := p.Round
 	if r == nil || r.Num != num {
-		return Data{}, partyErr(http.StatusNotFound, "Runde %d gibt es (noch) nicht.", num)
+		return Page{}, errorf(NotFound, "Runde %d gibt es (noch) nicht.", num)
 	}
-	if r.clock != nil {
-		return p.clockData(r, max(k, 1))
+	pg := Page{Code: p.Code, Round: r.Num, Mode: p.Mode, Puzzle: r.Puzzle}
+	if c := r.clock; c != nil {
+		pg.K = max(k, 1)
+		if pg.K > len(c.seq) {
+			return Page{}, errorf(NotFound, "Puzzle %d von Runde %d gibt es (noch) nicht.", pg.K, r.Num)
+		}
+		pg.Puzzle = c.seq[pg.K-1]
 	}
-	if r.data == nil {
-		rp := r.Puzzle
-		d := Build(fmt.Sprintf("Party %s · Runde %d · %d×%d", p.Code, r.Num, rp.N, rp.N), rp.P, rp.Solution, rp.Res)
-		d.Served = true
-		d.Text = rp.P.String()
-		r.data = &d
-	}
-	d := *r.data
-	d.Party = &PartyInfo{Code: p.Code, Round: r.Num, Mode: p.Mode}
-	return d, nil
+	return pg, nil
 }
 
 // Subscribe registers an event stream of the player with this token (or an
 // onlooker for token ""). The channel signals changes; cancel unregisters it.
-func (pm *Parties) Subscribe(code, token string) (<-chan struct{}, func(), error) {
+func (pm *Manager) Subscribe(code, token string) (<-chan struct{}, func(), error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, err := pm.party(code)
@@ -531,7 +560,7 @@ func (pm *Parties) Subscribe(code, token string) (<-chan struct{}, func(), error
 
 // Tick notices absent players, starts and ends rounds accordingly and
 // removes idle parties.
-func (pm *Parties) Tick() {
+func (pm *Manager) Tick() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	now := pm.now()
@@ -540,7 +569,7 @@ func (pm *Parties) Tick() {
 		for _, pl := range p.players {
 			live = live || pl.conns > 0
 		}
-		if !live && now.Sub(p.active) > partyIdleExpire {
+		if !live && now.Sub(p.active) > idleExpire {
 			delete(pm.parties, code)
 			p.prepGen++ // a running preparation is dropped
 			for ch := range p.subs {
@@ -556,14 +585,14 @@ func (pm *Parties) Tick() {
 
 // update follows every change of a party: it re-evaluates presence and the
 // phase and signals the event streams; pm.mu must be held.
-func (pm *Parties) update(p *Party) {
+func (pm *Manager) update(p *Party) {
 	pm.refresh(p)
 	pm.broadcast(p)
 }
 
 // refresh re-evaluates presence (which changes with time alone) and the
 // phase, and reports whether anything changed; pm.mu must be held.
-func (pm *Parties) refresh(p *Party) bool {
+func (pm *Manager) refresh(p *Party) bool {
 	now := pm.now()
 	changed := false
 	for _, pl := range p.players {
@@ -595,7 +624,7 @@ func (pm *Parties) refresh(p *Party) bool {
 	return changed || p.Phase != phase || p.Round != round || (round != nil && len(round.Participants) != n)
 }
 
-func (pm *Parties) broadcast(p *Party) {
+func (pm *Manager) broadcast(p *Party) {
 	p.version++
 	for ch := range p.subs {
 		signal(ch)
@@ -609,13 +638,13 @@ func signal(ch chan struct{}) {
 	}
 }
 
-func (pm *Parties) present(pl *Player, now time.Time) bool {
-	return pl.conns > 0 || now.Sub(pl.lastSeen) < partyAbsentAfter
+func (pm *Manager) present(pl *Player, now time.Time) bool {
+	return pl.conns > 0 || now.Sub(pl.lastSeen) < absentAfter
 }
 
 // maybeStart starts the next round when every present player is ready (at
 // least one) and the puzzle is prepared; pm.mu must be held.
-func (pm *Parties) maybeStart(p *Party) {
+func (pm *Manager) maybeStart(p *Party) {
 	if p.Phase == PhasePlaying || len(p.ready) == 0 {
 		return
 	}
@@ -641,7 +670,7 @@ func (pm *Parties) maybeStart(p *Party) {
 	r := &Round{
 		Num:          num,
 		Puzzle:       next,
-		Start:        pm.now().Add(partyCountdown),
+		Start:        pm.now().Add(Countdown),
 		Participants: ids,
 		Results:      map[string]*Result{},
 		names:        map[string]string{},
@@ -673,7 +702,7 @@ func (pm *Parties) maybeStart(p *Party) {
 
 // maybeEnd ends the round when every present participant has a result, and
 // at least one result exists or somebody else waits; pm.mu must be held.
-func (pm *Parties) maybeEnd(p *Party) {
+func (pm *Manager) maybeEnd(p *Party) {
 	r := p.Round
 	if p.Phase != PhasePlaying || pm.now().Before(r.Start) {
 		return
@@ -718,7 +747,7 @@ func (p *Party) prepTarget() int {
 
 // startPrep prepares puzzles in the background until the party has enough
 // ready (prepTarget); pm.mu must be held.
-func (pm *Parties) startPrep(p *Party) {
+func (pm *Manager) startPrep(p *Party) {
 	if p.prepping || len(p.ready) >= p.prepTarget() {
 		return
 	}
@@ -815,7 +844,7 @@ type RankEntry struct {
 
 // Snapshot returns the state of the party as seen by the player with this
 // token (or an onlooker).
-func (pm *Parties) Snapshot(code, token string) (Snapshot, error) {
+func (pm *Manager) Snapshot(code, token string) (Snapshot, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, err := pm.party(code)
@@ -927,10 +956,13 @@ func (p *Party) ranking() []RankEntry {
 	return out
 }
 
-// errorStatus returns the HTTP status for an error of the manager.
-func errorStatus(err error) int {
-	if pe, ok := errors.AsType[*PartyError](err); ok {
-		return pe.Status
+// Subscribers is the number of open event streams of the party, 0 if there
+// is no such party.
+func (pm *Manager) Subscribers(code string) int {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if p := pm.parties[NormalizeCode(code)]; p != nil {
+		return len(p.subs)
 	}
-	return http.StatusInternalServerError
+	return 0
 }

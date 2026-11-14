@@ -39,7 +39,9 @@ Die Screenshots in [docs/screenshots](screenshots) nimmt `docs/screenshots/take.
 | `internal/collection` | Format der Puzzle-Sammlungen `testdata/hard` und `designs`: Index `bibliothek.idx`, Dateinamen, Kopfzeilen (`# rating:`, `# name:`), ID |
 | `internal/hardsearch` | Suche nach schweren Puzzles für `testdata/hard` (`starbattle hard`) |
 | `internal/render` | Ausgabe im Terminal |
-| `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek, Einstellungen, Designer |
+| `internal/party` | Party-Modus: Partys, Runden, gegeneinander, miteinander, gegen die Uhr (ohne HTTP) |
+| `internal/web` | HTML-Seite, Server, Bibliothek, Einstellungen, HTTP des Party-Modus |
+| `internal/designer` | das Werkzeug `starbattle design` (Seite und Speichern) |
 | `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder, siehe [symbols/README.md](../symbols/README.md)) |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi (siehe [deploy/README.md](../deploy/README.md)) |
 | `designs` | mit `starbattle design` entworfene Puzzles; zugleich die Motive der Bibliothek (Reihenfolge in `bibliothek.idx`, Name in der Zeile `# name:` jeder Datei) |

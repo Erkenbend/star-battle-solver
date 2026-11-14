@@ -1,10 +1,18 @@
-package web
+// Package designer is the tool behind `starbattle design`, for the project's
+// developers and deliberately not part of serve: draw part of a puzzle, let
+// the generator complete it in several ways at once, pick one and save it to
+// a collection of the project (see package collection), usually designs/.
+//
+// The page is built like the others of internal/web (web.ServePage, with the
+// shared style and app.js), from its own assets/designer.html and
+// assets/designer.js.
+package designer
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -19,21 +27,24 @@ import (
 	"starbattle/internal/generator"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
+	"starbattle/internal/web"
 )
 
-// The designer (starbattle design) is a tool for the project's developers,
-// not part of serve: draw part of a puzzle, let the generator complete it in
-// several ways at once, pick one and save it to a directory of the project.
+//go:embed assets/designer.html
+var designerHTML string
 
-// MaxDesignCandidates bounds the completions one request computes.
-const MaxDesignCandidates = 8
+//go:embed assets/designer.js
+var designerJS string
+
+// MaxCandidates bounds the completions one request computes.
+const MaxCandidates = 8
 
 // designAttempts bounds the attempts of each completion, so a pattern the
 // generator cannot complete gives an answer within seconds, not minutes.
 const designAttempts = 300
 
-// DesignerPage is the data of the designer page.
-type DesignerPage struct {
+// Page is the data of the designer page.
+type Page struct {
 	MinN       int    `json:"minN"`
 	MaxN       int    `json:"maxN"`
 	Dir        string `json:"dir"`
@@ -58,25 +69,25 @@ type patternProblem struct {
 	Cells   [][2]int `json:"cells,omitempty"`
 }
 
-// DesignCandidate is one completion of a pattern.
-type DesignCandidate struct {
-	Seed     uint64  `json:"seed"`
-	Regions  [][]int `json:"regions"`
-	Solution []int   `json:"solution"`
-	Status   string  `json:"status"`    // solver result with full search
-	Steps    int     `json:"steps"`     // steps of the solver's trace
-	RulesOut int     `json:"rulesFree"` // free cells when the rules alone got stuck, 0 if they solve it
-	Stats    Stats   `json:"stats"`
-	Millis   int64   `json:"millis"` // time to generate
+// Candidate is one completion of a pattern.
+type Candidate struct {
+	Seed     uint64    `json:"seed"`
+	Regions  [][]int   `json:"regions"`
+	Solution []int     `json:"solution"`
+	Status   string    `json:"status"`    // solver result with full search
+	Steps    int       `json:"steps"`     // steps of the solver's trace
+	RulesOut int       `json:"rulesFree"` // free cells when the rules alone got stuck, 0 if they solve it
+	Stats    web.Stats `json:"stats"`
+	Millis   int64     `json:"millis"` // time to generate
 }
 
 // designEvent is one line of /api/complete's answer (NDJSON): the pattern's
 // problem (then nothing else follows), a candidate as soon as it is found,
 // or, last, done.
 type designEvent struct {
-	Problem   *patternProblem  `json:"problem,omitempty"`
-	Candidate *DesignCandidate `json:"candidate,omitempty"`
-	Done      *designDone      `json:"done,omitempty"`
+	Problem   *patternProblem `json:"problem,omitempty"`
+	Candidate *Candidate      `json:"candidate,omitempty"`
+	Done      *designDone     `json:"done,omitempty"`
 }
 
 // designDone ends the answer of /api/complete.
@@ -86,12 +97,12 @@ type designDone struct {
 	Duplicates int `json:"duplicates"` // completions equal to an earlier one, not sent
 }
 
-// DesignerHandler serves the designer. Saved puzzles go to dir. /play
+// Handler serves the designer. Saved puzzles go to dir. /play
 // shows a puzzle to try it, as in serve; with a symbol catalog (may be nil),
 // its link to /einstellungen works too.
-func DesignerHandler(dir string, solve SolveFunc, syms *Symbols) http.Handler {
+func Handler(dir string, solve web.SolveFunc, syms *web.Symbols) http.Handler {
 	mux := http.NewServeMux()
-	play := Handler(solve, nil, nil, nil, syms)
+	play := web.Handler(solve, nil, nil, nil, syms)
 	mux.Handle("GET /play", play)
 	if syms != nil {
 		for _, p := range []string{"GET /einstellungen", "GET /symbole.json", "GET /symbole/{file}"} {
@@ -99,10 +110,8 @@ func DesignerHandler(dir string, solve SolveFunc, syms *Symbols) http.Handler {
 		}
 	}
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		d := DesignerPage{MinN: MinN, MaxN: MaxN, Dir: dir, Candidates: 4, MaxCands: MaxDesignCandidates}
-		writeHTML(w, http.StatusOK, func(b io.Writer) error {
-			return render(b, designerHTML, "Star Battle · Designer", d, appJS, designerJS)
-		})
+		d := Page{MinN: web.MinN, MaxN: web.MaxN, Dir: dir, Candidates: 4, MaxCands: MaxCandidates}
+		web.ServePage(w, designerHTML, "Star Battle · Designer", d, designerJS)
 	})
 	mux.HandleFunc("POST /api/check", func(w http.ResponseWriter, r *http.Request) {
 		req, ok := readDesignRequest(w, r)
@@ -128,7 +137,7 @@ func DesignerHandler(dir string, solve SolveFunc, syms *Symbols) http.Handler {
 			send(designEvent{Problem: prob})
 			return
 		}
-		k := min(max(req.Candidates, 1), MaxDesignCandidates)
+		k := min(max(req.Candidates, 1), MaxCandidates)
 		var d designDone
 		for c := range completeDesign(req.Pattern, req.Strict, k, solve, r.Context().Done()) {
 			switch {
@@ -138,7 +147,7 @@ func DesignerHandler(dir string, solve SolveFunc, syms *Symbols) http.Handler {
 				d.Duplicates++
 			default:
 				d.Found++
-				send(designEvent{Candidate: &c.DesignCandidate})
+				send(designEvent{Candidate: &c.Candidate})
 			}
 		}
 		send(designEvent{Done: &d})
@@ -165,8 +174,8 @@ func readDesignRequest(w http.ResponseWriter, r *http.Request) (designRequest, b
 		return req, false
 	}
 	n := len(req.Pattern)
-	if n < MinN || n > MaxN {
-		http.Error(w, fmt.Sprintf("Die Größe muss zwischen %d und %d liegen.", MinN, MaxN), http.StatusBadRequest)
+	if n < web.MinN || n > web.MaxN {
+		http.Error(w, fmt.Sprintf("Die Größe muss zwischen %d und %d liegen.", web.MinN, web.MaxN), http.StatusBadRequest)
 		return req, false
 	}
 	return req, true
@@ -226,7 +235,7 @@ func checkPattern(pattern [][]int, strict bool) *patternProblem {
 
 // foundCandidate is a result of completeDesign.
 type foundCandidate struct {
-	DesignCandidate
+	Candidate
 	duplicate bool // equal to a candidate sent earlier
 }
 
@@ -236,14 +245,14 @@ type foundCandidate struct {
 // together. Each result comes out of the channel as soon as it is ready, so
 // the page can show it while the others are still running; nil stands for a
 // failed completion. The channel is closed after the last one.
-func completeDesign(pattern [][]int, strict bool, k int, solve SolveFunc, done <-chan struct{}) <-chan *foundCandidate {
+func completeDesign(pattern [][]int, strict bool, k int, solve web.SolveFunc, done <-chan struct{}) <-chan *foundCandidate {
 	n := len(pattern)
 	out := make(chan *foundCandidate, k)
 	var mu sync.Mutex
 	seen := map[string]bool{}
 	var wg sync.WaitGroup
 	for range k {
-		seed := newSeed()
+		seed := uint64(rand.IntN(999_999) + 1) // short, as in serve; written into the saved file
 		wg.Go(func() {
 			start := time.Now()
 			p, sol, err := generator.Complete(pattern, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{
@@ -257,7 +266,7 @@ func completeDesign(pattern [][]int, strict bool, k int, solve SolveFunc, done <
 				out <- nil
 				return
 			}
-			c := &foundCandidate{DesignCandidate: DesignCandidate{Seed: seed, Regions: p.Regions, Solution: sol, Millis: time.Since(start).Milliseconds()}}
+			c := &foundCandidate{Candidate: Candidate{Seed: seed, Regions: p.Regions, Solution: sol, Millis: time.Since(start).Milliseconds()}}
 			mu.Lock()
 			id := collection.ID(p)
 			c.duplicate = seen[id]
@@ -267,7 +276,7 @@ func completeDesign(pattern [][]int, strict bool, k int, solve SolveFunc, done <
 				if res, err := solve(p); err == nil {
 					c.Status = res.Status.String()
 					c.Steps = len(res.Trace)
-					c.Stats = Stats{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}
+					c.Stats = web.Stats{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}
 					c.RulesOut = freeWhenStuck(p, res.Trace)
 				}
 			}
@@ -421,3 +430,10 @@ const motifIndexHeader = `# Bibliothek, Motive: Reihenfolge der Puzzles je Grö�
 # Nur unten anhängen, nie umsortieren: Die Übersicht zeigt sie je Größe in dieser Reihenfolge.
 # Gespeichert und verlinkt wird über eine ID aus den Regionen; der Name steht in der Datei („# name:“).
 `
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
