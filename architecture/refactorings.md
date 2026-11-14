@@ -96,7 +96,8 @@ doing when the area is touched next anyway.
   `party.controls`, …). Checked with a behaviour script over the DevTools
   protocol that plays every mode (solo, hints, checks, hypothesis, watch,
   tutorial and tour, library, file page, versus, coop, against the clock):
-  the same 99 observations before and after. Not kept in the repo.
+  the same 99 observations before and after. That script is now the UI
+  check in `internal/web/uicheck`, run by CI.
   - Not done: a JS build step, modules loaded at runtime, or a framework.
     Single-file pages without a build (principle 6 in
     [README.md](README.md)) are worth more than the convenience.

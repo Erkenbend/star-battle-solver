@@ -25,6 +25,16 @@ GOOS=darwin GOARCH=amd64 go build ./cmd/starbattle
 
 Die Screenshots in [docs/screenshots](screenshots) nimmt `docs/screenshots/take.sh` neu auf (braucht Go, node ≥ 22 und Chromium).
 
+### UI-Prüfung
+
+```sh
+internal/web/uicheck/run.sh              # alle Szenarien, etwa eine Minute
+internal/web/uicheck/run.sh coop race    # nur einige
+internal/web/uicheck/run.sh -update      # expected.jsonl neu schreiben
+```
+
+Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit Hinweisen und Prüfen, Annahme, Lösungsweg, Anleitung mit Rundgang, Bibliothek, eine mit `html` gespeicherte Seite und Partys gegeneinander, miteinander und gegen die Uhr (Alice im Browser, Bob über die API). Nach jedem Schritt hält das Skript fest, was Seite und Server zeigen, und vergleicht es mit `internal/web/uicheck/expected.jsonl`; Abweichungen stehen in der Ausgabe. Nach einer gewollten Änderung der Oberfläche schreibt `-update` die Datei neu, ihr Diff gehört dann zum Commit. Braucht Go, node ≥ 22, curl und Chromium (`CHROME`, sonst `chromium`, `google-chrome` oder das von Playwright). Die CI führt die Prüfung als eigenen Job aus und legt bei Abweichungen die beobachtete Datei als Artefakt ab.
+
 ## Aufbau
 
 | Verzeichnis | Inhalt |

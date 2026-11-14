@@ -278,13 +278,21 @@ designer appends for you). The workflows are in `docs/development.md`.
 - **Rules in isolation:** table tests on hand-written board states.
 - **Web:** party state machines with a fake clock, HTTP and SSE end to end,
   page data and escaping; the JS `Logic` module under node (skipped if node is
-  missing). The UI itself has no automated browser tests;
-  `docs/screenshots/take.sh` drives a headless Chromium to retake the
-  README screenshots and is the closest thing to one.
+  missing).
+- **UI check** (`internal/web/uicheck`): a node script drives a headless
+  Chromium over the DevTools protocol through every mode of the puzzle page
+  (solo, hints, checks, hypothesis, solving path, tutorial and tour, library,
+  a page saved as a file, and parties against each other, together and
+  against the clock, with a second player via the API) and records what the
+  page and the server show after each action. Values that differ between
+  runs (times, random party puzzles) are normalized. The result must equal
+  `expected.jsonl`; after an intended UI change, `run.sh -update` rewrites
+  it and its diff is part of the review. Not part of `go test`: run it with
+  `internal/web/uicheck/run.sh` (about a minute); CI runs it as its own job.
 - **CLI:** smoke tests call the commands directly.
 
-Day to day, run `go test -short ./...`. The full suite with every hard puzzle
-is CI's job.
+Day to day, run `go test -short ./...`, and the UI check after changing the
+browser code. The full suite with every hard puzzle is CI's job.
 
 ## 7. Build, CI and deployment
 
