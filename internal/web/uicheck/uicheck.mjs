@@ -4,7 +4,7 @@
 // expected.jsonl. Normally started by run.sh, which builds starbattle and
 // starts the server and Chromium first.
 //
-// Usage: node uicheck.mjs <base-url> <devtools-port> <html-file> <out-file> [-update] [scenario...]
+// Usage: node uicheck.mjs <base-url> <devtools-host:port> <html-file> <out-file> [-update] [scenario...]
 //
 // Every line of expected.jsonl is one observation: the board's cell classes,
 // banner, messages, buttons, clock, steps of the solving path and so on, or
@@ -22,12 +22,28 @@ import path from "node:path";
 
 const args = process.argv.slice(2);
 const UPDATE = args.includes("-update");
-const [BASE, PORT, HTMLFILE, OUTFILE, ...ONLY] = args.filter((a) => a !== "-update");
+const [BASE, DEVTOOLS, HTMLFILE, OUTFILE, ...ONLY] = args.filter((a) => a !== "-update");
 const EXPECTED = path.join(path.dirname(new URL(import.meta.url).pathname), "expected.jsonl");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- DevTools protocol ----------
-const target = await (await fetch(`http://localhost:${PORT}/json/new?about:blank`, { method: "PUT" })).json();
+// A new tab, retried for a while: on a busy machine the browser may answer
+// its port before it is ready (ECONNREFUSED, an empty reply).
+async function newTab() {
+  for (const t0 = Date.now(); ; await sleep(500)) {
+    try {
+      const r = await fetch(`http://${DEVTOOLS}/json/new?about:blank`, { method: "PUT" });
+      if (r.ok) return await r.json();
+      throw new Error(`HTTP ${r.status}`);
+    } catch (e) {
+      if (Date.now() - t0 > 30000) throw new Error(`no browser at ${DEVTOOLS}: ${e.cause?.code || e.message}`);
+    }
+  }
+}
+const target = await newTab().catch((e) => {
+  console.error(e.message);
+  process.exit(2);
+});
 const ws = new WebSocket(target.webSocketDebuggerUrl);
 let seq = 0;
 const pending = new Map();
@@ -45,7 +61,15 @@ ws.onmessage = (m) => {
     for (const l of [...listeners]) l(d);
   }
 };
-await new Promise((r) => (ws.onopen = r));
+await new Promise((r, rej) => {
+  ws.onopen = r;
+  ws.onerror = () => rej(new Error("cannot connect to the browser's tab"));
+});
+// The browser gone in the middle: fail now instead of waiting for timeouts.
+ws.onclose = () => {
+  console.error("the connection to the browser closed");
+  process.exit(2);
+};
 const send = (method, params = {}) => new Promise((res, rej) => { pending.set(++seq, { res, rej }); ws.send(JSON.stringify({ id: seq, method, params })); });
 // Waits for the next event of this kind, at most ms: a load that never comes
 // must not hang the run.
@@ -568,6 +592,7 @@ for (const [name, f] of Object.entries(scenarios)) {
   }
   if (errors.length) record({ label: "JS ERRORS", errors: errors.splice(0) });
 }
+ws.onclose = null;
 ws.close();
 
 // ---------- compare with expected.jsonl ----------

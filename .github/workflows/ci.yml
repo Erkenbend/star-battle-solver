@@ -49,6 +49,7 @@ jobs:
   ui:
     name: UI check
     runs-on: ubuntu-26.04
+    timeout-minutes: 10 # about a minute normally; a hang must not wait 6 h
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

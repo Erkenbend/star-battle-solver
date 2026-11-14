@@ -19,14 +19,16 @@ root=$(cd "$here/../../.." && pwd)
 port=${UICHECK_PORT:-6397}
 devtools=${UICHECK_DEVTOOLS:-9337}
 
+# Google Chrome first: a chromium from snap cannot use paths in /tmp.
 chrome=${CHROME:-}
 if [[ -z $chrome ]]; then
-  chrome=$(command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)
+  chrome=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)
 fi
 if [[ -z $chrome ]]; then
   chrome=$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | tail -n 1 || true)
 fi
 [[ -x $chrome ]] || { echo "no Chromium found, please set CHROME" >&2; exit 1; }
+echo "browser: $chrome ($("$chrome" --version 2>/dev/null || echo "version unknown"))"
 
 tmp=$(mktemp -d)
 pids=()
@@ -40,22 +42,45 @@ trap cleanup EXIT
 (cd "$root" && go build -o "$tmp/starbattle" ./cmd/starbattle)
 # The page of a puzzle as a file, as `starbattle html` writes it.
 "$tmp/starbattle" generate -n 6 -seed 3 | "$tmp/starbattle" html -o "$tmp/p.html"
-"$tmp/starbattle" serve -addr "localhost:$port" -no-pregen > "$tmp/serve.log" 2>&1 &
+# 127.0.0.1, not localhost: that may resolve to ::1 first, where neither
+# Chrome's debugging port nor the server listens (GitHub's runners).
+host=127.0.0.1
+"$tmp/starbattle" serve -addr "$host:$port" -no-pregen > "$tmp/serve.log" 2>&1 &
 pids+=($!)
-"$chrome" --headless --no-sandbox --disable-gpu --no-first-run --user-data-dir="$tmp/profile" \
-  --remote-debugging-port=$devtools about:blank > "$tmp/chrome.log" 2>&1 &
+# --disable-dev-shm-usage: CI machines and containers often have a small
+# /dev/shm, on which the browser crashes. No throttling of timers in tabs
+# that look hidden: the page's clock and party reports run on timers.
+"$chrome" --headless --no-sandbox --disable-gpu --no-first-run --no-default-browser-check \
+  --disable-dev-shm-usage --disable-extensions \
+  --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows \
+  --user-data-dir="$tmp/profile" \
+  --remote-debugging-address=$host --remote-debugging-port=$devtools about:blank > "$tmp/chrome.log" 2>&1 &
 pids+=($!)
 
-for _ in $(seq 100); do
-  curl -sf "localhost:$port/party" > /dev/null && curl -sf "localhost:$devtools/json/version" > /dev/null && break
+ready=
+for _ in $(seq 600); do
+  if curl -sf "http://$host:$port/party" > /dev/null && curl -sf "http://$host:$devtools/json/version" > /dev/null; then
+    ready=1
+    break
+  fi
   sleep 0.1
 done
+if [[ -z $ready ]]; then
+  echo "server or browser did not start within 60 s" >&2
+  echo "--- server log" >&2
+  tail -n 20 "$tmp/serve.log" >&2
+  echo "--- browser log" >&2
+  tail -n 40 "$tmp/chrome.log" >&2
+  exit 1
+fi
 
 out=${UICHECK_OUT:-$tmp/observed.jsonl}
 status=0
-node "$here/uicheck.mjs" "http://localhost:$port" "$devtools" "$tmp/p.html" "$out" "$@" || status=$?
+node "$here/uicheck.mjs" "http://$host:$port" "$host:$devtools" "$tmp/p.html" "$out" "$@" || status=$?
 if [[ $status -ne 0 ]]; then
   echo "--- server log" >&2
   tail -n 20 "$tmp/serve.log" >&2
+  echo "--- browser log" >&2
+  tail -n 20 "$tmp/chrome.log" >&2
 fi
 exit $status
