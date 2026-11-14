@@ -28,10 +28,18 @@ fi
 
 tmp=$(mktemp -d)
 pids=()
+# Keeps the script's exit code. The browser's helper processes may still
+# write to its profile for a moment after it is stopped, so removing the
+# temp directory is retried, and a leftover never fails the run.
 cleanup() {
+  local code=$?
   for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
   wait 2>/dev/null || true
-  rm -rf "$tmp"
+  for _ in $(seq 20); do
+    rm -rf "$tmp" 2>/dev/null && break
+    sleep 0.25
+  done
+  exit "$code"
 }
 trap cleanup EXIT
 
