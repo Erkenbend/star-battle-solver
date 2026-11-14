@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"starbattle"
-	"starbattle/internal/puzzle"
+	"starbattle/internal/collection"
 )
 
 func testLibrary(t *testing.T) *Library {
@@ -42,12 +42,12 @@ func TestLibraryIndex(t *testing.T) {
 		}
 	}
 	// The sample the tests run (sample.idx) is part of the library, once each.
-	sample, err := starbattle.ReadIndex(starbattle.Hard, starbattle.HardDir+"/sample.idx")
+	sample, err := collection.ReadIndex(starbattle.Hard, starbattle.HardDir+"/sample.idx")
 	if err != nil || len(sample) == 0 {
 		t.Fatalf("sample: %v", err)
 	}
 	inLib := map[string]bool{}
-	names, _ := starbattle.ReadIndex(starbattle.Hard, starbattle.HardDir+"/"+LibraryIndex)
+	names, _ := collection.ReadIndex(starbattle.Hard, starbattle.HardDir+"/"+collection.Index)
 	for _, name := range names {
 		inLib[name] = true
 	}
@@ -61,23 +61,6 @@ func TestLibraryIndex(t *testing.T) {
 	// The names are fixed: shared results use them.
 	if e := lib.entries[0]; e.name() != "5-1" {
 		t.Errorf("first entry is %s", e.name())
-	}
-}
-
-// TestLibraryID: the ID depends on the regions only, not on their letters.
-func TestLibraryID(t *testing.T) {
-	text, err := os.ReadFile("../../testdata/hard/n05_s029.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	a := puzzle.MustParse(string(text))
-	b := puzzle.MustParse(strings.NewReplacer("A", "E", "E", "A", "C", "B", "B", "C").Replace(string(text)))
-	if LibraryID(a) != LibraryID(b) {
-		t.Errorf("renamed letters change the ID: %s vs %s", LibraryID(a), LibraryID(b))
-	}
-	other := puzzle.MustParse("CCAAA\nCCADA\nEDDDA\nEDEBB\nEEEBB\n")
-	if LibraryID(a) == LibraryID(other) {
-		t.Error("different regions, same ID")
 	}
 }
 
@@ -171,28 +154,14 @@ func TestMotifsIndex(t *testing.T) {
 	}
 	for _, f := range files {
 		text, _ := os.ReadFile(f)
-		if !strings.HasPrefix(string(text), MotifNameKey+" ") {
-			t.Errorf("%s: no %q line at the top", filepath.Base(f), MotifNameKey)
+		if !strings.HasPrefix(string(text), collection.NameKey+" ") {
+			t.Errorf("%s: no %q line at the top", filepath.Base(f), collection.NameKey)
 		}
 	}
 	hard := testLibrary(t)
 	for _, e := range motifs.entries {
 		if hard.byID[e.id] != nil {
 			t.Errorf("motif %s is also hard puzzle %s", e.name(), hard.byID[e.id].name())
-		}
-	}
-}
-
-func TestMotifName(t *testing.T) {
-	for _, tt := range []struct{ file, text, want string }{
-		{"n08_sad_smiley.txt", "AAB\n", "Sad Smiley"},
-		{"n10_herz-klein.txt", "", "Herz Klein"},
-		{"x.txt", "", "X"},
-		{"n08_a.txt", "# designer: …\n  # name:  Trauriger Smiley \nAB\n", "Trauriger Smiley"},
-		{"n08_a.txt", "# name:\n", "A"},
-	} {
-		if got := MotifName(tt.file, []byte(tt.text)); got != tt.want {
-			t.Errorf("MotifName(%q, %q) = %q, want %q", tt.file, tt.text, got, tt.want)
 		}
 	}
 }

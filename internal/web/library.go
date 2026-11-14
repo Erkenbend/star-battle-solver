@@ -1,31 +1,20 @@
 package web
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
 	"net/http"
-	"path"
-	"strings"
 	"sync"
 	"time"
 
-	"starbattle"
 	"starbattle/internal/bruteforce"
+	"starbattle/internal/collection"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
 )
-
-// LibraryIndex is the file in a library directory that lists its puzzles in
-// order: one file name per line, '#' starts a comment. A puzzle's number
-// counts the puzzles of its size up to it, so new puzzles are only ever
-// appended.
-const LibraryIndex = "bibliothek.idx"
 
 // Library is a fixed collection of puzzles to browse, one part of
 // /bibliothek. There are two kinds:
@@ -34,11 +23,11 @@ const LibraryIndex = "bibliothek.idx"
 //     help. Their name is size and number, "10-3": the third 10×10 puzzle.
 //   - Motifs: pictures drawn in the designer (designs/), played like solo
 //     puzzles, with hints and checks. Their name is given in the file (see
-//     MotifName).
+//     collection.Name).
 //
-// Each puzzle also has an ID derived from its regions for links and the
-// browser's storage, so neither depends on the generator, the file name or
-// the order.
+// Both are collections (see package collection). Each puzzle also has an ID
+// derived from its regions (collection.ID) for links and the browser's
+// storage, so neither depends on the generator, the file name or the order.
 type Library struct {
 	kind    string // KindHard or KindMotifs
 	solve   SolveFunc
@@ -65,118 +54,49 @@ type libEntry struct {
 	err    error
 }
 
-// LoadLibrary reads the hard puzzles in dir of fsys (see LibraryIndex).
+// LoadLibrary reads the hard puzzles in dir of fsys (see collection.Load).
 func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
 	return loadLibrary(fsys, dir, KindHard, solve)
 }
 
-// LoadMotifs reads the motifs in dir of fsys (see LibraryIndex and MotifName).
+// LoadMotifs reads the motifs in dir of fsys (see collection.Load).
 func LoadMotifs(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
 	return loadLibrary(fsys, dir, KindMotifs, solve)
 }
 
 func loadLibrary(fsys fs.FS, dir, kind string, solve SolveFunc) (*Library, error) {
-	names, err := starbattle.ReadIndex(fsys, path.Join(dir, LibraryIndex))
+	coll, err := collection.Load(fsys, dir)
 	if err != nil {
 		return nil, err
 	}
 	lib := &Library{kind: kind, solve: solve, byID: map[string]*libEntry{}}
-	files := map[string]bool{}
 	titles := map[string]string{}
 	perSize := map[int]int{}
-	for _, name := range names {
-		if files[name] {
-			return nil, fmt.Errorf("%s: %s doppelt", LibraryIndex, name)
-		}
-		files[name] = true
-		text, err := fs.ReadFile(fsys, path.Join(dir, name))
-		if err != nil {
-			return nil, err
-		}
-		p, err := puzzle.Parse(bytes.NewReader(text))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
-		}
+	for _, c := range coll {
+		p := c.Puzzle
 		if p.N < MinN || p.N > MaxN {
-			return nil, fmt.Errorf("%s: Größe %d außerhalb von %d bis %d", name, p.N, MinN, MaxN)
+			return nil, fmt.Errorf("%s: Größe %d außerhalb von %d bis %d", c.File, p.N, MinN, MaxN)
 		}
 		perSize[p.N]++
-		e := &libEntry{nr: perSize[p.N], id: LibraryID(p), p: p, ready: make(chan struct{})}
+		e := &libEntry{nr: perSize[p.N], id: c.ID, p: p, ready: make(chan struct{})}
 		if kind == KindHard {
-			e.rating = starbattle.FileRating(text)
+			e.rating = collection.Rating(c.Text)
 		}
 		if kind == KindMotifs {
-			e.title = MotifName(name, text)
+			e.title = collection.Name(c.File, c.Text)
 			if prev, ok := titles[e.title]; ok {
-				return nil, fmt.Errorf("%s: Name %q hat schon %s", name, e.title, prev)
+				return nil, fmt.Errorf("%s: Name %q hat schon %s", c.File, e.title, prev)
 			}
-			titles[e.title] = name
-		}
-		if prev := lib.byID[e.id]; prev != nil {
-			return nil, fmt.Errorf("%s: dasselbe Puzzle wie %s", name, prev.name())
+			titles[e.title] = c.File
 		}
 		lib.entries = append(lib.entries, e)
 		lib.byID[e.id] = e
 	}
 	if len(lib.entries) == 0 {
-		return nil, fmt.Errorf("%s: keine Puzzles", LibraryIndex)
+		return nil, fmt.Errorf("%s: keine Puzzles", collection.Index)
 	}
 	return lib, nil
 }
-
-// LibraryID identifies a puzzle by its regions alone: the regions renumbered
-// in order of first appearance (row by row), hashed. Renaming the letters or
-// the file keeps the ID.
-func LibraryID(p *puzzle.Puzzle) string {
-	h := sha256.New()
-	fmt.Fprintf(h, "%d:", p.N)
-	renum := map[int]int{}
-	for _, row := range p.Regions {
-		for _, reg := range row {
-			k, ok := renum[reg]
-			if !ok {
-				k = len(renum)
-				renum[reg] = k
-			}
-			fmt.Fprintf(h, "%d,", k)
-		}
-	}
-	return hex.EncodeToString(h.Sum(nil))[:10]
-}
-
-// MotifNameKey starts the line of a motif's file that gives its name:
-// "# name: Trauriger Smiley". The puzzle parser skips it as a comment.
-const MotifNameKey = "# name:"
-
-// MotifName is the name of the motif in file (its base name) with contents
-// text: the MotifNameKey line, or else the file name without the size prefix,
-// '_' and '-' as spaces, each word capitalized ("n08_sad_smiley.txt": "Sad
-// Smiley").
-func MotifName(file string, text []byte) string {
-	for _, line := range strings.Split(string(text), "\n") {
-		if v, ok := strings.CutPrefix(strings.TrimSpace(line), MotifNameKey); ok {
-			if v = strings.TrimSpace(v); v != "" {
-				return v
-			}
-		}
-	}
-	return MotifNameFromFile(file)
-}
-
-// MotifNameFromFile makes a name from a motif's file name (see MotifName).
-func MotifNameFromFile(file string) string {
-	base := strings.TrimSuffix(path.Base(file), path.Ext(file))
-	if len(base) > 4 && base[0] == 'n' && base[3] == '_' && isDigit(base[1]) && isDigit(base[2]) {
-		base = base[4:]
-	}
-	words := strings.FieldsFunc(base, func(r rune) bool { return r == '_' || r == '-' || r == ' ' })
-	for i, w := range words {
-		words[i] = strings.ToUpper(w[:1]) + w[1:]
-	}
-	return strings.Join(words, " ")
-}
-
-func isDigit(b byte) bool { return '0' <= b && b <= '9' }
 
 // name is what people call e: a motif's name, or a hard puzzle's size and
 // number, "10-3".

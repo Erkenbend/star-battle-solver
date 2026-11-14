@@ -36,6 +36,7 @@ Die Screenshots in [docs/screenshots](screenshots) nimmt `docs/screenshots/take.
 | `internal/solver/observers` | die logischen Regeln mit Erklärungen |
 | `internal/bruteforce` | Referenz-Solver für Generator und Tests |
 | `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen, auch um ein gezeichnetes Muster herum |
+| `internal/collection` | Format der Puzzle-Sammlungen `testdata/hard` und `designs`: Index `bibliothek.idx`, Dateinamen, Kopfzeilen (`# rating:`, `# name:`), ID |
 | `internal/hardsearch` | Suche nach schweren Puzzles für `testdata/hard` (`starbattle hard`) |
 | `internal/render` | Ausgabe im Terminal |
 | `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek, Einstellungen, Designer |

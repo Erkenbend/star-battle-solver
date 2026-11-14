@@ -68,7 +68,7 @@ jobs:
             if (t >= 90) print "brightgreen"; else if (t >= 80) print "green";
             else if (t >= 70) print "yellowgreen"; else if (t >= 60) print "yellow";
             else print "red" }')
-          # Same rule as starbattle.ReadIndex: '#' starts a comment, blank lines are skipped.
+          # Same rule as collection.ReadIndex: '#' starts a comment, blank lines are skipped.
           puzzles=$(awk '{ sub(/#.*/, "") } NF { n++ } END { print n + 0 }' testdata/hard/bibliothek.idx designs/bibliothek.idx)
           git checkout --orphan badges
           git rm -rfq .

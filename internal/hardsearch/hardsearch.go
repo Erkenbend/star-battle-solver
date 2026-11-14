@@ -137,7 +137,7 @@ func Rate(res solver.Result) Rating {
 }
 
 // String is the rating as the puzzle files give it (after
-// starbattle.RatingKey): "2 (4 lookahead steps, longest 5)".
+// collection.RatingKey): "2 (4 lookahead steps, longest 5)".
 func (r Rating) String() string {
 	var why string
 	switch {

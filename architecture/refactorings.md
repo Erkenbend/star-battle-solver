@@ -1,9 +1,10 @@
 # Architecture review and suggested refactorings
 
 Review as of November 2026 (about 90 commits, ~18k lines including tests and
-assets). None of the refactorings below have been carried out yet. When one is
-done, remove it here and update [README.md](README.md) if the structure
-changed. When one is rejected, note why, so it is not proposed again.
+assets). The numbers of the suggestions stay fixed so they can be referred
+to. When one is done, move it to "Done" at the end in a sentence or two and
+update [README.md](README.md) if the structure changed. When one is rejected,
+note why, so it is not proposed again.
 
 ## Verdict
 
@@ -21,34 +22,11 @@ The pressure is at the edges, where features have accumulated:
 - `assets/app.js` (~2,150 lines) is one file whose `boot()` builds the UI for
   every kind of page.
 - The format of the puzzle *collections* (index files, header lines such as
-  `# rating:` and `# name:`) is read and written in three different places.
+  `# rating:` and `# name:`) was read and written in three different places
+  (done, see 1).
 
 The suggestions are ordered by value for effort. None is urgent; each is worth
 doing when the area is touched next anyway.
-
-## 1. One home for puzzle collections (recommended)
-
-**Now:** a "collection" is a directory of puzzle files plus `bibliothek.idx`,
-with header lines in each file. The knowledge about it is spread out:
-
-- the root package (`hard.go`) reads index files and the `# rating:` line;
-- `cmd/starbattle` writes the header of new hard puzzles and rewrites rating
-  lines (`writeHard`, `rateDir`, `withRating`);
-- `internal/web/designer.go` writes new motif files, their `# name:` line, and
-  appends to the index; `internal/web/library.go` derives motif names.
-
-**Suggestion:** one package (e.g. `internal/collection`, or the root package
-if it is renamed, see 4) that owns the collection format: read and append to
-an index, read and set header lines, find duplicates, name new files. `hard`,
-the designer and the library then call it instead of each knowing part of the
-format.
-
-**Why:** these files are long-lived data, and the append-only rule of the
-index is the one invariant whose violation silently breaks players' saved
-progress. It should be enforced in one place. It also takes domain logic out
-of `main.go`, which should stay a thin dispatcher.
-
-**Effort:** small to medium; behaviour unchanged, existing tests cover it.
 
 ## 2. Split `internal/web` along its concerns (recommended, when next touching parties)
 
@@ -130,3 +108,12 @@ worth more than the convenience.
   where a restart ending running parties is acceptable. It would also break
   the "no dependencies" property, and should be the first item if that
   changes.
+
+## Done
+
+- **1. One home for puzzle collections** (November 2026): `internal/collection`
+  owns the format of `testdata/hard` and `designs` (index, file names, header
+  lines, ID, duplicate checks, create-never-overwrite). The root package keeps
+  only the embeds, `web` only the library pages, and the designer and `hard`
+  (still in `main.go`: its search loop, provenance header and output) call
+  the package instead of knowing the format themselves.

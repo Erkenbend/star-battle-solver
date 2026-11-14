@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"starbattle/internal/collection"
 )
 
 // Unique (generate -n 5 -seed 3).
@@ -14,7 +16,7 @@ const lib5 = "DBBBB\nDDBCC\nDDBAA\nEDDAA\nEAAAA\n"
 const lib4Ambiguous = "AABB\nAABB\nCCDD\nCCDD\n"
 
 func libFS(index string, files map[string]string) fstest.MapFS {
-	fsys := fstest.MapFS{"lib/" + LibraryIndex: {Data: []byte(index)}}
+	fsys := fstest.MapFS{"lib/" + collection.Index: {Data: []byte(index)}}
 	for name, text := range files {
 		fsys["lib/"+name] = &fstest.MapFile{Data: []byte(text)}
 	}
@@ -33,7 +35,7 @@ func TestLoadLibraryErrors(t *testing.T) {
 		{"missing file", libFS("a.txt\n", nil), "file does not exist"},
 		{"unparsable", libFS("a.txt\n", map[string]string{"a.txt": "AB\n"}), "a.txt:"},
 		{"too small", libFS("a.txt\n", map[string]string{"a.txt": "A\n"}), "außerhalb"},
-		{"same puzzle", libFS("a.txt\nb.txt\n", map[string]string{"a.txt": lib5, "b.txt": lib5}), "dasselbe Puzzle wie 5-1"},
+		{"same puzzle", libFS("a.txt\nb.txt\n", map[string]string{"a.txt": lib5, "b.txt": lib5}), "b.txt: dasselbe Puzzle wie a.txt"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := LoadLibrary(tt.fsys, "lib", testSolve)

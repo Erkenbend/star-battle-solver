@@ -99,6 +99,8 @@ something far away.
           │                                                   │
           └────────────── internal/puzzle (layout, units, text format) ─┘
 
+   internal/collection: format of testdata/hard and designs/ (index, file names,
+                        header lines, ID); used by web, `hard` and the root package
    module root package `starbattle` (hard.go): embeds testdata/hard, designs/, symbols/
 ```
 
@@ -227,6 +229,13 @@ because `go:embed` cannot reach parent directories.
 - `symbols`: the star symbols to choose from, plus the Python scripts that
   draw the animated ones.
 
+`testdata/hard` and `designs` share one on-disk format, owned by
+`internal/collection`: the index, file names (`nNN_STEM.txt`), header lines
+(`# rating:`, `# name:`), the region-based ID, duplicate checks, and creating
+files without ever overwriting. Everything that reads or writes these
+directories (the library, `hard`, the designer) goes through it, so the
+append-only rule and the header format are defined in one place.
+
 New content comes from the developer tools (`starbattle hard -o testdata/hard`,
 `starbattle design`) and is then appended to the index file by hand (the
 designer appends for you). The workflows are in `docs/development.md`.
@@ -275,6 +284,7 @@ is CI's job.
 | solver search behaviour | `internal/solver` (search) | explanations must stay reproducible; the sync runner drives trial runs |
 | generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see `PLAN.md`) |
 | more hard puzzles | `starbattle hard`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges recorded in `PLAN.md` |
+| the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
 | a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `app.js` with a node test; text in German |
 | party modes | `party.go` (shared lifecycle), `coop.go`, `clock.go`, `party_server.go` (HTTP/SSE), `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/` | see `symbols/README.md` |

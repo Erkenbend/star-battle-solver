@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"starbattle"
+	"starbattle/internal/collection"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
 	"starbattle/internal/solver/observers"
@@ -113,12 +114,12 @@ func TestLibraryRatings(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		want := starbattle.RatingKey + " " + v.Rating.String()
+		want := collection.RatingKey + " " + v.Rating.String()
 		if !strings.Contains(string(text), want+"\n") {
 			t.Errorf("%s: rating line is not %q; run starbattle hard -rate -o testdata/hard", name, want)
 		}
-		if got := starbattle.FileRating(text); got != v.Rating.Stars {
-			t.Errorf("%s: FileRating %d, want %d", name, got, v.Rating.Stars)
+		if got := collection.Rating(text); got != v.Rating.Stars {
+			t.Errorf("%s: Rating %d, want %d", name, got, v.Rating.Stars)
 		}
 	}
 }

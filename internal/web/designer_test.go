@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"starbattle/internal/bruteforce"
+	"starbattle/internal/collection"
 	"starbattle/internal/generator"
 	"starbattle/internal/puzzle"
 )
@@ -134,7 +135,7 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 	if err != nil || bruteforce.CountSolutions(p, 2) != 1 {
 		t.Fatalf("saved file: %v\n%s", err, text)
 	}
-	if !strings.Contains(string(text), "#   .AA..AA.") || !strings.HasPrefix(string(text), MotifNameKey+" Herz\n") {
+	if !strings.Contains(string(text), "#   .AA..AA.") || !strings.HasPrefix(string(text), collection.NameKey+" Herz\n") {
 		t.Errorf("pattern or name missing in the comments:\n%s", text)
 	}
 	// Never overwrite.

@@ -33,6 +33,7 @@ import (
 	"starbattle"
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
+	"starbattle/internal/collection"
 	"starbattle/internal/generator"
 	"starbattle/internal/hardsearch"
 	"starbattle/internal/puzzle"
@@ -410,8 +411,8 @@ func cmdHard(args []string) error {
 			hits++
 			line += "  HIT"
 			if *out != "" {
-				name := fmt.Sprintf("n%02d_s%03d.txt", *n, f.Seed)
-				switch err := writeHard(filepath.Join(*out, name), *n, f, commit); {
+				name := collection.FileName(*n, fmt.Sprintf("s%03d", f.Seed))
+				switch err := writeHard(*out, name, *n, f, commit); {
 				case errors.Is(err, os.ErrExist):
 					line += " (" + name + " exists, kept)"
 				case err != nil:
@@ -438,7 +439,7 @@ func cmdHard(args []string) error {
 		fmt.Printf("next search: -from %d\n", next)
 	}
 	if len(written) > 0 {
-		fmt.Printf("written to %s; append to %s to put them in the library:\n", *out, web.LibraryIndex)
+		fmt.Printf("written to %s; append to %s to put them in the library:\n", *out, collection.Index)
 		for _, name := range written {
 			fmt.Println(name)
 		}
@@ -446,9 +447,10 @@ func cmdHard(args []string) error {
 	return firstErr
 }
 
-// writeHard writes f's puzzle to path, with a header that says how to make it
-// again and why it is hard. An existing file is left alone (os.ErrExist).
-func writeHard(path string, n int, f hardsearch.Found, commit string) error {
+// writeHard writes f's puzzle as file to the collection in dir, with a header
+// that says how to make it again, why it is hard and its rating. An existing
+// file is left alone (os.ErrExist).
+func writeHard(dir, file string, n int, f hardsearch.Found, commit string) error {
 	v := f.Verdict
 	why := "base rules get stuck, all rules solve it"
 	if v.All == solver.Stuck {
@@ -458,19 +460,15 @@ func writeHard(path string, n int, f hardsearch.Found, commit string) error {
 		}
 		why += ")"
 	}
-	header := fmt.Sprintf("# generate -n %d -seed %d at commit %s (MinRegionSize %d); %s\n%s %v\n",
-		n, f.Seed, commit, generator.DefaultMinRegionSize(n), why, starbattle.RatingKey, v.Rating)
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		return err
-	}
-	_, err = io.WriteString(file, header+f.Puzzle.String())
-	return errors.Join(err, file.Close())
+	header := fmt.Sprintf("# generate -n %d -seed %d at commit %s (MinRegionSize %d); %s\n",
+		n, f.Seed, commit, generator.DefaultMinRegionSize(n), why)
+	header += collection.HeaderLine(collection.RatingKey, v.Rating.String())
+	return collection.Create(dir, file, header+f.Puzzle.String())
 }
 
 // rateDir rates every puzzle file (*.txt) in dir anew (see hardsearch.Rating)
-// and writes its rating line, after the comments at the top if it had none.
-// Files whose rating stays the same are left alone.
+// and writes its rating line (collection.RatingKey), after the comments at
+// the top if it had none. Files whose rating stays the same are left alone.
 func rateDir(dir string) error {
 	files, err := filepath.Glob(filepath.Join(dir, "*.txt"))
 	if err != nil {
@@ -498,7 +496,7 @@ func rateDir(dir string) error {
 			return fmt.Errorf("%s: the base rules solve it, not a hard puzzle", f)
 		}
 		stars[v.Rating.Stars]++
-		next := withRating(string(text), v.Rating)
+		next := collection.SetHeader(string(text), collection.RatingKey, v.Rating.String())
 		mark := ""
 		if next != string(text) {
 			if err := os.WriteFile(f, []byte(next), 0o644); err != nil {
@@ -511,25 +509,6 @@ func rateDir(dir string) error {
 	}
 	fmt.Printf("\n%d puzzles: %d with 1 star, %d with 2, %d with 3; %d files written\n", len(files), stars[1], stars[2], stars[3], changed)
 	return nil
-}
-
-// withRating returns the text of a puzzle file with its rating line set to r:
-// replaced where it is, or else added after the comment lines at the top.
-func withRating(text string, r hardsearch.Rating) string {
-	line := fmt.Sprintf("%s %v\n", starbattle.RatingKey, r)
-	lines := strings.SplitAfter(text, "\n")
-	at := 0
-	for i, l := range lines {
-		t := strings.TrimSpace(l)
-		if strings.HasPrefix(t, starbattle.RatingKey) {
-			lines[i] = line
-			return strings.Join(lines, "")
-		}
-		if at == i && strings.HasPrefix(t, "#") {
-			at = i + 1
-		}
-	}
-	return strings.Join(lines[:at], "") + line + strings.Join(lines[at:], "")
 }
 
 // buildCommit is the commit the binary was built from, for the header of
