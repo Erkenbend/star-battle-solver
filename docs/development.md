@@ -1,6 +1,6 @@
 # Entwicklung
 
-Hintergrund, Regeln, Messungen und Entscheidungen stehen in [PLAN.md](../PLAN.md), die ursprüngliche Idee in [grober_plan.md](../grober_plan.md), der Aufbau des Ganzen und warum er so ist in [architecture/](../architecture/README.md) (englisch). Hier geht es ums Bauen, Testen und die Werkzeuge für die Entwicklung.
+Hintergrund, Regeln und Messungen stehen in [PLAN.md](../PLAN.md), die Entscheidungen in [architecture/decisions](../architecture/decisions/README.md) (englisch), die ursprüngliche Idee in [grober_plan.md](../grober_plan.md), der Aufbau des Ganzen und warum er so ist in [architecture/](../architecture/README.md) (englisch). Hier geht es ums Bauen, Testen und die Werkzeuge für die Entwicklung.
 
 ## Bauen und testen
 
@@ -104,7 +104,7 @@ n=10 seed=451 base=solved t=30ms
 n=10 seed=453 base=stuck all=stuck lookahead=4 guesses=0 rating=2 t=161ms  HIT → n10_s453.txt
 ```
 
-Mit `-o` landet jeder Treffer als `nNN_sSEED.txt` im Verzeichnis, mit Befehl, Commit und Grund als Kommentar und darunter der Schwierigkeit (`# rating: 2 (4 lookahead steps, longest 5)`, siehe unten); bestehende Dateien werden nie überschrieben. Am Ende stehen die Zahlen der Suche, der Seed, bei dem die nächste Suche weitermacht (die bisherigen Bereiche stehen in [PLAN.md](../PLAN.md)), und die neuen Dateien. In die Bibliothek kommen sie erst, wenn man sie unten an `testdata/hard/bibliothek.idx` anhängt. Ctrl-C bricht nach den laufenden Seeds ab und nennt trotzdem, wo es weitergeht.
+Mit `-o` landet jeder Treffer als `nNN_sSEED.txt` im Verzeichnis, mit Befehl, Commit und Grund als Kommentar und darunter der Schwierigkeit (`# rating: 2 (4 lookahead steps, longest 5)`, siehe unten); bestehende Dateien werden nie überschrieben. Am Ende stehen die Zahlen der Suche, der Seed, bei dem die nächste Suche weitermacht (die bisherigen Bereiche stehen in [PLAN.md](../PLAN.md) und [Entscheidung 17](../architecture/decisions/17-library-over-100-sample-tests.md)), und die neuen Dateien. In die Bibliothek kommen sie erst, wenn man sie unten an `testdata/hard/bibliothek.idx` anhängt. Ctrl-C bricht nach den laufenden Seeds ab und nennt trotzdem, wo es weitergeht.
 
 Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 etwa jedes 130. Puzzle, bei 13×13 jedes 70., bei 14×14 jedes 50., unter 10×10 praktisch keins. Ein 14×14-Seed dauert bis zu einigen Sekunden.
 

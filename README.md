@@ -27,7 +27,7 @@ Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) un
 - **Eine Bibliothek der härtesten Fälle,** im Browser ohne jede Hilfe zu lösen. Den Lösungsweg des Solvers gibt es zum Vergleich erst danach. Daneben Motive: Puzzles, deren Regionen ein Bild ergeben, mit Hinweisen wie beim Solo-Spiel.
 - **Brute Force nur als Schiedsrichter:** Sie prüft, dass jedes erzeugte Puzzle genau eine Lösung hat und dass die Regeln nichts Falsches folgern.
 
-Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer, eine Goroutine pro Regel, die ihre Folgerungen über Channels austauschen. Regeln, Messungen und Entscheidungen stehen in [PLAN.md](PLAN.md).
+Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer, eine Goroutine pro Regel, die ihre Folgerungen über Channels austauschen. Regeln und Messungen stehen in [PLAN.md](PLAN.md), die Entscheidungen in [architecture/decisions](architecture/decisions/README.md) (englisch).
 
 | ![Gedankenexperiment](docs/screenshots/annahme.png) | ![Selbst lösen](docs/screenshots/spielen.png) |
 |---|---|
@@ -94,7 +94,8 @@ Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.d
 | [Entwicklung](docs/development.md) | Bauen und testen, Aufbau des Codes, die Werkzeuge `design` und `hard` |
 | [Symbole](symbols/README.md) | eigene Symbole statt ★ hinzufügen |
 | [Raspberry Pi](deploy/README.md) | Installation als Dienst |
-| [PLAN.md](PLAN.md) | Regeln, Messungen und Entscheidungen |
+| [PLAN.md](PLAN.md) | Regeln, Messungen, Stand und offene Ideen |
+| [architecture/decisions](architecture/decisions/README.md) | Entscheidungen und verworfene Ideen mit Messungen (englisch) |
 | [Architektur](architecture/README.md) | Aufbau und Zweck der Teile, für Entwickelnde (englisch) |
 
 ## Lizenz

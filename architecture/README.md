@@ -12,12 +12,13 @@ written in German. Code, comments, scripts and this directory are in English.
 |---|---|
 | this file | what the system is, how it is cut into parts, where state lives, how it is tested and shipped |
 | [refactorings.md](refactorings.md) | a review of the architecture with suggested (not yet done) refactorings |
+| [decisions/](decisions/README.md) | one file per decision, including rejected ideas, with the reasons and measurements |
 
 Related documents:
 
 - [`README.md`](../README.md): what the project is, for players (German).
 - [`docs/development.md`](../docs/development.md): build, test, and the developer tools `design` and `hard` (German).
-- [`PLAN.md`](../PLAN.md): the rules, measurements and the log of decisions, including rejected ideas (German). Read it before changing a rule, the generator or the search: most "why not …?" questions are answered there.
+- [`PLAN.md`](../PLAN.md): the rules, their priority levels and measurements, the current state and open ideas (German). Read it, and the matching entries in [`decisions/`](decisions/README.md), before changing a rule, the generator or the search: most "why not …?" questions are answered there.
 - [`grober_plan.md`](../grober_plan.md): the original idea, the only human-written text. Keep it unchanged.
 
 ## 1. What the system is
@@ -112,7 +113,7 @@ Dependencies only point downwards: a package uses packages in its own row
 else; `board` adds state; `solver` adds deduction mechanics; `observers` adds
 the actual rules.
 The generator deliberately depends on brute force, not on the solver (it was
-tried and was slower, see `PLAN.md`).
+tried and was slower, see [decision 5](decisions/05-generator-uses-brute-force.md)).
 
 ### 3.1 Model: `puzzle` and `board`
 
@@ -136,7 +137,7 @@ The split is "mechanics" versus "knowledge":
 - `observers` holds the rules themselves, their configuration and their German
   wording. Adding a rule means adding an observer type, giving it a priority
   level and registering it; the runners need no change. The rules, their
-  levels and why each exists are documented in `PLAN.md`.
+  levels are documented in `PLAN.md`, why each exists in [`decisions/`](decisions/README.md).
 
 There are **two runners with identical semantics**:
 
@@ -315,10 +316,10 @@ browser code. The full suite with every hard puzzle is CI's job.
 
 | Change | Start at | Keep in mind |
 |---|---|---|
-| a new deduction rule | `internal/solver/observers` | priority level, German wording, soundness test; measure its effect on `testdata/hard` and record it in `PLAN.md` |
+| a new deduction rule | `internal/solver/observers` | priority level, German wording, soundness test; measure its effect on `testdata/hard`, update the rules in `PLAN.md` and record the measurement as a new file in `architecture/decisions` |
 | solver search behaviour | `internal/solver` (search) | explanations must stay reproducible; the sync runner drives trial runs |
-| generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see `PLAN.md`) |
-| more hard puzzles | `starbattle hard`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges recorded in `PLAN.md` |
+| generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see decisions 8, 12, 13) and record it in `architecture/decisions` |
+| more hard puzzles | `starbattle hard`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges in [decision 17](decisions/17-library-over-100-sample-tests.md) and `PLAN.md` |
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
 | a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German |
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |

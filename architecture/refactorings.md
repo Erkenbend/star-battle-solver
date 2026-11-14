@@ -32,11 +32,6 @@ numbered section of their own above "Guidelines", continuing at 5.
 
 What the review found that needs no change now, only attention later:
 
-- **`PLAN.md` as a decision log:** its "Erledigt / verworfen" section is the
-  project's memory and keeps growing. If it gets unwieldy, move finished
-  entries to a `docs/decisions.md` (or into this directory) and keep `PLAN.md`
-  to rules, current state and open ideas. Do not shorten the entries: the
-  measurements and rejected alternatives are their value.
 - **Duplicated rules in Go and JS** (implied crosses, coop operations, cell
   encoding): keep the cross-references in comments; if a third copy appears,
   consider generating constants from Go into the page data instead.
@@ -52,7 +47,7 @@ What the review found that needs no change now, only attention later:
   explanations people see. It is the project's original premise, it is
   tested for equivalence, and it costs little to keep.
 - **Use the solver instead of brute force in the generator.** Tried, slower;
-  see `PLAN.md`.
+  see [decision 5](decisions/05-generator-uses-brute-force.md).
 - **Persist parties** (e.g. a file or SQLite). Not needed for a home server
   where a restart ending running parties is acceptable. It would also break
   the "no dependencies" property, and should be the first item if that
@@ -101,5 +96,10 @@ What the review found that needs no change now, only attention later:
   to look for what is built into the binary. The trace printing of `solve`
   moved from `main.go` to `render.Trace` (writing to an `io.Writer`, with
   tests of its own); `solve`'s output stayed byte for byte the same (18
-  flag and puzzle combinations compared). The two guidelines that were part
-  of 4 are under "Guidelines" above.
+  flag and puzzle combinations compared). Of the two guidelines that were
+  part of 4, one is under "Guidelines" above, the other is the next entry.
+- **Decision log out of `PLAN.md`** (November 2026, a former guideline): the
+  entries of its "Erledigt / verworfen" and "Entscheidungen" sections are now
+  one file each in [decisions/](decisions/README.md), translated to English
+  and not shortened. `PLAN.md` keeps the rules, the current state and open
+  ideas.
