@@ -158,7 +158,7 @@ func TestSymbolRoutes(t *testing.T) {
 	if rec.Code != http.StatusNotModified {
 		t.Errorf("If-None-Match: %d, want 304", rec.Code)
 	}
-	for _, p := range []string{"/symbole/none.svg", "/symbole/symbols.json", "/symbole/cat.py"} {
+	for _, p := range []string{"/symbole/none.svg", "/symbole/symbols.json", "/symbole/README.md"} {
 		if rec := get(h, p); rec.Code != http.StatusNotFound {
 			t.Errorf("%s: %d, want 404", p, rec.Code)
 		}

@@ -19,8 +19,10 @@ Was die Farben nicht annimmt, leuchtet bei Fehlern rot. Bilder lädt die Seite v
 
 ## Animierte Bilder erzeugen
 
-Die animierten Bilder entstehen mit den Skripten hier (`cat.py`, `dog.py`, `hop.py`, `frog.py`, `chick.py`, `ghost.py`, `moon.py`), die auch die passenden `frames` und `clips` für `symbols.json` ausgeben:
+Die animierten Bilder (`cat.svg`, `dog.svg`, `hop.svg`, `frog.svg`, `chick.svg`, `ghost.svg`, `moon.svg`) zeichnet das Paket [`internal/sprite`](../internal/sprite), eine Go-Datei je Bild. Nach einer Änderung dort schreibt
 
 ```sh
-python3 symbols/cat.py > symbols/cat.svg
+go test ./internal/sprite -update
 ```
+
+die Bilder neu. Der Test (ohne `-update` läuft er bei jedem `go test ./...` mit) prüft, dass die Dateien hier zum Code passen und `frames` und `clips` in `symbols.json` stimmen; wenn nicht, nennt er die richtigen Werte zum Einsetzen.

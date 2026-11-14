@@ -92,6 +92,7 @@ something far away.
  content      internal/collection: format of testdata/hard and designs/
               root package `starbattle` (hard.go): embeds testdata/hard,
               designs/, symbols/
+              internal/sprite (dev): draws the animated sheets in symbols/
 
  reasoning    internal/solver ◄──── internal/solver/observers
               (runners, search,     (the rules + German text)
@@ -251,8 +252,9 @@ because `go:embed` cannot reach parent directories.
   compute ratings on start.
 - `designs`: picture puzzles ("motifs") drawn with the designer, the other
   half of the library.
-- `symbols`: the star symbols to choose from, plus the Python scripts that
-  draw the animated ones.
+- `symbols`: the star symbols to choose from. The animated sprite sheets are
+  drawn by `internal/sprite`; its test keeps the checked-in files and their
+  `frames` and `clips` in `symbols.json` in step with the code.
 
 `testdata/hard` and `designs` share one on-disk format, owned by
 `internal/collection`: the index, file names (`nNN_STEM.txt`), header lines
@@ -320,5 +322,5 @@ browser code. The full suite with every hard puzzle is CI's job.
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
 | a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German |
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
-| a star symbol | `symbols/` | see `symbols/README.md` |
+| a star symbol | `symbols/`; animated ones in `internal/sprite` | see `symbols/README.md`; rewrite the sheets with `go test ./internal/sprite -update` |
 | a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |
