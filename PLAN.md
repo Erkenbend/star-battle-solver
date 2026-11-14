@@ -70,9 +70,12 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Als Nächstes
 
-_(leer: nächsten Punkt aus „Später“ auswählen)_
+**Badges prüfen:** Nach dem ersten Push auf `main` nachsehen, ob der Job `badges` in `ci.yml` läuft, ob der Branch `badges` `coverage.json` und `library.json` enthält und ob die Badges in der README erscheinen.
 
 ### Erledigt / verworfen
+
+- ~~**README-Badges und Testabdeckung**~~: Badges oben in der README: CI, Coverage, Bibliothek (Zahl der Puzzles), Plattformen, Go-Version, keine Abhängigkeiten, Lizenz, vibe-coded. Coverage und Bibliothek berechnet der Job `badges` in `ci.yml` bei Pushes auf `main` und legt sie als shields.io-JSON auf den Branch `badges` (ohne Verlauf, kein externer Dienst). Verworfen: Release-Badge, Codecov/Go Report Card, Sterne/Forks, Live-Demo (nur IPv6 und mit Login).
+   - Coverage über alle Pakete (`-coverpkg=./...`), lokal mit `-short` in ca. 20 s: vorher 84 %, jetzt 96,1 %. Die größte Lücke war `cmd/starbattle` (0 %); neue Smoke-Tests rufen die Befehle direkt auf (stdin/stdout über temporäre Dateien, `serve`/`design` mit ungültiger Adresse, damit sie sofort zurückkehren). Dazu Fehlerpfade in `web` (Designer-Meldungen, `saveDesign`, `LoadLibrary`, Partys), `board`, `puzzle`, `render` und `generator`. Was bleibt, ist vor allem `main`/`usage` (beenden den Prozess), das Herunterfahren von `serve`/`design` und seltene Fehlerpfade in `web`.
 
 - ~~**Suche nach schweren Puzzles als Befehl**~~: `starbattle hard` (Paket `internal/hardsearch`, Optionen in `README.md`) ersetzt das Wegwerf-Programm der bisherigen Suchen, das nie im Repo lag. Gleiche Kriterien wie `TestHardPuzzles`, Ausgabe pro Seed in Seed-Reihenfolge, mit `-o testdata/hard` direkt als Datei; `bibliothek.idx` bleibt Handarbeit. Der Test prüft, dass Seed 453 wieder `n10_s453.txt` mit 4 Lookahead-Schritten ergibt, d. h. dass Generator und Regeln die Bibliothek noch reproduzieren.
 

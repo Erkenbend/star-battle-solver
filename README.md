@@ -1,5 +1,14 @@
 # Star Battle Solver
 
+[![CI](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml?query=branch%3Amain)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FErkenbend%2Fstar-battle-solver%2Fbadges%2Fcoverage.json)](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml?query=branch%3Amain)
+[![Bibliothek](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FErkenbend%2Fstar-battle-solver%2Fbadges%2Flibrary.json)](testdata/hard/bibliothek.idx)
+[![Plattformen](https://img.shields.io/badge/Plattformen-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows%20%C2%B7%20Raspberry%20Pi-informational)](#herunterladen)
+[![Go](https://img.shields.io/github/go-mod/go-version/Erkenbend/star-battle-solver)](go.mod)
+[![Abhängigkeiten: keine](https://img.shields.io/badge/Abh%C3%A4ngigkeiten-keine-brightgreen)](go.mod)
+[![Lizenz: MIT](https://img.shields.io/github/license/Erkenbend/star-battle-solver?label=Lizenz)](LICENSE)
+[![Vibe-coded mit Claude](https://img.shields.io/badge/vibe--coded-Claude%20Opus%205.5-D97757)](grober_plan.md)
+
 Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) und erklärt jeden Lösungsschritt auf Deutsch.
 
 > **Hinweis:** Die gesamte Implementierung wurde von Claude Opus 5.5 geschrieben, das Projekt ist also auch ein **Vibe-Coding-Experiment**. Von Menschenhand stammt nur [grober_plan.md](grober_plan.md), die Idee ganz am Anfang. Alles andere, Code, Tests, Dokumentation und auch diese README, ist nach und nach in Chats mit Claude entstanden.
@@ -84,6 +93,7 @@ go test ./...            # dauert etwa 20 Sekunden
 go test -short ./...     # überspringt einige langsame Tests
 go test -race ./...
 STARBATTLE_ALL_HARD=1 go test ./...   # alle schweren Puzzles statt der Stichprobe
+go test -short -coverpkg=./... -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1   # Testabdeckung
 ```
 
 Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`), die alle Größen und Regeln abdeckt. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa sechs Minuten). Die CI auf GitHub Actions prüft immer alle.

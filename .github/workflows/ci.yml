@@ -13,6 +13,8 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-26.04
+    outputs:
+      coverage: ${{ steps.coverage.outputs.total }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -25,12 +27,58 @@ jobs:
       # Every hard puzzle of the library, not just the sample in
       # testdata/hard/sample.idx. About 6 min locally and longer on the
       # runner, hence more than the default 10 min timeout per package.
+      # -coverpkg=./... also counts code that is exercised by other packages'
+      # tests (e.g. internal/puzzle has no tests of its own).
       - name: go test (all hard puzzles)
         env:
           STARBATTLE_ALL_HARD: "1"
-        run: go test -timeout 45m ./...
+        run: go test -timeout 45m -coverpkg=./... -coverprofile=coverage.out ./...
+      - name: Coverage
+        id: coverage
+        run: |
+          set -euo pipefail
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ { sub(/%/, "", $NF); print $NF }')
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "### Coverage: $total %" >> "$GITHUB_STEP_SUMMARY"
       - name: go test -race
         run: go test -race -short ./...
+
+  # Stores the badge data as shields.io endpoint JSON on the orphan branch
+  # "badges" (history overwritten each time): coverage.json and library.json
+  # (number of puzzles in the library). The README badges read them from
+  # there. No external service or token needed.
+  badges:
+    name: Badges
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    concurrency:
+      group: badges
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Push badge data to branch badges
+        env:
+          TOTAL: ${{ needs.test.outputs.coverage }}
+        run: |
+          set -euo pipefail
+          color=$(awk -v t="$TOTAL" 'BEGIN {
+            if (t >= 90) print "brightgreen"; else if (t >= 80) print "green";
+            else if (t >= 70) print "yellowgreen"; else if (t >= 60) print "yellow";
+            else print "red" }')
+          # Same rule as starbattle.ReadIndex: '#' starts a comment, blank lines are skipped.
+          puzzles=$(awk '{ sub(/#.*/, "") } NF { n++ } END { print n + 0 }' testdata/hard/bibliothek.idx)
+          git checkout --orphan badges
+          git rm -rfq .
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' "$TOTAL" "$color" > coverage.json
+          printf '{"schemaVersion":1,"label":"Bibliothek","message":"%s Puzzles","color":"blueviolet"}\n' "$puzzles" > library.json
+          git add coverage.json library.json
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -qm "Coverage $TOTAL%, $puzzles puzzles (${GITHUB_SHA::7})"
+          git push -f origin badges
 
   build:
     name: Build ${{ matrix.name }}
