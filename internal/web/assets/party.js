@@ -285,7 +285,7 @@ const Party = (() => {
         nodes.push(el("p", "muted party-mode", snap.mode === "coop"
           ? "Miteinander: alle auf demselben Brett, ohne Hinweise."
           : snap.clock
-            ? `Gegen die Uhr (${clockRules(snap.clock)}): so viele Puzzles wie möglich, ohne Hinweise (Prüfen geht). Wertung nach gelösten Puzzles, dann richtigen minus falschen Sternen im letzten.`
+            ? `Gegen die Uhr (${clockRules(snap.clock)}): so viele Puzzles wie möglich, ohne Hinweise. Wertung nach gelösten Puzzles, dann richtigen minus falschen Sternen im letzten.`
             : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit."));
         nodes.push(statusLine());
         if (snap.prepErr) nodes.push(el("p", "party-error", snap.prepErr));

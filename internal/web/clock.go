@@ -19,9 +19,7 @@ import (
 // puzzle is ready, with the clock running.
 //
 // Solving (checked by the server) or skipping (as often as the rules allow)
-// moves a participant on to the next puzzle. There are no hints; checking
-// the board only tells whether everything so far fits the solution, not
-// where it does not, and the page never has the solution. The ranking
+// moves a participant on to the next puzzle. There are no hints. The ranking
 // goes by puzzles solved, then by the stars on the current puzzle: each one
 // in its place counts one, each wrong one minus one, so stars everywhere do
 // not pay. Clients report their stars as they go; reports and solutions that
@@ -195,38 +193,6 @@ func (pm *Parties) ClockSkip(code, token string, num, k int) error {
 	t.advance()
 	pm.update(p)
 	return nil
-}
-
-// ClockCheck tells whether the player's board of puzzle k of round num (one
-// digit per cell, row-major: 0 free, 1 cross, 2 star) fits the solution so
-// far: no star off the solution and no cross on it.
-func (pm *Parties) ClockCheck(code, token string, num, k int, board string) (bool, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-	_, r, t, past, err := pm.clockAt(code, token, num, k, 0)
-	if err != nil {
-		return false, err
-	}
-	if past {
-		return false, partyErr(http.StatusConflict, "Mit Puzzle %d bist du schon fertig.", k)
-	}
-	rp := r.clock.seq[t.idx]
-	n := rp.N
-	if len(board) != n*n {
-		return false, partyErr(http.StatusBadRequest, "Ungültiges Brett.")
-	}
-	ok := true
-	for i := range n * n {
-		v := board[i]
-		if v < '0'+cellFree || v > '0'+cellStar {
-			return false, partyErr(http.StatusBadRequest, "Ungültiges Brett.")
-		}
-		star := rp.Solution[i/n] == i%n
-		if (v == '0'+cellStar && !star) || (v == '0'+cellCross && star) {
-			ok = false
-		}
-	}
-	return ok, nil
 }
 
 // ClockProgress records the stars the player has set on puzzle k of round

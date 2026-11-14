@@ -19,7 +19,7 @@ import (
 //	GET  /party/{code}/round/{num}/{k}  against the clock: of its k-th puzzle
 //	POST /party/{code}/{action}    join, ready, progress, solve, giveup, leave,
 //	                               in coop mode mark, vote, and against the
-//	                               clock progress, solve, skip, check with "puzzle" (JSON)
+//	                               clock progress, solve, skip with "puzzle" (JSON)
 //	GET  /party/{code}/events      the party's state as server-sent events
 func partyRoutes(mux *http.ServeMux, pm *Parties) {
 	mux.HandleFunc("GET /party", func(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +94,6 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 			GiveUp bool     `json:"giveUp"` // vote
 			Puzzle int      `json:"puzzle"` // against the clock: which one, from 1
 			Cells  []int    `json:"cells"`  // progress against the clock: cells with a star
-			Board  string   `json:"board"`  // check against the clock: one digit per cell
 		}
 		// A coop reset of a 14×14 board is ~200 operations.
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384)).Decode(&req); err != nil {
@@ -124,8 +123,6 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 			}
 		case "skip":
 			err = pm.ClockSkip(code, req.Token, req.Round, req.Puzzle)
-		case "check":
-			out["correct"], err = pm.ClockCheck(code, req.Token, req.Round, req.Puzzle, req.Board)
 		case "giveup":
 			err = pm.GiveUp(code, req.Token, req.Round, req.Hints)
 		case "mark":
