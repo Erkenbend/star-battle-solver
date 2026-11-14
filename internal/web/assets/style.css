@@ -15,6 +15,7 @@
   --new: #2f5bd3;
   --bad: #d23c2f;
   --hint: #e08a00;
+  --hyp: #8a3ffc;
   --dim: rgba(246, 245, 242, 0.62);
   color-scheme: light;
 }
@@ -37,6 +38,8 @@
     --new: #8fb0ff;
     --bad: #ff6b5e;
     --hint: #ffb340;
+  --hyp: #c4a3ff;
+    --hyp: #c4a3ff;
     --dim: rgba(23, 23, 26, 0.6);
     color-scheme: dark;
   }
@@ -59,6 +62,7 @@
   --new: #8fb0ff;
   --bad: #ff6b5e;
   --hint: #ffb340;
+  --hyp: #c4a3ff;
   --dim: rgba(23, 23, 26, 0.6);
   color-scheme: dark;
 }
@@ -230,6 +234,15 @@ a.button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 .cell.refcell::after { box-shadow: inset 0 0 0 2px var(--muted); }
 .cell.new::after { box-shadow: inset 0 0 0 3px var(--new); }
 .cell.hint::after { box-shadow: inset 0 0 0 3px var(--hint); border-radius: 2px; }
+/* Hypothesis mode ("Annahme"): the marks tried out are tinted, the star it
+   started with has a ring, the board a dashed frame. */
+body:not(.watch) .board.hypothesis { outline: 2px dashed var(--hyp); outline-offset: 4px; border-radius: 2px; }
+.cell.hyp::after { background: color-mix(in srgb, var(--hyp) 22%, transparent); }
+.cell.hyp.cross .g-cross { stroke: var(--hyp); }
+.cell.hyp.auto .g-auto { fill: var(--hyp); }
+.cell.hyproot::after { box-shadow: inset 0 0 0 3px var(--hyp); }
+.banner.hypothesis { border-color: var(--hyp); color: var(--hyp); }
+.toolbar .hyp-btn { border-color: var(--hyp); }
 .cell.bad::after { box-shadow: inset 0 0 0 3px var(--bad); }
 .cell.new .sym { animation: pop 0.25s ease-out; }
 @keyframes pop { from { transform: scale(0.4); opacity: 0.2; } to { transform: scale(1); opacity: 1; } }

@@ -310,3 +310,32 @@ console.log("symbols ok");
   assert.equal(L.prefOfKey(null), null);
 }
 console.log("options ok");
+
+// Hypothesis mode: the layer over the base board and the hypothesis' star.
+{
+  const { FREE: F, CROSS: X, STAR: S } = L;
+  const base = Uint8Array.from([S, X, F, F, F, F]);
+  const cells = Uint8Array.from([S, X, S, X, F, X]);
+  const over = L.overlay(base, cells);
+  assert.deepEqual([...over], [[2, S], [3, X], [5, X]]);
+  assert.deepEqual(L.compose(base, over), cells);
+  assert.deepEqual(L.compose(base, new Map()), base);
+  assert.equal(L.overlay(base, base).size, 0);
+  // Going back to a cell's base mark drops it from the layer.
+  assert.deepEqual([...L.overlay(base, Uint8Array.from([S, X, S, F, F, F]))], [[2, S]]);
+
+  // The first star set becomes the root; stars of base never do.
+  assert.equal(L.hypRoot(base, base, base, -1), -1);
+  assert.equal(L.hypRoot(base, base, Uint8Array.from([S, X, F, X, F, F]), -1), -1); // only a cross
+  assert.equal(L.hypRoot(base, base, cells, -1), 2);
+  // It stays while it is a star, other stars come and go.
+  const more = Uint8Array.from([S, X, S, X, S, X]);
+  assert.equal(L.hypRoot(base, cells, more, 2), 2);
+  // Taken away, the root is gone; the next star set is the new one.
+  const gone = Uint8Array.from([S, X, F, X, F, X]);
+  assert.equal(L.hypRoot(base, cells, gone, 2), -1);
+  assert.equal(L.hypRoot(base, gone, Uint8Array.from([S, X, F, X, S, X]), -1), 4);
+  // Removed and set again in one change (a drag): the first new star counts.
+  assert.equal(L.hypRoot(base, cells, Uint8Array.from([S, X, F, S, S, X]), 2), 3);
+}
+console.log("hypothesis ok");

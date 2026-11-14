@@ -270,6 +270,27 @@ const Logic = (() => {
     return out;
   }
 
+  // Hypothesis mode ("Annahme"): the marks tried out lie as a layer over the
+  // board they started from (base), as a Map of cell → mark where they differ.
+  function overlay(base, cells) {
+    const over = new Map();
+    for (let i = 0; i < cells.length; i++) if (base[i] !== cells[i]) over.set(i, cells[i]);
+    return over;
+  }
+  function compose(base, over) {
+    const out = Uint8Array.from(base);
+    for (const [i, v] of over) out[i] = v;
+    return out;
+  }
+  // The hypothesis' star (root) after a change from prev to next: it stays
+  // while it is a star; else the first cell that just became a star and is
+  // not one in base; else none (-1).
+  function hypRoot(base, prev, next, root) {
+    if (root >= 0 && next[root] === STAR) return root;
+    for (let i = 0; i < next.length; i++) if (next[i] === STAR && prev[i] !== STAR && base[i] !== STAR) return i;
+    return -1;
+  }
+
   // Region colors: 12 hand-tuned colors [hue, saturation, lightness] for the
   // light theme (dark: same hue, less saturation, low lightness). Fewer regions
   // use an evenly spread subset; more regions fall back to computed hues. The
@@ -487,7 +508,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -614,7 +635,7 @@ function boot() {
       e.classList.toggle("star", v === L.STAR);
       e.classList.toggle("cross", v === L.CROSS && !auto);
       e.classList.toggle("auto", !!auto);
-      for (const k of ["new", "hint", "bad", "refcell"]) e.classList.toggle(k, !!(m[k] && m[k].has(i)));
+      for (const k of ["new", "hint", "bad", "refcell", "hyp", "hyproot"]) e.classList.toggle(k, !!(m[k] && m[k].has(i)));
       // Cells outside the units named in the explanation are dimmed.
       e.classList.toggle("dim", !!(m.ref && m.ref.size && !m.ref.has(i)));
     }
@@ -782,10 +803,32 @@ function boot() {
   }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
+
+  // Hypothesis mode ("Annahme"): when stuck, a star is set on trial and
+  // followed until it leads to a contradiction. The marks tried out lie as a
+  // layer (over: cell → mark) over the board they started from (base); marks
+  // shows both. root is the hypothesis' star, the first one set in the mode.
+  // "Widerspruch" goes back to base with a cross on root, "Annahme verwerfen"
+  // just back to base; solving in the mode takes the marks over as usual.
+  // The mode has its own undo and redo (entries {over, root}), so they stop
+  // where it began. Only base counts for a party round: it gives the stars
+  // reported (against each other, against the clock), and in coop it is the
+  // board everybody shares, whose changes by others keep arriving under the
+  // layer (base follows the server, see showBoard).
+  let hyp = null; // {base, over, root, undo, redo}
+  const committed = () => (hyp ? hyp.base : marks);
+  if (!coop && saved && saved.hyp && Array.isArray(saved.hyp.cells) && saved.hyp.cells.length === n * n) {
+    const base = marks, cells = Uint8Array.from(saved.hyp.cells);
+    const r = saved.hyp.root;
+    const root = Number.isInteger(r) && cells[r] === L.STAR && base[r] !== L.STAR ? r : L.hypRoot(base, base, cells, -1);
+    hyp = { base, over: L.overlay(base, cells), root, undo: [], redo: [] };
+    marks = L.compose(base, hyp.over);
+  }
   const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
 
   function setMarks(next) {
     if (locked()) return; // solved puzzles are frozen
+    if (hyp) return hypChange(next);
     if (coop) {
       coopCommit(L.diffOps(marks, next));
       return;
@@ -806,12 +849,18 @@ function boot() {
 
   function renderPlay() {
     const eff = L.effective(d, marks, prefs.autocross);
+    if (hyp && !locked() && L.solved(d, eff.cells)) return hypAccept(); // a normal solve
     // Rule violations (two stars touching, a full row …) unless switched off;
     // "Prüfen" still marks wrong cells, as asked for explicitly.
     const probs = prefs.showProblems ? L.problems(d, eff.cells) : [];
     const bad = new Set(probs.flatMap((p) => p.cells));
     const view = { cells: eff.cells, auto: eff.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
+    if (hyp) { // the marks tried out, auto-crosses included
+      view.marks.hyp = new Set(L.diffOps(L.effective(d, hyp.base, prefs.autocross).cells, eff.cells).map(([i]) => i));
+      if (hyp.root >= 0) view.marks.hyproot = new Set([hyp.root]);
+    }
+    boardEl.classList.toggle("hypothesis", !!hyp);
     drawBoard(party && party.gaveUp ? solutionView() : view);
 
     const list = $("problems");
@@ -830,10 +879,15 @@ function boot() {
       }
       if (race) raceSkipButton(frozen);
     }
-    $("undo").disabled = frozen || undoStack.length === 0;
-    $("redo").disabled = frozen || redoStack.length === 0;
-    $("hint").disabled = frozen;
-    $("check").disabled = frozen;
+    $("undo").disabled = frozen || (hyp ? hyp.undo : undoStack).length === 0;
+    $("redo").disabled = frozen || (hyp ? hyp.redo : redoStack).length === 0;
+    $("hint").disabled = frozen || !!hyp; // they would judge the hypothesis by the solution
+    $("check").disabled = frozen || !!hyp;
+    $("hyp").hidden = !!hyp;
+    $("hyp").disabled = frozen;
+    $("hyp-contra").hidden = $("hyp-drop").hidden = !hyp;
+    $("hyp-contra").disabled = frozen || !hyp || hyp.root < 0;
+    $("hyp-drop").disabled = frozen;
     $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
     // In a coop round the server says when the board is solved.
     const solved = L.solved(d, eff.cells) && !(party && party.gaveUp) && (!coop || done);
@@ -858,10 +912,12 @@ function boot() {
         a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek#" + lib.kind;
         $("banner").append(" ", a);
       }
-    } else if (party) {
-      const b = partyBanner();
-      banner(b && b[0], b && b[1]);
-    } else banner(null);
+    } else {
+      const b = party ? partyBanner() : null;
+      if (b) banner(b[0], b[1]);
+      else if (hyp) banner(hypText(), "hypothesis");
+      else banner(null);
+    }
     drawClock();
     store();
     if (party) {
@@ -955,7 +1011,8 @@ function boot() {
 
   function store() {
     if (coop) return; // the board lives on the server
-    const v = { marks: [...marks], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
+    const v = { marks: [...committed()], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
+    if (hyp) v.hyp = { cells: [...marks], root: hyp.root };
     if (party) v.gaveUp = party.gaveUp;
     save(v);
   }
@@ -1150,6 +1207,13 @@ function boot() {
       if (ev.type === "pointerup") clickCell(dr.start, dr.shift || ev.shiftKey);
       return;
     }
+    if (hyp) {
+      const next = marks;
+      marks = dr.before;
+      if (next.some((v, i) => v !== dr.before[i])) hypChange(next);
+      else renderPlay();
+      return;
+    }
     if (coop) { // one drag is one bundle of changes
       coopCommit(L.diffOps(dr.before, marks));
       return;
@@ -1169,7 +1233,9 @@ function boot() {
     clickCell(+c.dataset.i, true);
   });
   $("undo").onclick = () => {
-    if (locked() || !undoStack.length) return;
+    if (locked()) return;
+    if (hyp) return hypStep(hyp.undo, hyp.redo);
+    if (!undoStack.length) return;
     if (coop) return coopUndo(undoStack, redoStack);
     redoStack.push(marks);
     marks = undoStack.pop();
@@ -1177,7 +1243,9 @@ function boot() {
     renderPlay();
   };
   $("redo").onclick = () => {
-    if (locked() || !redoStack.length) return;
+    if (locked()) return;
+    if (hyp) return hypStep(hyp.redo, hyp.undo);
+    if (!redoStack.length) return;
     if (coop) return coopUndo(redoStack, undoStack);
     undoStack.push(marks);
     marks = redoStack.pop();
@@ -1187,11 +1255,14 @@ function boot() {
   $("reset").onclick = () => {
     if (party) { // only the marks: time and hints count on
       if (locked() || !marks.some((v) => v !== L.FREE)) return;
-      if (coop && !confirm("Das Brett für alle löschen?")) return;
+      if (coop && committed().some((v) => v !== L.FREE) && !confirm("Das Brett für alle löschen?")) return;
+      hypDrop();
       rerollMark();
-      setMarks(new Uint8Array(n * n));
+      if (marks.some((v) => v !== L.FREE)) setMarks(new Uint8Array(n * n));
+      else renderPlay();
       return;
     }
+    hypDrop();
     rerollMark();
     elapsed = 0;
     hintCount = 0;
@@ -1202,6 +1273,70 @@ function boot() {
     if (marks.some((v) => v !== L.FREE)) setMarks(new Uint8Array(n * n));
     else renderPlay();
   };
+
+  // ---------- hypothesis mode (see hyp above) ----------
+  function hypStart() {
+    if (locked() || hyp) return;
+    hyp = { base: marks, over: new Map(), root: -1, undo: [], redo: [] };
+    overlay = null;
+    message(...intro.map((x) => x.cloneNode(true))); // a hint shown is no longer at hand
+    renderPlay();
+  }
+  function hypSet(over, root) {
+    hyp.over = over;
+    hyp.root = root;
+    marks = L.compose(hyp.base, over);
+    overlay = null;
+    renderPlay();
+  }
+  // A change of the marks in the mode: one undo step of its own.
+  function hypChange(next) {
+    hyp.undo.push({ over: hyp.over, root: hyp.root });
+    hyp.redo.length = 0;
+    hypSet(L.overlay(hyp.base, next), L.hypRoot(hyp.base, marks, next, hyp.root));
+  }
+  function hypStep(from, to) {
+    if (!from.length) return;
+    to.push({ over: hyp.over, root: hyp.root });
+    const s = from.pop();
+    hypSet(s.over, s.root);
+  }
+  // Leaves the mode without a trace (no rendering): marks are base again.
+  function hypDrop() {
+    if (!hyp) return;
+    marks = hyp.base;
+    hyp = null;
+  }
+  // Ends the mode with next as an ordinary change of base (one undo step;
+  // in coop sent to the server like any other).
+  function hypEnd(next) {
+    hypDrop();
+    setMarks(next);
+  }
+  function hypContradict() {
+    if (locked() || !hyp || hyp.root < 0) return;
+    const next = Uint8Array.from(hyp.base);
+    next[hyp.root] = L.CROSS;
+    hypEnd(next);
+  }
+  function hypDiscard() {
+    if (locked() || !hyp) return;
+    hypDrop();
+    renderPlay();
+  }
+  function hypAccept() {
+    hypEnd(marks);
+  }
+  function hypText() {
+    const who = coop ? " Die anderen sehen sie nicht." : party ? " Sie zählt nicht für deinen Stand." : "";
+    if (hyp.root < 0) return "Annahme: Setze einen Stern und verfolge, wohin er führt." + who;
+    const r = Math.floor(hyp.root / n), c = hyp.root % n;
+    return `Annahme: Stern auf (${r},${c}). Führt sie zu einem Widerspruch, kommt dort ein Kreuz hin („Widerspruch“).` + who;
+  }
+  $("hyp").onclick = hypStart;
+  $("hyp-contra").onclick = hypContradict;
+  $("hyp-drop").onclick = hypDiscard;
+
   document.addEventListener("visibilitychange", () => { clockRun(!document.hidden); store(); });
   window.addEventListener("pagehide", store);
   setInterval(() => {
@@ -1408,7 +1543,8 @@ function boot() {
       m === "play"
         ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt" +
           (prefs.showProblems ? " · rot: Regelverstoß" : bare || race ? "" : " · rot: falsch laut Prüfen") +
-          (bare || race ? "" : " · orange: Hinweis")
+          (bare || race ? "" : " · orange: Hinweis") +
+          " · lila: Annahme"
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
     else render();
@@ -1521,7 +1657,7 @@ function boot() {
       partyTimer = null;
       if (!partyLive()) return;
       let stars = 0;
-      for (const v of marks) if (v === L.STAR) stars++;
+      for (const v of committed()) if (v === L.STAR) stars++; // not those of a hypothesis
       if (stars === party.sentStars && hintCount === party.sentHints) return;
       party.sentStars = stars;
       party.sentHints = hintCount;
@@ -1533,6 +1669,7 @@ function boot() {
     if (coop) return coopVote();
     if (locked() || !confirm("Wirklich aufgeben? Die Lösung wird angezeigt, und du landest hinter allen, die lösen.")) return;
     party.gaveUp = true;
+    hypDrop();
     clockStop();
     overlay = null;
     message(...intro.map((x) => x.cloneNode(true)));
@@ -1561,6 +1698,7 @@ function boot() {
         elapsed = me.timeMs;
         runningSince = null;
         if (!done && !party.gaveUp && d.solution) { // e.g. storage cleared
+          hyp = null;
           marks = new Uint8Array(n * n);
           d.solution.forEach((c, r) => { marks[L.idx(d, r, c)] = L.STAR; });
           done = true;
@@ -1588,8 +1726,15 @@ function boot() {
   // keeps our operations in order; repeating one after a lost reply is
   // harmless, the server skips numbers it has seen (acked).
   function coopShow() {
-    marks = L.applyOps(coop.server, coop.pending).cells;
+    showBoard(L.applyOps(coop.server, coop.pending).cells);
     renderPlay();
+  }
+  // The shared board as we see it; a hypothesis stays on top of it.
+  function showBoard(cells) {
+    if (hyp) {
+      hyp.base = cells;
+      marks = L.compose(cells, hyp.over);
+    } else marks = cells;
   }
 
   // ops: [i, from, to] as seen on the board now; one undo step.
@@ -1659,10 +1804,13 @@ function boot() {
         coop.lost.add(op[0]);
       }
       coop.voted = !!s.you && c.votes.includes(s.you);
-      if (c.solved) done = true;
+      if (c.solved) { // by whoever: a hypothesis of ours is moot
+        done = true;
+        hypDrop();
+      }
       if (!drag) { // a drag in progress keeps its view until it ends
         const before = marks;
-        marks = L.applyOps(coop.server, coop.pending).cells;
+        showBoard(L.applyOps(coop.server, coop.pending).cells);
         if (!first) flash(L.diffOps(before, marks).map(([i]) => i).filter((i) => !lost.includes(i)), "remote");
       }
       flash(lost, "conflict");
@@ -1782,7 +1930,7 @@ function boot() {
   // Reports the cells with a star, if they changed since the last report.
   function raceReport() {
     const cells = [];
-    marks.forEach((v, i) => { if (v === L.STAR) cells.push(i); });
+    committed().forEach((v, i) => { if (v === L.STAR) cells.push(i); }); // not those of a hypothesis
     const key = cells.join(",");
     if (key === race.sent) return;
     race.sent = key;
