@@ -223,6 +223,10 @@ func TestHard(t *testing.T) {
 	}
 	header, body, _ := strings.Cut(string(text), "\n")
 	mustContain(t, "header", header, "# generate -n 10 -seed 453 at commit ", "needs lookahead even with all rules (4 lookahead steps)")
+	rating, body, _ := strings.Cut(body, "\n")
+	if rating != "# rating: 2 (4 lookahead steps, longest 5)" {
+		t.Errorf("rating line %q", rating)
+	}
 	if !strings.HasSuffix(string(want), body) {
 		t.Errorf("written puzzle differs from %s:\n%s", hard10, text)
 	}
@@ -235,5 +239,49 @@ func TestHard(t *testing.T) {
 
 	if _, _, err := run(t, cmdHard, "", "-n", "3"); err == nil {
 		t.Error("n=3: expected error")
+	}
+}
+
+func TestHardRate(t *testing.T) {
+	dir := t.TempDir()
+	lib, err := os.ReadFile(hard10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One file without a rating line, one with a stale one.
+	var bare []string
+	for _, l := range strings.SplitAfter(string(lib), "\n") {
+		if !strings.HasPrefix(l, "# rating:") {
+			bare = append(bare, l)
+		}
+	}
+	stale := strings.Replace(string(lib), "# rating: 2", "# rating: 3", 1)
+	for name, text := range map[string]string{"a.txt": strings.Join(bare, ""), "b.txt": stale} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, _, err := run(t, cmdHard, "", "-rate", "-o", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "rate", out, "a.txt: 2 (4 lookahead steps, longest 5)  (new)", "2 puzzles: 0 with 1 star, 2 with 2, 0 with 3; 2 files written")
+	for _, name := range []string{"a.txt", "b.txt"} {
+		got, _ := os.ReadFile(filepath.Join(dir, name))
+		if string(got) != string(lib) {
+			t.Errorf("%s after -rate:\n%s\nwant:\n%s", name, got, lib)
+		}
+	}
+	out, _, err = run(t, cmdHard, "", "-rate", "-o", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "rate again", out, "0 files written")
+
+	if _, _, err := run(t, cmdHard, "", "-rate"); err == nil {
+		t.Error("-rate without -o: expected error")
+	}
+	if _, _, err := run(t, cmdHard, "", "-rate", "-o", t.TempDir()); err == nil {
+		t.Error("-rate on an empty directory: expected error")
 	}
 }

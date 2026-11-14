@@ -55,6 +55,29 @@ func ReadIndex(fsys fs.FS, name string) ([]string, error) {
 	return names, sc.Err()
 }
 
+// RatingKey starts the line of a hard puzzle's file that gives its
+// difficulty for players, 1 to 3 stars, maybe followed by the reason:
+// "# rating: 2 (4 lookahead steps, longest 5)". The puzzle parser skips it as
+// a comment. `starbattle hard` writes it (see hardsearch.Rating).
+const RatingKey = "# rating:"
+
+// FileRating is the rating in a puzzle file's text (see RatingKey), 0 if it
+// has none.
+func FileRating(text []byte) int {
+	for line := range strings.Lines(string(text)) {
+		v, ok := strings.CutPrefix(strings.TrimSpace(line), RatingKey)
+		if !ok {
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if len(v) > 0 && '1' <= v[0] && v[0] <= '3' && (len(v) == 1 || v[1] == ' ') {
+			return int(v[0] - '0')
+		}
+		return 0
+	}
+	return 0
+}
+
 // Designs is designs/: the motifs saved by the designer (*.txt, each with
 // its name in a "# name:" line) and their order in the library
 // (bibliothek.idx).

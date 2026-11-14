@@ -36,6 +36,10 @@ func TestLibraryIndex(t *testing.T) {
 		if e.nr != perSize[e.p.N] || e.name() != fmt.Sprintf("%d-%d", e.p.N, e.nr) || len(e.id) != 10 {
 			t.Errorf("entry %d: %s, id %q", i, e.name(), e.id)
 		}
+		// Every hard puzzle is rated (starbattle hard -rate).
+		if e.rating < 1 || e.rating > 3 {
+			t.Errorf("%s: rating %d", e.name(), e.rating)
+		}
 	}
 	// The sample the tests run (sample.idx) is part of the library, once each.
 	sample, err := starbattle.ReadIndex(starbattle.Hard, starbattle.HardDir+"/sample.idx")
@@ -102,6 +106,9 @@ func TestLibraryServer(t *testing.T) {
 	if d.Library == nil || d.Library.ID != e.id || d.Library.Name != "5-1" || len(d.Library.Entries) != lib.Len() {
 		t.Fatalf("library info: %+v", d.Library)
 	}
+	if d.Library.Rating != e.rating || d.Library.Entries[0].Rating != e.rating {
+		t.Errorf("rating %d / %d, want %d", d.Library.Rating, d.Library.Entries[0].Rating, e.rating)
+	}
 	if !d.Served || !d.Library.Pending || d.Solution != nil || d.Status != "pending" || len(d.Steps) != 0 || !strings.Contains(d.Title, "Bibliothek 5-1") {
 		t.Errorf("first page: served %v, pending %v, solution %v, status %s, %d steps, title %q", d.Served, d.Library.Pending, d.Solution, d.Status, len(d.Steps), d.Title)
 	}
@@ -153,6 +160,11 @@ func testMotifs(t *testing.T) *Library {
 // both).
 func TestMotifsIndex(t *testing.T) {
 	motifs := testMotifs(t)
+	for _, e := range motifs.entries { // only hard puzzles are rated
+		if e.rating != 0 {
+			t.Errorf("motif %s has rating %d", e.name(), e.rating)
+		}
+	}
 	files, _ := filepath.Glob("../../designs/*.txt")
 	if len(files) == 0 || motifs.Len() != len(files) {
 		t.Fatalf("index lists %d motifs, designs has %d", motifs.Len(), len(files))

@@ -1,4 +1,5 @@
 # generate -n 14 -seed 278 at commit e76b5ce (parallel attempts, MinRegionSize 2); needs lookahead even with all rules (21 lookahead steps)
+# rating: 3 (21 lookahead steps, longest 6)
 KKKKKKKCCJJJJJ
 KKKCCCKCCCHHJJ
 EEKKKCCCCCHHLL

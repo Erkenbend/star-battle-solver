@@ -1,4 +1,5 @@
 # generate -n 11 -seed 504 at commit e76b5ce (parallel attempts, MinRegionSize 2); needs lookahead even with all rules (16 lookahead steps)
+# rating: 3 (16 lookahead steps, longest 7)
 HHHHHIGGIIE
 HHKKKIIIIIE
 HJKKKKEEIEE

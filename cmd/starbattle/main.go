@@ -9,6 +9,7 @@
 //	starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags]   generate and solve in the browser
 //	starbattle design [-addr localhost:6370] [-dir designs] [solver flags]   draw a pattern, complete it (for developers)
 //	starbattle hard -n N [-from S] [-count C] [-min-lookahead K] [-o testdata/hard] [-workers W]   find hard puzzles (for developers)
+//	starbattle hard -rate -o testdata/hard   rate the puzzles there anew (for developers)
 package main
 
 import (
@@ -80,7 +81,8 @@ func usage() {
   starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
   starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]
   starbattle design [-addr localhost:6370] [-dir designs] [solver flags as for solve]
-  starbattle hard -n N [-from S] [-count C] [-min-lookahead K] [-o dir] [-workers W]`)
+  starbattle hard -n N [-from S] [-count C] [-min-lookahead K] [-o dir] [-workers W]
+  starbattle hard -rate -o dir`)
 	os.Exit(2)
 }
 
@@ -374,7 +376,14 @@ func cmdHard(args []string) error {
 	minLookahead := fs.Int("min-lookahead", 1, "a hit needs at least this many lookahead steps with all rules (0: base rules stuck is enough)")
 	out := fs.String("o", "", "write hits as nNN_sSEED.txt into this directory (e.g. testdata/hard)")
 	workers := fs.Int("workers", 0, "seeds checked at the same time (0 = number of cores)")
+	rate := fs.Bool("rate", false, "no search: write the rating line of every puzzle in the -o directory anew")
 	fs.Parse(args)
+	if *rate {
+		if *out == "" {
+			return errors.New("-rate needs -o, the directory of the puzzles")
+		}
+		return rateDir(*out)
+	}
 	if *n < 4 || *n > 52 {
 		return fmt.Errorf("-n %d: must be 4 to 52", *n)
 	}
@@ -449,14 +458,78 @@ func writeHard(path string, n int, f hardsearch.Found, commit string) error {
 		}
 		why += ")"
 	}
-	header := fmt.Sprintf("# generate -n %d -seed %d at commit %s (MinRegionSize %d); %s\n",
-		n, f.Seed, commit, generator.DefaultMinRegionSize(n), why)
+	header := fmt.Sprintf("# generate -n %d -seed %d at commit %s (MinRegionSize %d); %s\n%s %v\n",
+		n, f.Seed, commit, generator.DefaultMinRegionSize(n), why, starbattle.RatingKey, v.Rating)
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
 	_, err = io.WriteString(file, header+f.Puzzle.String())
 	return errors.Join(err, file.Close())
+}
+
+// rateDir rates every puzzle file (*.txt) in dir anew (see hardsearch.Rating)
+// and writes its rating line, after the comments at the top if it had none.
+// Files whose rating stays the same are left alone.
+func rateDir(dir string) error {
+	files, err := filepath.Glob(filepath.Join(dir, "*.txt"))
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no puzzles (*.txt) in %s", dir)
+	}
+	stars := map[int]int{}
+	changed := 0
+	for _, f := range files {
+		text, err := os.ReadFile(f)
+		if err != nil {
+			return err
+		}
+		p, err := puzzle.Parse(strings.NewReader(string(text)))
+		if err != nil {
+			return fmt.Errorf("%s: %w", f, err)
+		}
+		v, err := hardsearch.Classify(p)
+		if err != nil {
+			return fmt.Errorf("%s: %w", f, err)
+		}
+		if v.Base == solver.Solved {
+			return fmt.Errorf("%s: the base rules solve it, not a hard puzzle", f)
+		}
+		stars[v.Rating.Stars]++
+		next := withRating(string(text), v.Rating)
+		mark := ""
+		if next != string(text) {
+			if err := os.WriteFile(f, []byte(next), 0o644); err != nil {
+				return err
+			}
+			changed++
+			mark = "  (new)"
+		}
+		fmt.Printf("%s: %v%s\n", filepath.Base(f), v.Rating, mark)
+	}
+	fmt.Printf("\n%d puzzles: %d with 1 star, %d with 2, %d with 3; %d files written\n", len(files), stars[1], stars[2], stars[3], changed)
+	return nil
+}
+
+// withRating returns the text of a puzzle file with its rating line set to r:
+// replaced where it is, or else added after the comment lines at the top.
+func withRating(text string, r hardsearch.Rating) string {
+	line := fmt.Sprintf("%s %v\n", starbattle.RatingKey, r)
+	lines := strings.SplitAfter(text, "\n")
+	at := 0
+	for i, l := range lines {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, starbattle.RatingKey) {
+			lines[i] = line
+			return strings.Join(lines, "")
+		}
+		if at == i && strings.HasPrefix(t, "#") {
+			at = i + 1
+		}
+	}
+	return strings.Join(lines[:at], "") + line + strings.Join(lines[at:], "")
 }
 
 // buildCommit is the commit the binary was built from, for the header of

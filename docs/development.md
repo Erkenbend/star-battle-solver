@@ -85,12 +85,12 @@ go build -o starbattle ./cmd/starbattle    # go build, nicht go run: nur dann st
 So entsteht Nachschub für `testdata/hard` und damit für die Bibliothek. Der Befehl erzeugt die Puzzles der Seeds `-from` bis `-from + count − 1` genau wie `generate` und prüft jedes: Kommen die Basisregeln weiter? Und wenn nicht, alle Regeln? Wenn auch die nicht weiterkommen, wie viele Lookahead-Schritte (und ob Raten) braucht der Solver? Pro Seed eine Zeile, in Seed-Reihenfolge; Treffer sind mit `HIT` markiert:
 
 ```
-n=10 seed=450 base=stuck all=solved t=58ms
+n=10 seed=450 base=stuck all=solved rating=1 t=58ms
 n=10 seed=451 base=solved t=30ms
-n=10 seed=453 base=stuck all=stuck lookahead=4 guesses=0 t=161ms  HIT → n10_s453.txt
+n=10 seed=453 base=stuck all=stuck lookahead=4 guesses=0 rating=2 t=161ms  HIT → n10_s453.txt
 ```
 
-Mit `-o` landet jeder Treffer als `nNN_sSEED.txt` im Verzeichnis, mit Befehl, Commit und Grund als Kommentar; bestehende Dateien werden nie überschrieben. Am Ende stehen die Zahlen der Suche, der Seed, bei dem die nächste Suche weitermacht (die bisherigen Bereiche stehen in [PLAN.md](../PLAN.md)), und die neuen Dateien. In die Bibliothek kommen sie erst, wenn man sie unten an `testdata/hard/bibliothek.idx` anhängt. Ctrl-C bricht nach den laufenden Seeds ab und nennt trotzdem, wo es weitergeht.
+Mit `-o` landet jeder Treffer als `nNN_sSEED.txt` im Verzeichnis, mit Befehl, Commit und Grund als Kommentar und darunter der Schwierigkeit (`# rating: 2 (4 lookahead steps, longest 5)`, siehe unten); bestehende Dateien werden nie überschrieben. Am Ende stehen die Zahlen der Suche, der Seed, bei dem die nächste Suche weitermacht (die bisherigen Bereiche stehen in [PLAN.md](../PLAN.md)), und die neuen Dateien. In die Bibliothek kommen sie erst, wenn man sie unten an `testdata/hard/bibliothek.idx` anhängt. Ctrl-C bricht nach den laufenden Seeds ab und nennt trotzdem, wo es weitergeht.
 
 Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 etwa jedes 130. Puzzle, bei 13×13 jedes 70., bei 14×14 jedes 50., unter 10×10 praktisch keins. Ein 14×14-Seed dauert bis zu einigen Sekunden.
 
@@ -102,3 +102,16 @@ Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 et
 | `-min-lookahead` | Treffer brauchen mit allen Regeln mindestens so viele Lookahead-Schritte (Standard 1); 0: Es reicht, dass die Basisregeln hängen bleiben |
 | `-o` | Verzeichnis für Treffer (ohne: nur anzeigen) |
 | `-workers` | Seeds gleichzeitig (Standard: Zahl der Kerne) |
+| `-rate` | keine Suche: alle Puzzles in `-o` neu bewerten (siehe unten) |
+
+### Schwierigkeit
+
+Jedes schwere Puzzle hat eine Bewertung von 1 bis 3 Sternen, die die Bibliothek zeigt (`hardsearch.Rating`). Sie ergibt sich aus dem Lösungsweg des Solvers mit allen Regeln, Lookahead und Raten, also dem, den die Bibliothek nach dem Lösen zeigt:
+
+| Sterne | Bedingung |
+|---|---|
+| ★★★ | Raten, mindestens 10 Lookahead-Schritte oder ein Gedankenexperiment mit mindestens 7 Schritten |
+| ★★☆ | sonst: mindestens ein Lookahead-Schritt oder die Regel `Pigeonhole` |
+| ★☆☆ | sonst: Die Regeln allein lösen es |
+
+Die Bewertung steht in der Datei (Zeile `# rating:`), damit die Bibliothek beim Start nichts rechnen muss. Ändern sich Regeln oder Suche, schreibt `./starbattle hard -rate -o testdata/hard` alle Zeilen neu (dauert ein paar Minuten); unveränderte Dateien bleiben unberührt. `TestLibraryRatings` vergleicht die Zeilen mit der heutigen Bewertung, für die Stichprobe bzw. mit `STARBATTLE_ALL_HARD=1` für alle. Motive aus `designs` werden nicht bewertet.

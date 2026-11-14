@@ -1,4 +1,5 @@
 # generator.Generate(n=11, rand.NewPCG(33, 11)); rules alone get stuck with 18 free cells
+# rating: 1 (rules alone)
 IBBIIJJJJJC
 IIIIJJJJCCC
 IIIIIIJJJJC

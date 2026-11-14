@@ -99,10 +99,15 @@
         a.href = "/bibliothek?id=" + encodeURIComponent(e.id);
         const s = solved[e.id];
         a.classList.toggle("solved", !!s);
-        a.setAttribute("aria-label", `${e.name}${s ? ", gelöst" : ""}`);
+        a.setAttribute("aria-label", `${e.name}${e.rating ? ", " + L.ratingText(e.rating) : ""}${s ? ", gelöst" : ""}`);
         a.append(preview(e));
         const meta = el("div", "meta");
         meta.append(el("span", "nr", e.name));
+        if (e.rating) {
+          const r = el("span", "rating", L.ratingStars(e.rating));
+          r.title = L.ratingText(e.rating);
+          meta.append(r);
+        }
         if (s) meta.append(el("span", "done", Number.isFinite(s.time) ? `✓ ${fmtTime(s.time)}` : "✓"));
         a.append(meta);
         if (s && s.hints > 0) a.append(el("span", "sub", s.hints === 1 ? "mit 1 Hinweis" : `mit ${s.hints} Hinweisen`));

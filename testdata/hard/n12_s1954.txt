@@ -1,4 +1,5 @@
 # generate -n 12 -seed 1954 at commit e76b5ce (parallel attempts, MinRegionSize 2); needs lookahead even with all rules (6 lookahead steps)
+# rating: 2 (6 lookahead steps, longest 4)
 EEELLLLLLLGG
 ELLLLLLCCLLG
 EEELLLCCCCLK

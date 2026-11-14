@@ -70,9 +70,12 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Als Nächstes
 
-**Badges prüfen:** Nach dem ersten Push auf `main` nachsehen, ob der Job `badges` in `ci.yml` läuft, ob der Branch `badges` `coverage.json` und `library.json` enthält und ob die Badges in der README erscheinen.
+Nichts Bestimmtes, siehe „Später“.
 
 ### Erledigt / verworfen
+
+- ~~**Schwierigkeit der schweren Puzzles**~~: 1 bis 3 Sterne (`hardsearch.Rate`) aus dem Lösungsweg mit voller Suche: ★★★ bei Raten, ≥ 10 Lookahead-Schritten oder einer Kette ≥ 7 Schritte; ★★ bei Lookahead oder `Pigeonhole`; sonst ★. Ergibt in der Bibliothek 31 / 46 / 41. Steht als `# rating:` in jeder Datei von `testdata/hard` (schreibt `starbattle hard`, neu bewerten mit `hard -rate -o testdata/hard`, geprüft von `TestLibraryRatings`), gezeigt auf den Kacheln, über dem Brett und im geteilten Ergebnis. Motive werden nicht bewertet. Gewählt nach einer Messung über alle 118: Kein Puzzle braucht Raten, die Kettenlänge (3 bis 8) trennt weniger als die Zahl der Lookahead-Schritte (1 bis 53).
+- ~~**Badges prüfen**~~: Job `badges` läuft, Branch `badges` hat beide Dateien, die Badges erscheinen in der README.
 
 - ~~**README aufteilen**~~: Die README war auf gut 300 Zeilen gewachsen, zwei Drittel davon Befehlsreferenz. Jetzt ~100 Zeilen (Idee, Screenshots, Herunterladen, Links); Details in `docs/commands.md` (Puzzle-Format, Befehle, Solver-Optionen einmal zentral), `docs/playing.md` (Bibliothek, Partys, Einstellungen aus Sicht der Spielenden), `docs/development.md` (Bauen/Testen, Aufbau, `design`, `hard`) und `symbols/README.md` (Symbolarten, `clips`, Skripte). Die CI legt `docs/*.md` mit in die Archive. Verworfen vorerst: animiertes GIF oben, „Probier's aus“-Link (Instanz ist nicht öffentlich).
 
@@ -157,7 +160,7 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 ### Später
 
 1. **Statistik der Regeln:** Wie oft greift welche Regel (aus dem Trace)? Welche werden kaum gebraucht (z. B. `Confinement` mit großem k)? Grundlage für Messungen wie bei den Prioritätsstufen und beim zusammenhängenden `Confinement`.
-2. **Schwierigkeitsgrad** aus den benötigten Techniken (Prioritätsstufen, Anzahl und Länge der Annahmen, Raten). Daraus `generate -difficulty` bzw. `-logic-only`.
+2. **Schwierigkeitsgrad für generierte Puzzles:** Für die Bibliothek gibt es ihn schon (siehe „Erledigt“). Offen: `generate -difficulty` bzw. `-logic-only` und eine feinere Skala für gewöhnliche Puzzles, die alle unter ★ fielen.
 3. **Ausgewogenere Regionen im Generator:** Inseln aus 1 bis 2 Feldern vermeiden (die Reparatur erzeugt sie gern, Ø kleinste Region ca. 1,1); ergibt kniffligere Puzzles. Ein erster Schritt ist `Options.MinRegionSize` (ab N = 10 Standard 2, siehe „Erledigt“; das verhindert Inseln aus einem Feld, aber nicht aus zwei). Nicht über ausgewogeneres Wachsen lösen, das kostet Eindeutigkeit (siehe „Erledigt“), sondern als Nebenbedingung der Reparatur.
 4. **Puzzles von Menschen einlesen** (abgetippt aus Zeitung oder App), um den Solver an gezielt gebauten Rätseln zu prüfen.
 5. **Mittelweg beim Lookahead (optional):** Unter den kurzen Ketten die Annahme bevorzugen, nach der die Regeln am meisten selbst schaffen.

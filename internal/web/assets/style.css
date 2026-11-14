@@ -468,6 +468,8 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .lib-tile .meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 6px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .lib-tile .nr { font-weight: 650; min-width: 0; overflow-wrap: anywhere; }
 .lib-tile .done { color: #2e9d58; white-space: nowrap; }
+.lib-tile .rating { color: var(--hint); letter-spacing: 0.05em; white-space: nowrap; }
+.lib-tile .rating ~ .done { flex-basis: 100%; } /* below name and rating */
 .lib-tile.solved svg { opacity: 0.55; }
 .lib-tile .sub { font-size: 12px; color: var(--muted); }
 .lib-tile rect { fill: hsl(var(--h) var(--s) var(--l)); }

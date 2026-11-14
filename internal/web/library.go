@@ -53,15 +53,16 @@ const (
 )
 
 type libEntry struct {
-	nr    int    // among the puzzles of size p.N, from 1
-	title string // a motif's name; empty for hard puzzles
-	id    string
-	p     *puzzle.Puzzle
-	once  sync.Once
-	ready chan struct{} // closed once sol, res and err are set
-	sol   []int
-	res   solver.Result
-	err   error
+	nr     int    // among the puzzles of size p.N, from 1
+	title  string // a motif's name; empty for hard puzzles
+	rating int    // a hard puzzle's difficulty, 1 to 3 stars (0: none in its file); motifs have none
+	id     string
+	p      *puzzle.Puzzle
+	once   sync.Once
+	ready  chan struct{} // closed once sol, res and err are set
+	sol    []int
+	res    solver.Result
+	err    error
 }
 
 // LoadLibrary reads the hard puzzles in dir of fsys (see LibraryIndex).
@@ -101,6 +102,9 @@ func loadLibrary(fsys fs.FS, dir, kind string, solve SolveFunc) (*Library, error
 		}
 		perSize[p.N]++
 		e := &libEntry{nr: perSize[p.N], id: LibraryID(p), p: p, ready: make(chan struct{})}
+		if kind == KindHard {
+			e.rating = starbattle.FileRating(text)
+		}
 		if kind == KindMotifs {
 			e.title = MotifName(name, text)
 			if prev, ok := titles[e.title]; ok {
@@ -232,7 +236,7 @@ func (lib *Library) data(e *libEntry) Data {
 	}
 	d.Served = true
 	d.Text = e.p.String()
-	d.Library = &LibraryInfo{Kind: lib.kind, ID: e.id, Name: e.name(), Entries: lib.refs(false), Pending: d.Status == "pending"}
+	d.Library = &LibraryInfo{Kind: lib.kind, ID: e.id, Name: e.name(), Rating: e.rating, Entries: lib.refs(false), Pending: d.Status == "pending"}
 	return d
 }
 
@@ -241,7 +245,8 @@ type LibraryInfo struct {
 	Kind    string   `json:"kind"` // KindHard or KindMotifs
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`
-	Entries []LibRef `json:"entries"` // all puzzles, for "next unsolved"
+	Rating  int      `json:"rating,omitempty"` // a hard puzzle's difficulty, 1 to 3 stars
+	Entries []LibRef `json:"entries"`          // all puzzles, for "next unsolved"
 	// The solver is still at work: solution and trace are missing, the page
 	// gets them from /bibliothek/weg once it needs them.
 	Pending bool `json:"pending,omitempty"`
@@ -253,6 +258,7 @@ type LibRef struct {
 	Name    string  `json:"name"` // "10-3", or a motif's name
 	Nr      int     `json:"nr"`   // among the puzzles of size N, from 1
 	N       int     `json:"n"`
+	Rating  int     `json:"rating,omitempty"`  // a hard puzzle's difficulty, 1 to 3 stars
 	Regions [][]int `json:"regions,omitempty"` // overview only
 }
 
@@ -270,7 +276,7 @@ type LibraryPart struct {
 func (lib *Library) refs(regions bool) []LibRef {
 	out := make([]LibRef, len(lib.entries))
 	for i, e := range lib.entries {
-		out[i] = LibRef{ID: e.id, Name: e.name(), Nr: e.nr, N: e.p.N}
+		out[i] = LibRef{ID: e.id, Name: e.name(), Nr: e.nr, N: e.p.N, Rating: e.rating}
 		if regions {
 			out[i].Regions = e.p.Regions
 		}

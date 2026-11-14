@@ -33,7 +33,7 @@ Bei schweren Puzzles zeigt der Lösungsweg auch die **Gedankenexperimente**: die
 Die Bibliothek unter `/bibliothek` hat zwei Teile, beide nach Größe sortiert und mit Vorschau. Welcher Teil offen ist, steht im Link (`/bibliothek#motive`, `/bibliothek#schwer`).
 
 - **Motive** sind die Puzzles aus `designs`, im [Designer](development.md#design-puzzles-entwerfen) gezeichnet, sodass die Regionen ein Bild ergeben. Gespielt wird wie beim Solo-Spiel: mit Hinweisen, Prüfen und dem Lösungsweg jederzeit. Jedes Motiv hat einen Namen (Zeile `# name:` in der Datei) statt einer Nummer.
-- **Schwer** sind die Puzzles aus `testdata/hard`, an denen die einfachen Regeln scheitern. Gelöst wird dort ohne Hilfe: Es gibt keine Hinweise, kein Prüfen und den Lösungsweg erst nach dem Lösen. Sie heißen nach Größe und Nummer, etwa `10-3`.
+- **Schwer** sind die Puzzles aus `testdata/hard`, an denen die einfachen Regeln scheitern. Gelöst wird dort ohne Hilfe: Es gibt keine Hinweise, kein Prüfen und den Lösungsweg erst nach dem Lösen. Sie heißen nach Größe und Nummer, etwa `10-3`. Jedes hat eine Schwierigkeit von ★☆☆ (die Regeln allein reichen) über ★★☆ (Gedankenexperimente nötig) bis ★★★ (viele oder lange Gedankenexperimente). Sie steht auf der Kachel, über dem Brett und im geteilten Ergebnis (wie sie berechnet wird, steht in [development.md](development.md#schwierigkeit)).
 
 Welche Puzzles gelöst sind, merkt sich der Browser, mit dem besten Ergebnis (bei Motiven zählen erst die Hinweise, dann die Zeit). Nach dem Lösen geht es mit „Weiter“ zum nächsten ungelösten Puzzle desselben Teils, und „Ergebnis kopieren“ gibt einen Link der Form `/bibliothek?id=14cd642742` mit. Der Text dazu nennt das Motiv beim Namen bzw. das schwere Puzzle bei seiner Nummer.
 

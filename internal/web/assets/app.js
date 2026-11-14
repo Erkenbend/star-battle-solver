@@ -347,6 +347,11 @@ const Logic = (() => {
   // Where to go after the tutorial: a path on this site, else the start page.
   const returnPath = (p) => (typeof p === "string" && /^\/(?![/\\])[^\s\\]*$/.test(p) ? p : "/");
 
+  // A hard library puzzle's difficulty (1 to 3, see hardsearch.Rating) as
+  // stars, "★★☆", and in words; empty for none.
+  const ratingStars = (k) => (k >= 1 && k <= 3 ? "★".repeat(k) + "☆".repeat(3 - k) : "");
+  const ratingText = (k) => (k >= 1 && k <= 3 ? `Schwierigkeit ${k} von 3` : "");
+
   // The server's board string ("0120…") as cells.
   const decodeBoard = (str) => Uint8Array.from(str, (ch) => ch.charCodeAt(0) - 48);
 
@@ -536,7 +541,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
@@ -723,8 +728,9 @@ function boot() {
 
   // ---------- summary ----------
   function drawSummary() {
+    const rating = d.library && d.library.rating ? ` · ${L.ratingText(d.library.rating)} ${L.ratingStars(d.library.rating)}` : "";
     if (d.library && d.library.pending) { // the solver's result comes later
-      $("summary").textContent = `${n}×${n} · ohne Hinweise`;
+      $("summary").textContent = `${n}×${n} · ohne Hinweise` + rating;
       return;
     }
     if (tut) {
@@ -742,7 +748,7 @@ function boot() {
     if (d.stats.lookahead) summary += ` · ${d.stats.lookahead} Annahmen`;
     if (d.stats.guesses) summary += ` · ${d.stats.guesses}× geraten`;
     if (!d.solution) summary += " · keine eindeutige Lösung";
-    $("summary").textContent = summary;
+    $("summary").textContent = summary + rating;
   }
   drawSummary();
 
@@ -1019,7 +1025,8 @@ function boot() {
       return t;
     }
     if (lib) {
-      let t = `Schweres Star Battle ${lib.name} (${n}×${n}) aus der Bibliothek in ${fmtTime(clockMs())} gelöst, ${with_}!`;
+      const stars = lib.rating ? `, ${L.ratingStars(lib.rating)}` : "";
+      let t = `Schweres Star Battle ${lib.name} (${n}×${n}${stars}) aus der Bibliothek in ${fmtTime(clockMs())} gelöst, ${with_}!`;
       if (web) t += " " + location.origin + "/bibliothek?id=" + encodeURIComponent(lib.id);
       return t;
     }

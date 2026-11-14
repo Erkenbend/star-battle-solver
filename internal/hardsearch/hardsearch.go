@@ -34,6 +34,9 @@ type Verdict struct {
 	// With lookahead and backtracking, only checked if All is stuck: cells
 	// crossed by lookahead, and stars guessed.
 	Lookahead, Guesses int
+	// How hard it is for players, from the trace of all rules (or of the
+	// full search, if they get stuck); only set if Base is stuck.
+	Rating Rating
 }
 
 // Hard reports whether v makes a puzzle for testdata/hard: the base rules
@@ -52,10 +55,10 @@ func (v Verdict) String() string {
 		return s
 	}
 	s += " all=" + v.All.String()
-	if v.All == solver.Solved {
-		return s
+	if v.All != solver.Solved {
+		s += fmt.Sprintf(" lookahead=%d guesses=%d", v.Lookahead, v.Guesses)
 	}
-	return s + fmt.Sprintf(" lookahead=%d guesses=%d", v.Lookahead, v.Guesses)
+	return s + fmt.Sprintf(" rating=%d", v.Rating.Stars)
 }
 
 // Classify runs the checks of Verdict on p, as TestHardPuzzles does. An error
@@ -66,8 +69,10 @@ func Classify(p *puzzle.Puzzle) (Verdict, error) {
 	if v.Base == solver.Solved {
 		return v, nil
 	}
-	v.All = solver.RunSync(board.New(p), observers.All(p)).Status
+	all := solver.RunSync(board.New(p), observers.All(p))
+	v.All = all.Status
 	if v.All == solver.Solved {
+		v.Rating = Rate(all)
 		return v, nil
 	}
 	res := solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true})
@@ -75,7 +80,77 @@ func Classify(p *puzzle.Puzzle) (Verdict, error) {
 		return v, fmt.Errorf("full search ends %v: %v", res.Status, res.Err)
 	}
 	v.Lookahead, v.Guesses = res.Stats.Lookahead, res.Stats.Guesses
+	v.Rating = Rate(res)
 	return v, nil
+}
+
+// Rating is how hard a puzzle of the library is for players, 1 to 3 stars,
+// judged by what the solver needed (the trace the library shows):
+//
+//	3 stars: guessing, ManyLookahead lookahead steps or more, or a thought
+//	         experiment (lookahead chain) of LongChain steps or more
+//	2 stars: any lookahead step, or the most demanding rule (Pigeonhole)
+//	1 star:  the rules alone solve it
+//
+// In the library at the time of writing, about a quarter has one star and
+// the rest splits evenly between two and three.
+type Rating struct {
+	Stars     int
+	Lookahead int // lookahead steps
+	Longest   int // steps of the longest thought experiment
+	Guesses   int
+	MaxLevel  int // highest priority level of a rule used, inside thought experiments too
+}
+
+// Thresholds of Rating.
+const (
+	ManyLookahead = 10
+	LongChain     = 7
+)
+
+// Rate rates a puzzle by its solved trace (see Rating).
+func Rate(res solver.Result) Rating {
+	r := Rating{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}
+	rules := func(st solver.Step) {
+		if st.Level < solver.LevelLookahead { // not the search's own steps
+			r.MaxLevel = max(r.MaxLevel, st.Level)
+		}
+	}
+	for _, st := range res.Trace {
+		rules(st)
+		if h := st.Hypothesis; h != nil {
+			r.Longest = max(r.Longest, len(h.Steps))
+			for _, hs := range h.Steps {
+				rules(hs)
+			}
+		}
+	}
+	switch {
+	case r.Guesses > 0 || r.Lookahead >= ManyLookahead || r.Longest >= LongChain:
+		r.Stars = 3
+	case r.Lookahead > 0 || r.MaxLevel >= observers.LevelPigeonhole:
+		r.Stars = 2
+	default:
+		r.Stars = 1
+	}
+	return r
+}
+
+// String is the rating as the puzzle files give it (after
+// starbattle.RatingKey): "2 (4 lookahead steps, longest 5)".
+func (r Rating) String() string {
+	var why string
+	switch {
+	case r.Guesses > 0:
+		why = fmt.Sprintf("%d lookahead steps, longest %d, %d guesses", r.Lookahead, r.Longest, r.Guesses)
+	case r.Lookahead > 0:
+		why = fmt.Sprintf("%d lookahead steps, longest %d", r.Lookahead, r.Longest)
+	case r.MaxLevel >= observers.LevelPigeonhole:
+		why = "rules alone, with Pigeonhole"
+	default:
+		why = "rules alone"
+	}
+	return fmt.Sprintf("%d (%s)", r.Stars, why)
 }
 
 // Options of a Search.
