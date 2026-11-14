@@ -42,13 +42,15 @@ function Coop(P, R) {
   }
 
   // Undo and redo take back only our own changes: a cell somebody else
-  // changed since is left alone (and blinks).
+  // changed since is left alone (and blinks). Both stacks hold operations as
+  // they were applied, so taking one back means applying it reversed, and
+  // what that applies goes onto the other stack.
   function undo(from, to) {
     const marks = P.marks;
     const ops = from.pop().map(([i, a, b]) => [i, b, a]);
     const ok = ops.filter(([i, a]) => marks[i] === a);
     flash(ops.filter(([i, a]) => marks[i] !== a).map(([i]) => i), "conflict");
-    if (ok.length) to.push(ok.map(([i, a, b]) => [i, b, a]));
+    if (ok.length) to.push(ok);
     commit(ok, false);
   }
 
