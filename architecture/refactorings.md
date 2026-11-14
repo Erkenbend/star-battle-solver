@@ -25,17 +25,13 @@ The pressure is at the edges, where features have accumulated:
   `# rating:` and `# name:`) was read and written in three different places
   (done, see 1).
 
-The suggestions are ordered by value for effort. None is urgent; each is worth
-doing when the area is touched next anyway.
+All four suggestions of the review are done (see "Done"). New ones go in a
+numbered section of their own above "Guidelines", continuing at 5.
 
-## 4. Small clean-ups
+## Guidelines
 
-- **Rename `hard.go` to `embed.go`** (or `content.go`): it embeds `designs`
-  and `symbols` too and is the place to look for "what is built into the
-  binary".
-- **Terminal trace printing** (`printSteps`, `describeMarks` in
-  `cmd/starbattle/main.go`) belongs next to the board rendering in
-  `internal/render`, again to keep `main.go` a dispatcher.
+What the review found that needs no change now, only attention later:
+
 - **`PLAN.md` as a decision log:** its "Erledigt / verworfen" section is the
   project's memory and keeps growing. If it gets unwieldy, move finished
   entries to a `docs/decisions.md` (or into this directory) and keep `PLAN.md`
@@ -101,3 +97,9 @@ doing when the area is touched next anyway.
   - Not done: a JS build step, modules loaded at runtime, or a framework.
     Single-file pages without a build (principle 6 in
     [README.md](README.md)) are worth more than the convenience.
+- **4. Small clean-ups** (November 2026): `hard.go` is `embed.go`, the place
+  to look for what is built into the binary. The trace printing of `solve`
+  moved from `main.go` to `render.Trace` (writing to an `io.Writer`, with
+  tests of its own); `solve`'s output stayed byte for byte the same (18
+  flag and puzzle combinations compared). The two guidelines that were part
+  of 4 are under "Guidelines" above.

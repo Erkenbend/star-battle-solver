@@ -214,7 +214,7 @@ func cmdSolve(args []string) error {
 	}
 
 	if *step || *verbose {
-		printSteps(board.New(p), res.Trace, "", "", *step, *verbose, *noColor)
+		render.Trace(os.Stdout, board.New(p), res.Trace, render.TraceOptions{Verbose: *verbose, Boards: *step, NoColor: *noColor})
 	}
 
 	fmt.Printf("\nresult: %v after %d steps", res.Status, len(res.Trace))
@@ -535,70 +535,4 @@ func buildCommit() string {
 		return "unknown"
 	}
 	return rev[:min(7, len(rev))] + dirty
-}
-
-// describeMarks lists the crosses of one step. Steps that place a star name it
-// in their reason already, so they get no extra line.
-func describeMarks(marks []solver.Mark) string {
-	var crosses []string
-	for _, m := range marks {
-		if m.Kind == board.Star {
-			return ""
-		}
-		crosses = append(crosses, fmt.Sprintf("(%d,%d)", m.Pos.Row, m.Pos.Col))
-	}
-	if len(crosses) == 0 {
-		return ""
-	}
-	return "X: " + strings.Join(crosses, " ")
-}
-
-// printSteps replays trace on replay and prints each step; hypothesis chains are
-// printed nested (numbered 8.1, 8.2, ...) on a scratch copy of the board.
-func printSteps(replay *board.State, trace []solver.Step, prefix, indent string, step, verbose, noColor bool) {
-	for i, st := range trace {
-		num := fmt.Sprintf("%s%d", prefix, i+1)
-		// The chain explains this step, so print it before applying the step.
-		before := replay.Clone()
-		hl := map[puzzle.Pos]bool{}
-		for _, m := range st.Marks {
-			replay.Set(m.Pos.Row, m.Pos.Col, m.Kind) // conflicting last step: keep what fits
-			hl[m.Pos] = true
-		}
-		if verbose && st.Reason != "" {
-			fmt.Printf("%s\n%s%s. %s\n", strings.TrimRight(indent, " "), indent, num, st.Reason)
-			if !step {
-				if d := describeMarks(st.Marks); d != "" && st.Hypothesis == nil {
-					fmt.Printf("%s    %s\n", indent, d)
-				}
-			}
-		} else {
-			fmt.Printf("%s\n%sstep %s: %s (%d cells)\n", strings.TrimRight(indent, " "), indent, num, st.Source, len(st.Marks))
-		}
-		if h := st.Hypothesis; h != nil && verbose {
-			trial := before
-			printSteps(trial, h.Steps, num+".", indent+"    │ ", step, verbose, noColor)
-			fmt.Printf("%s    │ ⇒ Widerspruch: %v\n", indent, h.Contradiction)
-			if step {
-				conflict := map[puzzle.Pos]bool{}
-				if ce, ok := errors.AsType[*board.ContradictionError](h.Contradiction); ok {
-					for _, q := range ce.Cells {
-						conflict[q] = true
-					}
-				}
-				printBoard(render.State(trial, render.Options{NoColor: noColor, Conflict: conflict}), indent+"    │ ")
-			}
-			fmt.Printf("%s    ⇒ also ist (%d,%d) kein Stern\n", indent, st.Marks[0].Pos.Row, st.Marks[0].Pos.Col)
-		}
-		if step {
-			printBoard(render.State(replay, render.Options{NoColor: noColor, Highlight: hl}), indent)
-		}
-	}
-}
-
-func printBoard(b, indent string) {
-	for _, line := range strings.SplitAfter(strings.TrimRight(b, "\n"), "\n") {
-		fmt.Print(indent + line)
-	}
-	fmt.Println()
 }

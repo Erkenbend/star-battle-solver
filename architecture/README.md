@@ -90,7 +90,7 @@ something far away.
                save motifs)                    rate them)
 
  content      internal/collection: format of testdata/hard and designs/
-              root package `starbattle` (hard.go): embeds testdata/hard,
+              root package `starbattle` (embed.go): embeds testdata/hard,
               designs/, symbols/
               internal/sprite (dev): draws the animated sheets in symbols/
 
@@ -241,7 +241,7 @@ Consequences worth knowing:
 ## 5. Content directories
 
 The binary is the data. Three directories at the module root are embedded by
-the tiny root package `starbattle` (`hard.go`); it sits at the root only
+the tiny root package `starbattle` (`embed.go`); it sits at the root only
 because `go:embed` cannot reach parent directories.
 
 - `testdata/hard`: puzzles that defeat the basic rules. It is **both** the

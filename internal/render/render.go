@@ -1,5 +1,6 @@
 // Package render draws puzzles and solving states in the terminal using ANSI
-// 256-color backgrounds, one color per region.
+// 256-color backgrounds, one color per region, and writes a solver's trace
+// step by step (Trace).
 package render
 
 import (
