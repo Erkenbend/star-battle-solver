@@ -401,6 +401,7 @@ console.log("tutorial ok");
 // Ratings of hard library puzzles.
 assert.equal(L.ratingStars(1), "★☆☆");
 assert.equal(L.ratingStars(3), "★★★");
+assert.equal(L.ratingStars(2, false), "★★");
 assert.equal(L.ratingText(2), "Schwierigkeit 2 von 3");
 for (const bad of [0, 4, undefined, null]) {
   assert.equal(L.ratingStars(bad), "");

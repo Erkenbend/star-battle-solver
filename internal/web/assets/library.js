@@ -104,7 +104,7 @@
         const meta = el("div", "meta");
         meta.append(el("span", "nr", e.name));
         if (e.rating) {
-          const r = el("span", "rating", L.ratingStars(e.rating));
+          const r = el("span", "rating", L.ratingStars(e.rating, false));
           r.title = L.ratingText(e.rating);
           meta.append(r);
         }

@@ -348,8 +348,9 @@ const Logic = (() => {
   const returnPath = (p) => (typeof p === "string" && /^\/(?![/\\])[^\s\\]*$/.test(p) ? p : "/");
 
   // A hard library puzzle's difficulty (1 to 3, see hardsearch.Rating) as
-  // stars, "★★☆", and in words; empty for none.
-  const ratingStars = (k) => (k >= 1 && k <= 3 ? "★".repeat(k) + "☆".repeat(3 - k) : "");
+  // stars, "★★☆" (without the empty ones "★★", hard to read when small), and
+  // in words; empty for none.
+  const ratingStars = (k, empty = true) => (k >= 1 && k <= 3 ? "★".repeat(k) + (empty ? "☆".repeat(3 - k) : "") : "");
   const ratingText = (k) => (k >= 1 && k <= 3 ? `Schwierigkeit ${k} von 3` : "");
 
   // The server's board string ("0120…") as cells.
@@ -728,7 +729,7 @@ function boot() {
 
   // ---------- summary ----------
   function drawSummary() {
-    const rating = d.library && d.library.rating ? ` · ${L.ratingText(d.library.rating)} ${L.ratingStars(d.library.rating)}` : "";
+    const rating = d.library && d.library.rating ? ` · Schwierigkeit: ${L.ratingStars(d.library.rating)}` : "";
     if (d.library && d.library.pending) { // the solver's result comes later
       $("summary").textContent = `${n}×${n} · ohne Hinweise` + rating;
       return;
