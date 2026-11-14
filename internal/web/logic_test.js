@@ -1,8 +1,8 @@
-// Tests for the page logic in assets/app.js. Run by TestJSLogic (web_test.go):
+// Tests for the page logic in assets/logic.js. Run by TestJSLogic (web_test.go):
 //   node logic_test.js data1.json data2.json ...
 "use strict";
 const assert = require("node:assert/strict");
-const L = require("./assets/app.js");
+const L = require("./assets/logic.js");
 
 const files = process.argv.slice(2);
 assert.ok(files.length > 0, "no data files given");

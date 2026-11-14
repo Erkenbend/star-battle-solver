@@ -4,6 +4,9 @@
 //
 // The page is one file without external resources. Its HTML, CSS and
 // JavaScript live in assets/ and are inlined together with the data as JSON.
+// Every page with script gets logic.js (Logic, the pure functions shared by
+// all pages); the puzzle page adds app.js (its UI), other pages their own
+// script.
 package web
 
 import (
@@ -26,6 +29,9 @@ var pageHTML string
 
 //go:embed assets/style.css
 var styleCSS string
+
+//go:embed assets/logic.js
+var logicJS string
 
 //go:embed assets/app.js
 var appJS string
@@ -169,7 +175,7 @@ func Write(w io.Writer, d Data) error {
 	if d.Party != nil {
 		party = partyJS
 	}
-	return render(w, pageHTML, d.Title, d, appJS, party)
+	return render(w, pageHTML, d.Title, d, logicJS+appJS, party)
 }
 
 // PartyPage is the data of the party page: creating or joining a party
@@ -210,16 +216,16 @@ func WriteError(w io.Writer, title, msg string, links ...Link) error {
 }
 
 // ServePage sends a page of the site built from tmpl, a template like
-// assets/page.html: with the site's style, d as its data, app.js and then
+// assets/library.html: with the site's style, d as its data, logic.js and
 // script (the page's own, e.g. the designer's).
 func ServePage(w http.ResponseWriter, tmpl, title string, d any, script string) {
-	writeHTML(w, http.StatusOK, func(b io.Writer) error { return render(b, tmpl, title, d, appJS, script) })
+	writeHTML(w, http.StatusOK, func(b io.Writer) error { return render(b, tmpl, title, d, logicJS, script) })
 }
 
-// render fills tmpl: title, the style, d as JSON, then the scripts app and
-// party (in the slot of the party script, which other pages use for their
-// own).
-func render(w io.Writer, tmpl, title string, d any, app, party string) error {
+// render fills tmpl: the title, the style, d as JSON, and the scripts: shared
+// (logic.js, plus app.js on the puzzle page) and the page's own script. The
+// template decides their order (the puzzle page runs party.js first).
+func render(w io.Writer, tmpl, title string, d any, shared, script string) error {
 	data, err := json.Marshal(d) // escapes <, > and &, so it is safe inside <script>
 	if err != nil {
 		return err
@@ -228,8 +234,8 @@ func render(w io.Writer, tmpl, title string, d any, app, party string) error {
 		"{{TITLE}}", html.EscapeString(title),
 		"/*{{STYLE}}*/", styleCSS,
 		"/*{{DATA}}*/null", string(data),
-		"/*{{PARTY}}*/", party,
-		"/*{{APP}}*/", app,
+		"/*{{SCRIPT}}*/", script,
+		"/*{{SHARED}}*/", shared,
 	).Replace(tmpl)
 	if strings.Contains(page, "/*{{") {
 		return fmt.Errorf("web: unreplaced placeholder in page template")

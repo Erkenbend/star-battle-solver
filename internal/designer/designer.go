@@ -4,7 +4,7 @@
 // a collection of the project (see package collection), usually designs/.
 //
 // The page is built like the others of internal/web (web.ServePage, with the
-// shared style and app.js), from its own assets/designer.html and
+// shared style and logic.js), from its own assets/designer.html and
 // assets/designer.js.
 package designer
 

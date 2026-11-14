@@ -179,7 +179,7 @@ every command that solves. `render` draws boards in the terminal.
 `designer` is the developer tool behind `starbattle design`, deliberately not
 part of `serve`: draw a pattern, let the generator complete it, save the
 result to a collection. Its page is built like the site's pages
-(`web.ServePage`, with the shared style and `app.js`) from its own assets, and
+(`web.ServePage`, with the shared style and `logic.js`) from its own assets, and
 it reuses `web`'s play page for "try it".
 
 `party` is the multiplayer game on its own: parties, players, rounds in three
@@ -190,12 +190,15 @@ or the generator), carries actions and snapshots over HTTP and server-sent
 events, maps its error kinds to status codes, and builds a round's page from
 `Manager.Page`. Tests drive it with a fake clock.
 
-The browser code is plain JavaScript without a build step. `app.js` has two
-layers: a pure `Logic` module (board rules, hints, coop operations, …) that is
-also run under node by a Go test, and `boot()`, which builds the UI for every
-kind of page (solo, library, party round, tutorial). Some board logic thus
-exists twice, in Go and in JS; the comments point to the counterpart, and the
-node test checks that following the hints solves every hard puzzle.
+The browser code is plain JavaScript without a build step, inlined into
+each page by the template's two script slots: shared scripts and the page's
+own. `logic.js` is the pure `Logic` module (board rules, hints, coop
+operations, region colours, symbols, …), shared by every page and also run
+under node by a Go test. `app.js` is the puzzle page's UI (`boot()`, for solo
+play, library puzzles, party rounds and the tutorial); the library, settings,
+party and designer pages have their own small scripts instead. Some board
+logic exists twice, in Go and in JS; the comments point to the counterpart,
+and the node test checks that following the hints solves every hard puzzle.
 
 ## 4. Where state lives
 
@@ -302,7 +305,7 @@ is CI's job.
 | generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see `PLAN.md`) |
 | more hard puzzles | `starbattle hard`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges recorded in `PLAN.md` |
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
-| a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `app.js` with a node test; text in German |
+| a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js`; text in German |
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/` | see `symbols/README.md` |
 | a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |

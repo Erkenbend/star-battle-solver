@@ -2,7 +2,7 @@
 
 // The settings page (/einstellungen): the play options and the symbol of the
 // stars from the server's catalog. Everything is stored on this device only,
-// the symbol as a copy of its catalog entry (see markSpec in app.js), or
+// the symbol as a copy of its catalog entry (see markSpec in logic.js), or
 // "random" with a copy of the whole catalog. Open puzzle pages take changes
 // over at once (their "storage" listener).
 (() => {
@@ -56,8 +56,8 @@
   }
 
   // The choice "random": the whole catalog as the pool (see randomMark in
-  // app.js), from which each puzzle page picks one; its preview shows four different symbols, shuffled anew when
-  // chosen.
+  // logic.js), from which each puzzle page picks one; its preview shows four
+  // different symbols, shuffled anew when chosen.
   const randomEntry = () => ({ id: L.RANDOM_MARK, kind: "random", pool: d.symbols });
   const allSpecs = d.symbols.map((s) => L.markSpec(s, { sprites: true }));
   function randomSpecs() {
