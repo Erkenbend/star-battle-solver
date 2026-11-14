@@ -71,7 +71,24 @@ const Party = (() => {
     return ok;
   }
 
-  const STATUS = { solved: "gelöst", gaveup: "aufgegeben", playing: "spielt noch", absent: "abwesend", left: "gegangen" };
+  const STATUS = { solved: "gelöst", gaveup: "aufgegeben", playing: "spielt noch", absent: "abwesend", left: "gegangen", done: "fertig" };
+
+  // The page of the running round for the viewer: against the clock, that of
+  // the puzzle they are at (or the last one prepared).
+  function roundPath(snap) {
+    let path = `/party/${snap.code}/round/${snap.round}`;
+    if (snap.clock) {
+      const me = snap.ranking.find((e) => e.id === snap.you);
+      path += "/" + Math.max(1, Math.min(me ? me.puzzle : 1, snap.clock.sizes.length));
+    }
+    return path;
+  }
+
+  // The rules of a party against the clock, in a few words.
+  function clockRules(c) {
+    const skips = c.skips < 0 ? "beliebig oft überspringen" : c.skips === 0 ? "kein Überspringen" : `${c.skips}× überspringen`;
+    return `${c.minutes} Minuten, ${skips}`;
+  }
 
   // live keeps the party's state in sync and draws it into container:
   // status line, ranking of the round, players and the ready button.
@@ -105,12 +122,21 @@ const Party = (() => {
 
     // Time since the round's start as of now, from the last state.
     const elapsed = () => (snap ? snap.elapsedMs + Date.now() - at : 0);
+    // Against the clock: time left as of now.
+    const left = () => Math.max(0, snap.clock.minutes * 60000 - Math.max(0, elapsed()));
     const startIn = () => (snap ? snap.startInMs - (Date.now() - at) : 0);
 
     function statusLine() {
       const p = el("p", "party-status");
       if (snap.phase === "lobby") {
         p.textContent = "Es geht los, sobald alle bereit sind.";
+      } else if (snap.clock) {
+        const s = startIn();
+        p.textContent = snap.phase !== "playing"
+          ? `Runde ${snap.round}: Die Zeit ist um. Die nächste beginnt, sobald alle bereit sind.`
+          : s > 0
+            ? `Runde ${snap.round} beginnt in ${Math.ceil(s / 1000)} …`
+            : `Runde ${snap.round} läuft · noch ${fmtTime(Math.ceil(left() / 1000) * 1000)}`;
       } else if (snap.phase === "playing") {
         const s = startIn();
         p.textContent = s > 0
@@ -146,8 +172,41 @@ const Party = (() => {
       return t;
     }
 
+    // Against the clock: ranked by puzzles solved, then by right minus wrong
+    // stars on the current puzzle.
+    function clockTable() {
+      const t = el("table", "ranking clock");
+      const head = el("tr");
+      const skips = snap.clock.skips !== 0;
+      for (const h of ["#", "Name", "", "Gelöst", "★", ...(skips ? ["Übersp."] : [])]) head.append(el("th", "", h));
+      head.cells[4].title = "Richtige minus falsche Sterne im aktuellen Puzzle";
+      if (skips) head.cells[5].title = "Übersprungene Puzzles";
+      t.append(el("thead"), el("tbody"));
+      t.tHead.append(head);
+      for (const e of snap.ranking) {
+        const tr = el("tr", e.status + (e.id === snap.you ? " you" : ""));
+        let what = STATUS[e.status];
+        if (e.status === "playing") {
+          const k = snap.clock.sizes[e.puzzle - 1];
+          what = k ? `Puzzle ${e.puzzle} (${k}×${k})` : `wartet auf Puzzle ${e.puzzle}`;
+        }
+        const stars = e.stars ? (e.stars > 0 ? "+" : "−") + Math.abs(e.stars) : "";
+        tr.append(
+          el("td", "rank", e.rank + "."),
+          el("td", "name", e.name),
+          el("td", "status", what),
+          el("td", "num", String(e.solved || 0)),
+          el("td", "num", stars),
+        );
+        if (skips) tr.append(el("td", "num", e.skips ? String(e.skips) : ""));
+        t.tBodies[0].append(tr);
+      }
+      return t;
+    }
+
     function rankingTable() {
       if (snap.mode === "coop") return coopTable();
+      if (snap.clock) return clockTable();
       const t = el("table", "ranking");
       const head = el("tr");
       for (const h of ["#", "Name", "", "Hinweise", "Zeit"]) head.append(el("th", "", h));
@@ -225,7 +284,9 @@ const Party = (() => {
       if (snap) {
         nodes.push(el("p", "muted party-mode", snap.mode === "coop"
           ? "Miteinander: alle auf demselben Brett, ohne Hinweise."
-          : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit."));
+          : snap.clock
+            ? `Gegen die Uhr (${clockRules(snap.clock)}): so viele Puzzles wie möglich, ohne Hinweise. Wertung nach gelösten Puzzles, dann richtigen minus falschen Sternen im letzten.`
+            : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit."));
         nodes.push(statusLine());
         if (snap.prepErr) nodes.push(el("p", "party-error", snap.prepErr));
         if (snap.round) nodes.push(rankingTable());
@@ -277,6 +338,9 @@ const Party = (() => {
         lab.append(box, ` ${n}×${n}`);
         $("sizes").append(lab);
       }
+      const clockOpts = () => { $("clock-options").hidden = !$("create").querySelector('input[name="mode"][value="clock"]').checked; };
+      for (const r of $("create").querySelectorAll('input[name="mode"]')) r.addEventListener("change", clockOpts);
+      clockOpts(); // the browser may restore the choice
       $("create").addEventListener("submit", (ev) => {
         const sizes = [...$("sizes").querySelectorAll("input:checked")].map((b) => +b.value);
         if (!sizes.length) {
@@ -313,7 +377,7 @@ const Party = (() => {
         $("join").hidden = !!me;
         $("leave").hidden = !me;
         // Taking part in the running round: off to its puzzle.
-        if (me && me.playing) location.href = `/party/${code}/round/${snap.round}`;
+        if (me && me.playing) location.href = roundPath(snap);
       },
       onGone() {
         $("join").hidden = true;
@@ -345,5 +409,5 @@ const Party = (() => {
     bootPage();
   }
 
-  return { token, setToken, name, setName, post, live, fmtTime, hintsText, copyText, el };
+  return { token, setToken, name, setName, post, live, fmtTime, hintsText, copyText, el, roundPath };
 })();

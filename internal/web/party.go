@@ -31,6 +31,9 @@ import (
 //   - coop: everybody marks the same board, kept on the server (coop.go),
 //     without hints. The round ends when the board is solved or all present
 //     participants vote to give up.
+//   - clock: against the clock (clock.go). Everybody solves as many puzzles
+//     as possible in a set time, all the same ones in the same order, without
+//     hints and with a set number of skips.
 //
 // Everything lives in memory behind one mutex; parties expire when idle.
 
@@ -49,6 +52,7 @@ const (
 const (
 	ModeVersus = "versus" // each on their own board, ranked
 	ModeCoop   = "coop"   // all on the same board
+	ModeClock  = "clock"  // as many puzzles as possible in a set time
 )
 
 // Party phases.
@@ -95,6 +99,14 @@ type Parties struct {
 	prepare    func(n int) (*RoundPuzzle, error)
 	pick       func(k int) int // random index below k
 	retryDelay time.Duration
+	after      func(d time.Duration, f func()) // runs f once d has passed
+}
+
+// PartyOptions are the choices of a party's creator.
+type PartyOptions struct {
+	Sizes []int
+	Mode  string     // ModeVersus if unknown
+	Clock ClockRules // for ModeClock
 }
 
 // Party is one group playing together. All fields are guarded by Parties.mu.
@@ -102,12 +114,13 @@ type Party struct {
 	Code     string
 	Sizes    []int
 	Mode     string
+	Clock    ClockRules // ModeClock only
 	Phase    string
 	Round    *Round // current or last round, nil in the lobby
 	players  []*Player
 	byToken  map[string]*Player
 	nextID   int
-	next     *RoundPuzzle // prepared for the next round
+	ready    []*RoundPuzzle // prepared, in the order they are played
 	prepping bool
 	prepGen  int // discards a preparation that outlived its party
 	prepErr  string
@@ -140,6 +153,7 @@ type Round struct {
 	names        map[string]string // participant names, also after they left
 	data         *Data             // page data, built on first request
 	coop         *coopBoard        // the shared board in coop mode, else nil
+	clock        *clockRound       // the puzzles and scores in clock mode, else nil
 }
 
 // Result of one participant.
@@ -176,6 +190,7 @@ func NewParties(solve SolveFunc, pool *Pool) *Parties {
 		},
 		pick:       func(k int) int { return mrand.IntN(k) },
 		retryDelay: 5 * time.Second,
+		after:      func(d time.Duration, f func()) { time.AfterFunc(d, f) },
 	}
 }
 
@@ -193,14 +208,14 @@ func (pm *Parties) Run(interval time.Duration, stop <-chan struct{}) {
 	}
 }
 
-// Create starts a new party with the allowed sizes and mode (ModeVersus if
-// unknown) and returns its code.
-func (pm *Parties) Create(sizes []int, mode string) (string, error) {
-	if mode != ModeCoop {
+// Create starts a new party with the chosen options and returns its code.
+func (pm *Parties) Create(o PartyOptions) (string, error) {
+	mode := o.Mode
+	if mode != ModeCoop && mode != ModeClock {
 		mode = ModeVersus
 	}
 	var ok []int
-	for _, n := range sizes {
+	for _, n := range o.Sizes {
 		if n >= MinN && n <= MaxN && !slices.Contains(ok, n) {
 			ok = append(ok, n)
 		}
@@ -226,6 +241,7 @@ func (pm *Parties) Create(sizes []int, mode string) (string, error) {
 		Code:    code,
 		Sizes:   ok,
 		Mode:    mode,
+		Clock:   o.Clock.normalize(mode),
 		Phase:   PhaseLobby,
 		byToken: map[string]*Player{},
 		subs:    map[chan struct{}]bool{},
@@ -356,6 +372,19 @@ func (p *Party) participant(pl *Player, num int) (*Round, error) {
 	return r, nil
 }
 
+// versusRound returns the running round num if pl takes part and it is not
+// played against the clock, where each puzzle counts on its own.
+func (p *Party) versusRound(pl *Player, num int) (*Round, error) {
+	r, err := p.participant(pl, num)
+	if err != nil {
+		return nil, err
+	}
+	if r.clock != nil {
+		return nil, partyErr(http.StatusConflict, "In dieser Party wird gegen die Uhr gespielt.")
+	}
+	return r, nil
+}
+
 // Progress reports the stars set and hints taken in round num.
 func (pm *Parties) Progress(code, token string, num, stars, hints int) error {
 	pm.mu.Lock()
@@ -364,7 +393,7 @@ func (pm *Parties) Progress(code, token string, num, stars, hints int) error {
 	if err != nil {
 		return err
 	}
-	if _, err := p.participant(pl, num); err != nil {
+	if _, err := p.versusRound(pl, num); err != nil {
 		return err
 	}
 	if p.Phase != PhasePlaying {
@@ -387,7 +416,7 @@ func (pm *Parties) Solve(code, token string, num int, stars []int, hints int) (R
 	if err != nil {
 		return Result{}, err
 	}
-	r, err := p.participant(pl, num)
+	r, err := p.versusRound(pl, num)
 	if err != nil {
 		return Result{}, err
 	}
@@ -423,7 +452,7 @@ func (pm *Parties) GiveUp(code, token string, num, hints int) error {
 	if err != nil {
 		return err
 	}
-	r, err := p.participant(pl, num)
+	r, err := p.versusRound(pl, num)
 	if err != nil {
 		return err
 	}
@@ -443,8 +472,9 @@ func (pm *Parties) GiveUp(code, token string, num, hints int) error {
 }
 
 // RoundData returns the page data of round num, which must have started its
-// countdown already.
-func (pm *Parties) RoundData(code string, num int) (Data, error) {
+// countdown already. Against the clock, it is that of the round's puzzle k
+// (from 1; 0 counts as 1).
+func (pm *Parties) RoundData(code string, num, k int) (Data, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, err := pm.party(code)
@@ -454,6 +484,9 @@ func (pm *Parties) RoundData(code string, num int) (Data, error) {
 	r := p.Round
 	if r == nil || r.Num != num {
 		return Data{}, partyErr(http.StatusNotFound, "Runde %d gibt es (noch) nicht.", num)
+	}
+	if r.clock != nil {
+		return p.clockData(r, max(k, 1))
 	}
 	if r.data == nil {
 		rp := r.Puzzle
@@ -547,9 +580,18 @@ func (pm *Parties) refresh(p *Party) bool {
 	if round != nil {
 		n = len(round.Participants)
 	}
-	p.coopEnroll()
+	seq := 0
+	if round != nil && round.clock != nil {
+		seq = len(round.clock.seq)
+	}
+	p.enroll()
+	p.clockFeed()
 	pm.maybeEnd(p)
 	pm.maybeStart(p)
+	pm.startPrep(p)
+	if round != nil && round.clock != nil {
+		changed = changed || len(round.clock.seq) != seq
+	}
 	return changed || p.Phase != phase || p.Round != round || (round != nil && len(round.Participants) != n)
 }
 
@@ -574,7 +616,7 @@ func (pm *Parties) present(pl *Player, now time.Time) bool {
 // maybeStart starts the next round when every present player is ready (at
 // least one) and the puzzle is prepared; pm.mu must be held.
 func (pm *Parties) maybeStart(p *Party) {
-	if p.Phase == PhasePlaying || p.next == nil {
+	if p.Phase == PhasePlaying || len(p.ready) == 0 {
 		return
 	}
 	var ids []string
@@ -594,16 +636,28 @@ func (pm *Parties) maybeStart(p *Party) {
 	if p.Round != nil {
 		num = p.Round.Num + 1
 	}
+	next := p.ready[0]
+	p.ready = slices.Delete(p.ready, 0, 1)
 	r := &Round{
 		Num:          num,
-		Puzzle:       p.next,
+		Puzzle:       next,
 		Start:        pm.now().Add(partyCountdown),
 		Participants: ids,
 		Results:      map[string]*Result{},
 		names:        map[string]string{},
 	}
-	if p.Mode == ModeCoop {
-		r.coop = newCoopBoard(p.next.N)
+	switch p.Mode {
+	case ModeCoop:
+		r.coop = newCoopBoard(next.N)
+	case ModeClock:
+		r.clock = newClockRound(p.Clock, r.Start, next)
+		pm.after(r.clock.deadline.Sub(pm.now()), func() { // ends the round on time
+			pm.mu.Lock()
+			defer pm.mu.Unlock()
+			if pm.parties[p.Code] == p { // not expired in the meantime
+				pm.update(p)
+			}
+		})
 	}
 	for _, pl := range p.players {
 		pl.Ready = false
@@ -614,7 +668,6 @@ func (pm *Parties) maybeStart(p *Party) {
 	}
 	p.Round = r
 	p.Phase = PhasePlaying
-	p.next = nil
 	pm.startPrep(p)
 }
 
@@ -627,6 +680,12 @@ func (pm *Parties) maybeEnd(p *Party) {
 	}
 	if r.coop != nil {
 		pm.coopMaybeEnd(p)
+		return
+	}
+	if r.clock != nil {
+		if !pm.now().Before(r.clock.deadline) {
+			p.Phase = PhaseResults
+		}
 		return
 	}
 	waiting := false
@@ -648,9 +707,19 @@ func (pm *Parties) maybeEnd(p *Party) {
 	p.Phase = PhaseResults
 }
 
-// startPrep prepares the next puzzle in the background; pm.mu must be held.
+// prepTarget is how many prepared puzzles a party keeps ready: against the
+// clock a few, so that fast players rarely wait for the generator.
+func (p *Party) prepTarget() int {
+	if p.Mode == ModeClock {
+		return clockAhead
+	}
+	return 1
+}
+
+// startPrep prepares puzzles in the background until the party has enough
+// ready (prepTarget); pm.mu must be held.
 func (pm *Parties) startPrep(p *Party) {
-	if p.prepping || p.next != nil {
+	if p.prepping || len(p.ready) >= p.prepTarget() {
 		return
 	}
 	p.prepping = true
@@ -660,6 +729,11 @@ func (pm *Parties) startPrep(p *Party) {
 		for try := 0; ; try++ {
 			pm.mu.Lock()
 			if p.prepGen != gen {
+				pm.mu.Unlock()
+				return
+			}
+			if len(p.ready) >= p.prepTarget() {
+				p.prepping = false
 				pm.mu.Unlock()
 				return
 			}
@@ -679,10 +753,12 @@ func (pm *Parties) startPrep(p *Party) {
 			}
 			if err == nil {
 				log.Printf("Party %s: %d×%d bereit (Nr. %d, %.1f s)", p.Code, n, n, rp.Seed, pm.now().Sub(start).Seconds())
-				p.next, p.prepping, p.prepErr, p.lastSize = rp, false, "", n
+				p.ready = append(p.ready, rp)
+				p.prepErr, p.lastSize = "", n
+				try = -1 // the next puzzle starts afresh
 				pm.update(p)
 				pm.mu.Unlock()
-				return
+				continue
 			}
 			log.Printf("Party %s: %d×%d: %v", p.Code, n, n, err)
 			p.prepErr = "Das nächste Puzzle ließ sich nicht erzeugen, neuer Versuch läuft."
@@ -707,8 +783,9 @@ type Snapshot struct {
 	PrepErr   string       `json:"prepErr,omitempty"`
 	You       string       `json:"you,omitempty"` // the viewer's player ID
 	Players   []SnapPlayer `json:"players"`
-	Ranking   []RankEntry  `json:"ranking"`        // of the current or last round
-	Coop      *CoopSnap    `json:"coop,omitempty"` // the shared board in coop mode
+	Ranking   []RankEntry  `json:"ranking"`         // of the current or last round
+	Coop      *CoopSnap    `json:"coop,omitempty"`  // the shared board in coop mode
+	Clock     *ClockSnap   `json:"clock,omitempty"` // rules and puzzles in clock mode
 	Version   int          `json:"version"`
 }
 
@@ -726,11 +803,14 @@ type RankEntry struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Rank   int    `json:"rank"`   // 0 while unranked
-	Status string `json:"status"` // solved, gaveup, playing, absent, left
+	Status string `json:"status"` // solved, gaveup, playing, absent, left; clock: done
 	Hints  int    `json:"hints"`
 	TimeMs int64  `json:"timeMs"`
-	Stars  int    `json:"stars"`
-	Moves  int    `json:"moves,omitempty"` // coop: changes to the shared board
+	Stars  int    `json:"stars"`            // clock: right minus wrong stars on the current puzzle
+	Moves  int    `json:"moves,omitempty"`  // coop: changes to the shared board
+	Solved int    `json:"solved,omitempty"` // clock: puzzles solved
+	Skips  int    `json:"skips,omitempty"`  // clock: puzzles skipped
+	Puzzle int    `json:"puzzle,omitempty"` // clock: the current puzzle, from 1
 }
 
 // Snapshot returns the state of the party as seen by the player with this
@@ -748,7 +828,7 @@ func (pm *Parties) Snapshot(code, token string) (Snapshot, error) {
 		Mode:      p.Mode,
 		Phase:     p.Phase,
 		Sizes:     p.Sizes,
-		Preparing: p.next == nil,
+		Preparing: len(p.ready) == 0,
 		PrepErr:   p.prepErr,
 		Players:   []SnapPlayer{},
 		Ranking:   []RankEntry{},
@@ -756,6 +836,9 @@ func (pm *Parties) Snapshot(code, token string) (Snapshot, error) {
 	}
 	if pl := p.byToken[token]; token != "" && pl != nil {
 		s.You = pl.ID
+	}
+	if p.Mode == ModeClock {
+		s.Clock = p.clockSnap()
 	}
 	r := p.Round
 	for _, pl := range p.players {
@@ -772,6 +855,10 @@ func (pm *Parties) Snapshot(code, token string) (Snapshot, error) {
 		} else {
 			s.ElapsedMs = (-d).Milliseconds()
 		}
+	}
+	if r.clock != nil {
+		s.Ranking = p.clockRanking()
+		return s, nil
 	}
 	s.Ranking = p.ranking()
 	if r.coop != nil {

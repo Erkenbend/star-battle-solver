@@ -12,11 +12,14 @@ import (
 // partyRoutes adds the party mode to mux:
 //
 //	GET  /party                    create or join a party
-//	POST /party                    create one (form: n=6&n=7...&mode=coop), redirects to its lobby
+//	POST /party                    create one (form: n=6&n=7...&mode=coop, and for
+//	                               mode=clock minutes=5&skips=2), redirects to its lobby
 //	GET  /party/{code}             lobby: players, results, ready
 //	GET  /party/{code}/round/{num} the puzzle page of a round
+//	GET  /party/{code}/round/{num}/{k}  against the clock: of its k-th puzzle
 //	POST /party/{code}/{action}    join, ready, progress, solve, giveup, leave,
-//	                               and in coop mode mark, vote (JSON)
+//	                               in coop mode mark, vote, and against the
+//	                               clock progress, solve, skip with "puzzle" (JSON)
 //	GET  /party/{code}/events      the party's state as server-sent events
 func partyRoutes(mux *http.ServeMux, pm *Parties) {
 	mux.HandleFunc("GET /party", func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +36,13 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 				sizes = append(sizes, n)
 			}
 		}
-		code, err := pm.Create(sizes, r.Form.Get("mode"))
+		o := PartyOptions{Sizes: sizes, Mode: r.Form.Get("mode")}
+		o.Clock.Minutes, _ = strconv.Atoi(r.Form.Get("minutes"))
+		o.Clock.Skips = ClockDefaultSkips
+		if v, err := strconv.Atoi(r.Form.Get("skips")); err == nil {
+			o.Clock.Skips = v // negative: as many as you like
+		}
+		code, err := pm.Create(o)
 		if err != nil {
 			writeParty(w, errorStatus(err), PartyPage{Error: err.Error()})
 			return
@@ -52,20 +61,26 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 		}
 		writeParty(w, http.StatusOK, PartyPage{Code: code})
 	})
-	mux.HandleFunc("GET /party/{code}/round/{num}", func(w http.ResponseWriter, r *http.Request) {
+	round := func(w http.ResponseWriter, r *http.Request) {
 		toParty := []Link{{"/party", "Neue Party"}}
 		num, err := strconv.Atoi(r.PathValue("num"))
-		if err != nil {
+		k := 1
+		if s := r.PathValue("k"); s != "" && err == nil {
+			k, err = strconv.Atoi(s)
+		}
+		if err != nil || k < 1 {
 			writeError(w, http.StatusNotFound, "Diese Runde gibt es nicht.", toParty...)
 			return
 		}
-		d, err := pm.RoundData(r.PathValue("code"), num)
+		d, err := pm.RoundData(r.PathValue("code"), num, k)
 		if err != nil {
 			writeError(w, errorStatus(err), err.Error(), toParty...)
 			return
 		}
 		writePage(w, d)
-	})
+	}
+	mux.HandleFunc("GET /party/{code}/round/{num}", round)
+	mux.HandleFunc("GET /party/{code}/round/{num}/{k}", round)
 	mux.HandleFunc("POST /party/{code}/{action}", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Token  string   `json:"token"`
@@ -77,6 +92,8 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 			Hints  int      `json:"hints"`
 			Ops    [][4]int `json:"ops"`    // mark: [num, cell, from, to] each
 			GiveUp bool     `json:"giveUp"` // vote
+			Puzzle int      `json:"puzzle"` // against the clock: which one, from 1
+			Cells  []int    `json:"cells"`  // progress against the clock: cells with a star
 		}
 		// A coop reset of a 14×14 board is ~200 operations.
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384)).Decode(&req); err != nil {
@@ -93,9 +110,19 @@ func partyRoutes(mux *http.ServeMux, pm *Parties) {
 		case "ready":
 			err = pm.SetReady(code, req.Token, req.Ready)
 		case "progress":
-			err = pm.Progress(code, req.Token, req.Round, req.Count, req.Hints)
+			if req.Puzzle > 0 {
+				err = pm.ClockProgress(code, req.Token, req.Round, req.Puzzle, req.Cells)
+			} else {
+				err = pm.Progress(code, req.Token, req.Round, req.Count, req.Hints)
+			}
 		case "solve":
-			out["result"], err = pm.Solve(code, req.Token, req.Round, req.Stars, req.Hints)
+			if req.Puzzle > 0 {
+				err = pm.ClockSolve(code, req.Token, req.Round, req.Puzzle, req.Stars)
+			} else {
+				out["result"], err = pm.Solve(code, req.Token, req.Round, req.Stars, req.Hints)
+			}
+		case "skip":
+			err = pm.ClockSkip(code, req.Token, req.Round, req.Puzzle)
 		case "giveup":
 			err = pm.GiveUp(code, req.Token, req.Round, req.Hints)
 		case "mark":

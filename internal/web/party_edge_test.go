@@ -30,11 +30,11 @@ func TestPartiesUnknownCode(t *testing.T) {
 func TestPartiesLimit(t *testing.T) {
 	pm, _ := newTestParties(t)
 	for i := range PartyMaxParties {
-		if _, err := pm.Create([]int{5}, ""); err != nil {
+		if _, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""}); err != nil {
 			t.Fatalf("party %d: %v", i, err)
 		}
 	}
-	_, err := pm.Create([]int{5}, "")
+	_, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
 	if got := errorStatus(err); got != http.StatusServiceUnavailable {
 		t.Fatalf("one too many: status %d (%v), want 503", got, err)
 	}

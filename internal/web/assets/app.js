@@ -667,6 +667,10 @@ function boot() {
       $("summary").textContent = `${n}×${n} · ohne Hinweise`;
       return;
     }
+    if (d.party && d.party.mode === "clock") {
+      $("summary").textContent = `${n}×${n} · Gegen die Uhr · ohne Hinweise`;
+      return;
+    }
     const k = d.steps.length;
     const statusText =
       { solved: `gelöst in ${k} Schritten`, stuck: `steckt nach ${k} Schritten fest`, contradiction: `Widerspruch nach ${k} Schritten` }[d.status] || d.status;
@@ -726,6 +730,12 @@ function boot() {
     done = party.gaveUp = false;
     hintCount = 0;
   }
+  // A round against the clock (one page per puzzle), see "against the clock" below.
+  const race = party && d.party.mode === "clock" ? { sent: null, skipping: false } : null;
+  if (race) {
+    party.gaveUp = false;
+    hintCount = 0;
+  }
   // A library puzzle (d.library) is a motif or a hard puzzle. A motif is
   // played like a solo puzzle, with hints and checks. A hard one is solved
   // without help (bare): no hints, no checks, and the solver's way only once
@@ -767,6 +777,7 @@ function boot() {
   }
   const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
   function drawClock() {
+    if (race) return raceClock();
     $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : bare ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
   }
   const undoStack = [], redoStack = [];
@@ -817,6 +828,7 @@ function boot() {
         $("giveup").textContent = coop.voted ? "Doch nicht aufgeben" : "Aufgeben";
         $("giveup").classList.toggle("voted", coop.voted);
       }
+      if (race) raceSkipButton(frozen);
     }
     $("undo").disabled = frozen || undoStack.length === 0;
     $("redo").disabled = frozen || redoStack.length === 0;
@@ -824,12 +836,13 @@ function boot() {
     $("check").disabled = frozen;
     $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
     // In a coop round the server says when the board is solved.
-    if (L.solved(d, eff.cells) && !(party && party.gaveUp) && (!coop || done)) {
-      if (!done) {
-        clockStop();
-        done = true;
-        if (party) partySolve();
-      }
+    const solved = L.solved(d, eff.cells) && !(party && party.gaveUp) && (!coop || done);
+    if (solved && !done) {
+      clockStop();
+      done = true;
+      if (party) partySolve();
+    }
+    if (solved && !race) { // against the clock, the party banner tells how it goes on
       if (lib) libRecord(clockMs(), bare ? 0 : hintCount);
       const with_ = bare ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
       banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
@@ -1193,6 +1206,7 @@ function boot() {
   window.addEventListener("pagehide", store);
   setInterval(() => {
     if (runningSince !== null) { drawClock(); store(); }
+    if (race) drawClock();
     if (party && (!partyStarted() || party.live !== partyLive())) renderPlay(); // countdown, start
   }, 1000);
   clockRun(!document.hidden);
@@ -1393,8 +1407,8 @@ function boot() {
     $("legend").textContent =
       m === "play"
         ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt" +
-          (prefs.showProblems ? " · rot: Regelverstoß" : bare ? "" : " · rot: falsch laut Prüfen") +
-          (bare ? "" : " · orange: Hinweis")
+          (prefs.showProblems ? " · rot: Regelverstoß" : bare || race ? "" : " · rot: falsch laut Prüfen") +
+          (bare || race ? "" : " · orange: Hinweis")
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
     else render();
@@ -1433,6 +1447,7 @@ function boot() {
   }
   function partyLive() {
     const me = partyMe();
+    if (race && me && (me.puzzle !== d.party.puzzle || Date.now() >= raceDeadline())) return false;
     return !!me && party.snap.phase === "playing" && partyStarted() && (me.status === "playing" || me.status === "absent");
   }
   function partyPost(action, body) {
@@ -1451,6 +1466,7 @@ function boot() {
 
   // [text, class] for the banner while not solved, or null.
   function partyBanner() {
+    if (race) return raceBanner();
     const s = party.snap;
     if (party.gaveUp) return [coop ? "Gemeinsam aufgegeben. Die Lösung ist eingeblendet." : "Aufgegeben. Die Lösung ist eingeblendet.", "what-if"];
     if (!s) return ["Verbinde mit der Party …", ""];
@@ -1466,12 +1482,13 @@ function boot() {
   }
 
   function partyTabs() {
-    const open = done || party.gaveUp;
+    const open = !race && (done || party.gaveUp); // no solving trace against the clock
     $("tab-watch").hidden = !open;
     if (!open && mode === "watch") setMode("play");
   }
 
   function partySolve() {
+    if (race) return raceSolve();
     if (party.solving) return;
     party.solving = true;
     const eff = L.effective(d, marks, prefs.autocross);
@@ -1488,7 +1505,17 @@ function boot() {
 
   let partyTimer = null;
   function partyReport() {
+    const was = party.live;
     party.live = partyLive();
+    if (race) {
+      if (!party.live && was) raceReport(); // e.g. the time is up: the last state counts
+      if (!party.live || partyTimer) return;
+      partyTimer = setTimeout(() => {
+        partyTimer = null;
+        if (partyLive()) raceReport();
+      }, 400);
+      return;
+    }
     if (coop || !party.live || partyTimer) return;
     partyTimer = setTimeout(() => {
       partyTimer = null;
@@ -1525,6 +1552,7 @@ function boot() {
     }
     party.startLocal = at + s.startInMs - s.elapsedMs;
     if (coop) return coopSnap(s);
+    if (race) return raceSnap(s);
     const me = partyMe();
     if (me) {
       hintCount = Math.max(hintCount, me.hints);
@@ -1678,6 +1706,98 @@ function boot() {
     }
   }
 
+  // ---------- against the clock: many puzzles in a set time (d.party.mode "clock") ----------
+  // Each puzzle of the round has its own page (d.party.puzzle, from 1), the
+  // same sequence for everybody. Solving it (checked by the server) or
+  // skipping it moves us on: the server's state says which puzzle is ours,
+  // and we follow it to that page as soon as the puzzle is prepared. There
+  // are no hints. Our stars count when the time is up, so they are reported
+  // as we go, and once more at the end.
+  function raceDeadline() {
+    const s = party.snap;
+    return s && s.clock && party.startLocal !== null ? party.startLocal + s.clock.minutes * 60000 : Infinity;
+  }
+  function raceLeft() {
+    const s = party.snap;
+    if (!s || !s.clock) return 0;
+    const total = s.clock.minutes * 60000;
+    if (s.phase !== "playing") return 0;
+    return Math.max(0, Math.min(total, raceDeadline() - Date.now()));
+  }
+  function raceClock() {
+    const me = party.snap ? partyMe() : null;
+    let t = `⏱ noch ${fmtTime(Math.ceil(raceLeft() / 1000) * 1000)}`;
+    if (me) t += ` · ${me.solved || 0} gelöst`;
+    $("clock").textContent = t;
+  }
+  const puzzlesText = (k) => (k === 1 ? "1 Puzzle" : `${k} Puzzles`);
+  function raceBanner() {
+    const s = party.snap;
+    if (!s) return ["Verbinde mit der Party …", ""];
+    const me = partyMe();
+    if (!me) return ["Du spielst in dieser Runde nicht mit.", "what-if"];
+    if (!partyStarted()) return [`Gleich geht es los: ${Math.max(1, Math.ceil((party.startLocal - Date.now()) / 1000))} …`, ""];
+    if (s.phase !== "playing" || Date.now() >= raceDeadline()) {
+      const solved = me.solved || 0;
+      let t = `Die Zeit ist um! ${puzzlesText(solved)} gelöst`;
+      if (me.stars) t += `, im letzten ${me.stars > 0 ? "+" : "−"}${Math.abs(me.stars)} ★`;
+      return [t + ".", solved ? "good" : "what-if"];
+    }
+    if (me.puzzle > d.party.puzzle) {
+      const how = done ? "Gelöst!" : "Übersprungen.";
+      return me.puzzle > s.clock.sizes.length ? [`${how} Das nächste Puzzle wird noch vorbereitet …`, done ? "good" : ""] : [`${how} Weiter geht es …`, done ? "good" : ""];
+    }
+    if (done) return ["Gelöst! Weiter geht es …", "good"];
+    return null;
+  }
+  function raceSkipButton(frozen) {
+    const s = party.snap;
+    const b = $("giveup");
+    const lim = s && s.clock ? s.clock.skips : 0;
+    b.hidden = lim === 0;
+    if (lim === 0) return;
+    const me = partyMe();
+    const left = lim < 0 ? Infinity : lim - ((me && me.skips) || 0);
+    b.textContent = lim < 0 ? "Überspringen" : `Überspringen (${Math.max(0, left)} übrig)`;
+    b.disabled = frozen || race.skipping || left <= 0;
+  }
+  function raceSkip() {
+    if (locked() || race.skipping) return;
+    race.skipping = true;
+    renderPlay();
+    partyPost("skip", { puzzle: d.party.puzzle })
+      .then((r) => partySnap(r.snapshot, Date.now()))
+      .catch(partyError)
+      .finally(() => { race.skipping = false; renderPlay(); });
+  }
+  function raceSolve() {
+    if (party.solving) return;
+    party.solving = true;
+    const eff = L.effective(d, marks, prefs.autocross);
+    partyPost("solve", { puzzle: d.party.puzzle, stars: L.starColumns(d, eff.cells) })
+      .then((r) => partySnap(r.snapshot, Date.now()))
+      .catch(partyError)
+      .finally(() => { party.solving = false; });
+  }
+  // Reports the cells with a star, if they changed since the last report.
+  function raceReport() {
+    const cells = [];
+    marks.forEach((v, i) => { if (v === L.STAR) cells.push(i); });
+    const key = cells.join(",");
+    if (key === race.sent) return;
+    race.sent = key;
+    partyPost("progress", { puzzle: d.party.puzzle, cells }).catch(() => { race.sent = null; });
+  }
+  function raceSnap(s) {
+    const me = partyMe();
+    if (me && s.phase === "playing" && me.puzzle !== d.party.puzzle && me.puzzle <= s.clock.sizes.length) {
+      location.replace(`/party/${d.party.code}/round/${d.party.round}/${me.puzzle}`); // our puzzle now
+      return;
+    }
+    if (me && s.phase === "playing" && me.puzzle === d.party.puzzle && done) partySolve(); // the report got lost
+    renderPlay();
+  }
+
   if (party) {
     $("party-box").hidden = false;
     $("party-lobby").href = "/party/" + d.party.code;
@@ -1688,6 +1808,13 @@ function boot() {
     if (coop) { // no hints when playing together
       $("hint").hidden = $("check").hidden = true;
       $("giveup").title = "Stimme fürs Aufgeben; die Runde endet, wenn alle dafür sind";
+    }
+    if (race) { // no hints against the clock; skipping instead of giving up
+      $("hint").hidden = $("check").hidden = true;
+      $("giveup").onclick = raceSkip;
+      $("giveup").title = "Weiter zum nächsten Puzzle, ohne dieses zu lösen";
+      $("reset").title = "Löscht deine Markierungen; die Zeit läuft weiter";
+      $("clock").title = "Verbleibende Zeit der Runde und deine gelösten Puzzles";
     }
     elapsed = 0; // the server's clock; our result's time once it is known
     if (location.hash === "#weg") history.replaceState(null, "", location.pathname);

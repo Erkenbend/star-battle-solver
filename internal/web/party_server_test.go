@@ -144,7 +144,7 @@ func TestPartyEvents(t *testing.T) {
 	pm, _ := newTestParties(t)
 	srv := httptest.NewServer(Handler(testSolve, nil, pm, nil, nil))
 	defer srv.Close()
-	code, err := pm.Create([]int{5}, "")
+	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ""})
 	must(t, err)
 	tok := mustJoin(t, pm, code, "Anna")
 

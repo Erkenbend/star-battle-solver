@@ -81,9 +81,10 @@ type Data struct {
 
 // PartyInfo identifies the party round a page belongs to.
 type PartyInfo struct {
-	Code  string `json:"code"`
-	Round int    `json:"round"`
-	Mode  string `json:"mode"` // ModeVersus or ModeCoop
+	Code   string `json:"code"`
+	Round  int    `json:"round"`
+	Mode   string `json:"mode"`             // ModeVersus, ModeCoop or ModeClock
+	Puzzle int    `json:"puzzle,omitempty"` // ModeClock: which of the round's puzzles, from 1
 }
 
 // Stats summarizes the search effort.

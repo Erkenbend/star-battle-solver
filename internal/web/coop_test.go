@@ -19,7 +19,7 @@ func solutionOps(rp *RoundPuzzle, first int) [][4]int {
 
 func TestCoopModeDefault(t *testing.T) {
 	pm, _ := newTestParties(t)
-	code, err := pm.Create([]int{5}, "chess")
+	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: "chess"})
 	must(t, err)
 	if s := snap(t, pm, code, ""); s.Mode != ModeVersus || s.Coop != nil {
 		t.Fatalf("mode %q, coop %v; want versus without board", s.Mode, s.Coop)
@@ -33,7 +33,7 @@ func TestCoopModeDefault(t *testing.T) {
 
 func TestCoopBoard(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, err := pm.Create([]int{5}, ModeCoop)
+	code, err := pm.Create(PartyOptions{Sizes: []int{5}, Mode: ModeCoop})
 	must(t, err)
 	waitPrepared(t, pm, code)
 	ann, bob := mustJoin(t, pm, code, "Ann"), mustJoin(t, pm, code, "Bob")
@@ -221,7 +221,7 @@ func TestCoopLateJoin(t *testing.T) {
 func TestCoopRoundData(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, _ := startRoundMode(t, pm, clk, ModeCoop, "Ann")
-	d, err := pm.RoundData(code, 1)
+	d, err := pm.RoundData(code, 1, 0)
 	must(t, err)
 	if d.Party == nil || d.Party.Mode != ModeCoop {
 		t.Fatalf("party info %+v", d.Party)

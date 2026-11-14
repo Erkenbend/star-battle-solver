@@ -183,11 +183,12 @@ func (pm *Parties) Vote(code, token string, num int, giveUp bool) error {
 	return nil
 }
 
-// coopEnroll makes every present player a participant of the running
-// cooperative round: joining in late is welcome; pm.mu must be held.
-func (p *Party) coopEnroll() {
+// enroll makes every present player a participant of the running
+// cooperative round or round against the clock: joining in late is welcome
+// (against the clock with less time left); pm.mu must be held.
+func (p *Party) enroll() {
 	r := p.Round
-	if p.Phase != PhasePlaying || r == nil || r.coop == nil {
+	if p.Phase != PhasePlaying || r == nil || (r.coop == nil && r.clock == nil) {
 		return
 	}
 	for _, pl := range p.players {

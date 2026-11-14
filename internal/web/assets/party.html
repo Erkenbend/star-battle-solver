@@ -19,7 +19,7 @@
   </nav>
   <div class="title">
     <h1 id="party-title">Zusammen spielen</h1>
-    <p class="sub" id="party-sub">Alle lösen gleichzeitig dasselbe Puzzle: gegeneinander oder miteinander am selben Brett.</p>
+    <p class="sub" id="party-sub">Alle lösen gleichzeitig dieselben Puzzles: gegeneinander, miteinander am selben Brett oder gegen die Uhr.</p>
   </div>
 </header>
 
@@ -29,12 +29,28 @@
   <div class="party-start" id="start" hidden>
     <form class="card" method="post" action="/party" id="create">
       <h2>Neue Party</h2>
-      <p class="muted">Welche Größen dürfen vorkommen? Jede Runde wird zufällig eine davon gespielt.</p>
+      <p class="muted">Welche Größen dürfen vorkommen? Jedes Puzzle bekommt zufällig eine davon.</p>
       <div class="sizes" id="sizes"></div>
       <p class="muted">Wie wird gespielt?</p>
       <div class="modes">
         <label class="mode"><input type="radio" name="mode" value="versus" checked> <span><strong>Gegeneinander</strong> <span class="muted">– jede Person auf ihrem eigenen Brett; Wertung: wenigste Hinweise, dann schnellste Zeit.</span></span></label>
         <label class="mode"><input type="radio" name="mode" value="coop"> <span><strong>Miteinander</strong> <span class="muted">– alle markieren auf demselben Brett, gemeinsame Zeit, ohne Hinweise.</span></span></label>
+        <label class="mode"><input type="radio" name="mode" value="clock"> <span><strong>Gegen die Uhr</strong> <span class="muted">– so viele Puzzles wie möglich in der Zeit, für alle dieselben in derselben Reihenfolge, ohne Hinweise; Wertung: gelöste Puzzles, dann richtige minus falsche Sterne im letzten.</span></span></label>
+      </div>
+      <div class="clock-options" id="clock-options" hidden>
+        <label>Zeit <select name="minutes">
+          <option value="2">2 Minuten</option>
+          <option value="5" selected>5 Minuten</option>
+          <option value="10">10 Minuten</option>
+        </select></label>
+        <label>Überspringen <select name="skips">
+          <option value="0">nie</option>
+          <option value="1">1×</option>
+          <option value="2" selected>2×</option>
+          <option value="3">3×</option>
+          <option value="5">5×</option>
+          <option value="-1">beliebig oft</option>
+        </select></label>
       </div>
       <div class="actions"><button type="submit" class="primary">Party starten</button></div>
     </form>
