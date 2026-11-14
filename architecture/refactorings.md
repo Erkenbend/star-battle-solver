@@ -20,29 +20,13 @@ The pressure is at the edges, where features have accumulated:
   concerns (page rendering, site routes, library, parties, symbols, the
   developer designer) (done, see 2).
 - `assets/app.js` (~2,150 lines) was one file with the pure logic and the UI
-  of every kind of page (logic split off, see 3; the UI remains one closure).
+  of every kind of page (done, see 3).
 - The format of the puzzle *collections* (index files, header lines such as
   `# rating:` and `# name:`) was read and written in three different places
   (done, see 1).
 
 The suggestions are ordered by value for effort. None is urgent; each is worth
 doing when the area is touched next anyway.
-
-## 3. Split the puzzle page's UI (`app.js`) into files (optional, only if it keeps growing)
-
-**Now:** step 1, the pure logic in `logic.js`, is done (see "Done").
-`app.js` is the puzzle page's UI: `boot()`, ~1,600 lines in one closure,
-covering solo play, playback of the trace, hints, the hypothesis mode,
-library puzzles, the three party modes and the tutorial.
-
-**Suggestion (step 2):** cut mode-specific UI (party modes, tutorial,
-hypothesis mode) out of `boot()` into separate files that plug into a small,
-explicit interface of the page (board redraw, lock, storage key, toolbar). This is harder than it looks because the parts share
-closure state; define the interface first, move second.
-
-**Not suggested:** a JS build step, modules loaded at runtime, or a framework.
-Single-file pages without a build (principle 6 in [README.md](README.md)) are
-worth more than the convenience.
 
 ## 4. Small clean-ups
 
@@ -97,9 +81,22 @@ worth more than the convenience.
   - `web` went from ~3,400 to ~1,450 lines of non-test code. The page data of
     party rounds is no longer cached per round (it is cheap to build); the
     wire format of the party mode is unchanged.
-- **3, step 1: `Logic` into `logic.js`** (November 2026): the pure functions
-  are their own asset, tested by `logic_test.js`; `app.js` is only the puzzle
-  page's UI. The template slots are now `SHARED` (logic.js, plus app.js on
-  the puzzle page) and `SCRIPT` (the page's own). The library, settings and
-  designer pages, which only need `Logic`, no longer carry the puzzle page's
-  UI: about 67 KB less script each.
+- **3. Split `app.js`, step 1: `Logic` into `logic.js`** (November 2026):
+  the pure functions are their own asset, tested by `logic_test.js`. The
+  template slots are now `SHARED` (logic.js, plus the UI on the puzzle page)
+  and `SCRIPT` (the page's own). The library, settings and designer pages,
+  which only need `Logic`, no longer carry the puzzle page's UI: about 67 KB
+  less script each.
+- **3. Split `app.js`, step 2: the puzzle page's parts** (November 2026):
+  `app.js` (~850 lines) is the core; hypothesis mode, watch mode, the
+  tutorial and party rounds (with coop and race) are files of their own
+  (100 to 200 lines each). `boot()` creates them with a page object `P` whose
+  accessors read and write its play state, so the core's code stayed as it
+  was; it calls the parts through small objects (`H.change`, `W.render`,
+  `party.controls`, …). Checked with a behaviour script over the DevTools
+  protocol that plays every mode (solo, hints, checks, hypothesis, watch,
+  tutorial and tour, library, file page, versus, coop, against the clock):
+  the same 99 observations before and after. Not kept in the repo.
+  - Not done: a JS build step, modules loaded at runtime, or a framework.
+    Single-file pages without a build (principle 6 in
+    [README.md](README.md)) are worth more than the convenience.

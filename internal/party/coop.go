@@ -23,7 +23,7 @@ import (
 // The server notices the solution itself; giving up takes the votes of all
 // present participants.
 
-// Cell values, as in app.js.
+// Cell values, as in logic.js.
 const (
 	cellFree  = 0
 	cellCross = 1

@@ -1,7 +1,7 @@
 "use strict";
 
 // Party mode ("Zusammen spielen"), shared by the party page (party.html) and
-// the puzzle page of a round (app.js uses it when the data has `party`).
+// the puzzle page of a round (round.js uses it when the data has `party`).
 // The server sends the party's state as server-sent events; actions are
 // JSON POSTs. Each player's token lives in localStorage, per party code.
 const Party = (() => {

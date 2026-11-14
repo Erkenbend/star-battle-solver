@@ -5,8 +5,8 @@
 // The page is one file without external resources. Its HTML, CSS and
 // JavaScript live in assets/ and are inlined together with the data as JSON.
 // Every page with script gets logic.js (Logic, the pure functions shared by
-// all pages); the puzzle page adds app.js (its UI), other pages their own
-// script.
+// all pages). The puzzle page adds its UI (pageJS): app.js, the core, and one
+// file per part of it; other pages have their own script.
 package web
 
 import (
@@ -33,8 +33,27 @@ var styleCSS string
 //go:embed assets/logic.js
 var logicJS string
 
-//go:embed assets/app.js
-var appJS string
+// The puzzle page's UI. app.js holds the core and boot(), which creates the
+// other parts with the page object P (see there); they are function
+// declarations, so the order only matters for reading.
+var (
+	//go:embed assets/hypothesis.js
+	hypothesisJS string
+	//go:embed assets/watch.js
+	watchJS string
+	//go:embed assets/tutorial.js
+	tutorialJS string
+	//go:embed assets/round.js
+	roundJS string
+	//go:embed assets/coop.js
+	coopJS string
+	//go:embed assets/race.js
+	raceJS string
+	//go:embed assets/app.js
+	appJS string
+
+	pageJS = strings.Join([]string{hypothesisJS, watchJS, tutorialJS, roundJS, coopJS, raceJS, appJS}, "\n")
+)
 
 //go:embed assets/party.html
 var partyHTML string
@@ -175,7 +194,7 @@ func Write(w io.Writer, d Data) error {
 	if d.Party != nil {
 		party = partyJS
 	}
-	return render(w, pageHTML, d.Title, d, logicJS+appJS, party)
+	return render(w, pageHTML, d.Title, d, logicJS+"\n"+pageJS, party)
 }
 
 // PartyPage is the data of the party page: creating or joining a party

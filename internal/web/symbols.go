@@ -29,7 +29,7 @@ const (
 )
 
 // RandomID is the settings' choice of a random symbol per puzzle (see
-// randomMark in app.js), so no symbol may have it.
+// randomMark in logic.js), so no symbol may have it.
 const RandomID = "random"
 
 // MaxSymbolFile is the size limit of an image file of the catalog.

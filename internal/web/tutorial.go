@@ -24,7 +24,7 @@ DDDEE
 DEEEE
 `
 
-// Tutorial is the content of the tutorial, shown by app.js.
+// Tutorial is the content of the tutorial, shown by tutorial.js.
 type Tutorial struct {
 	Steps []TutorialStep `json:"steps"`
 	Tour  []TourStop     `json:"tour"`

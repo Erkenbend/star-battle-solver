@@ -1,8 +1,15 @@
 "use strict";
 
-// The puzzle page (page.html): builds the board, the trace player and all
-// controls from the page data, for solo play, library puzzles, party rounds
-// and the tutorial. Runs after logic.js (Logic), only on pages with a board.
+// The puzzle page (page.html): builds the board and all controls from the
+// page data, for solo play, library puzzles, party rounds and the tutorial.
+// Runs after logic.js (Logic), only on pages with a board.
+//
+// This is the core: board, play mode (marks, undo, hints, checks), clock,
+// storage, options, tabs and keys. The other parts each have a file and get
+// the page object P (below) from boot(): hypothesis.js (Annahme), watch.js
+// (Lösungsweg), tutorial.js (Anleitung) and round.js (a party round) with
+// coop.js and race.js for its modes. They are function declarations inlined
+// into the same script (web.go, pageJS), so boot() finds them.
 
 if (typeof document !== "undefined" && document.getElementById("board")) boot();
 
@@ -19,7 +26,7 @@ function boot() {
       return;
     }
   }
-  const tut = d.tutorial ? { step: -1, tour: null } : null; // see "tutorial" below
+  const tut = !!d.tutorial; // the tutorial (/anleitung), see tutorial.js
   const n = d.n;
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => {
@@ -185,6 +192,42 @@ function boot() {
     spotlight(spotted);
   }, true);
 
+  // ---------- the page for the other parts ----------
+  // hypothesis.js, watch.js, tutorial.js and round.js (with coop.js and
+  // race.js) see the page through P: the data, helpers to draw, and the play
+  // state of this function, read and written through accessors.
+  const P = {
+    L, d, n, $, el, elr, chip, banner, drawBoard, boardEl, cellEls,
+    get saved() { return saved; },
+    get marks() { return marks; },
+    set marks(v) { marks = v; },
+    get done() { return done; },
+    set done(v) { done = v; },
+    get hintCount() { return hintCount; },
+    set hintCount(v) { hintCount = v; },
+    get elapsed() { return elapsed; },
+    set elapsed(v) { elapsed = v; },
+    get runningSince() { return runningSince; },
+    set runningSince(v) { runningSince = v; },
+    get overlay() { return overlay; },
+    set overlay(v) { overlay = v; },
+    get prefs() { return prefs; },
+    get drag() { return drag; },
+    get mode() { return mode; },
+    get undoStack() { return undoStack; },
+    get redoStack() { return redoStack; },
+    get lib() { return lib; },
+    get hyp() { return H; },
+    get party() { return !!party; },
+    get coop() { return !!coop; },
+    locked: () => locked(),
+    intro: () => intro.map((x) => x.cloneNode(true)),
+    message, renderPlay, setMarks, setMode, clockStop, fmtTime, loadTrace,
+  };
+  const H = Hypothesis(P);
+  const W = Watch(P);
+  const T = tut ? Tutorial(P) : null;
+
   // ---------- summary ----------
   function drawSummary() {
     const rating = d.library && d.library.rating ? ` · Schwierigkeit: ${L.ratingStars(d.library.rating)}` : "";
@@ -254,23 +297,11 @@ function boot() {
   function clockStop() {
     if (runningSince !== null) { elapsed = clockMs(); runningSince = null; }
   }
-  // A round played together (d.party), see "party mode" below.
-  const party = d.party ? { gaveUp: !!(saved && saved.gaveUp), snap: null, startLocal: null, live: false, solving: false, sentStars: -1, sentHints: -1 } : null;
-  // A coop round (all on one board, kept by the server), see "coop mode" below.
-  const coop = party && d.party.mode === "coop"
-    ? { server: new Uint8Array(n * n), version: -1, pending: [], nextNum: 0, ready: false, sending: false, voted: false, lost: new Set() }
-    : null;
-  if (coop) { // the board comes from the server, nothing from storage
-    marks = new Uint8Array(n * n);
-    done = party.gaveUp = false;
-    hintCount = 0;
-  }
-  // A round against the clock (one page per puzzle), see "against the clock" below.
-  const race = party && d.party.mode === "clock" ? { sent: null, skipping: false } : null;
-  if (race) {
-    party.gaveUp = false;
-    hintCount = 0;
-  }
+  // A round played together (d.party), see round.js; its modes all on one
+  // board (coop.js) and against the clock (race.js).
+  const party = d.party ? PartyRound(P) : null;
+  const coop = party && party.coop;
+  const race = party && party.race;
   // A library puzzle (d.library) is a motif or a hard puzzle. A motif is
   // played like a solo puzzle, with hints and checks. A hard one is solved
   // without help (bare): no hints, no checks, and the solver's way only once
@@ -304,7 +335,7 @@ function boot() {
     $("play-msg").append(el("p", "muted", "Bibliothek: ein besonders schweres Puzzle, an dem die einfachen Regeln scheitern. Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast."));
   }
   // No input: solved, or in a party round given up, not started or not ours.
-  const locked = () => done || (!!party && (party.gaveUp || !partyLive()));
+  const locked = () => done || (!!party && (party.gaveUp || !party.live()));
   function fmtTime(ms) {
     const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
     const ss = String(s % 60).padStart(2, "0");
@@ -312,39 +343,21 @@ function boot() {
   }
   const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
   function drawClock() {
-    if (race) return raceClock();
+    if (race) return race.clock();
     $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : bare ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
   }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
 
-  // Hypothesis mode ("Annahme"): when stuck, a star is set on trial and
-  // followed until it leads to a contradiction. The marks tried out lie as a
-  // layer (over: cell → mark) over the board they started from (base); marks
-  // shows both. root is the hypothesis' star, the first one set in the mode.
-  // "Widerspruch" goes back to base with a cross on root, "Annahme verwerfen"
-  // just back to base; solving in the mode takes the marks over as usual.
-  // The mode has its own undo and redo (entries {over, root}), so they stop
-  // where it began. Only base counts for a party round: it gives the stars
-  // reported (against each other, against the clock), and in coop it is the
-  // board everybody shares, whose changes by others keep arriving under the
-  // layer (base follows the server, see showBoard).
-  let hyp = null; // {base, over, root, undo, redo}
-  const committed = () => (hyp ? hyp.base : marks);
-  if (!coop && saved && saved.hyp && Array.isArray(saved.hyp.cells) && saved.hyp.cells.length === n * n) {
-    const base = marks, cells = Uint8Array.from(saved.hyp.cells);
-    const r = saved.hyp.root;
-    const root = Number.isInteger(r) && cells[r] === L.STAR && base[r] !== L.STAR ? r : L.hypRoot(base, base, cells, -1);
-    hyp = { base, over: L.overlay(base, cells), root, undo: [], redo: [] };
-    marks = L.compose(base, hyp.over);
-  }
+  // A hypothesis ("Annahme", see hypothesis.js) saved with the progress.
+  if (!coop) H.restore(saved);
   const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
 
   function setMarks(next) {
     if (locked()) return; // solved puzzles are frozen
-    if (hyp) return hypChange(next);
+    if (H.active) return H.change(next);
     if (coop) {
-      coopCommit(L.diffOps(marks, next));
+      coop.commit(L.diffOps(marks, next));
       return;
     }
     undoStack.push(marks);
@@ -363,19 +376,15 @@ function boot() {
 
   function renderPlay() {
     const eff = L.effective(d, marks, prefs.autocross);
-    if (hyp && !locked() && L.solved(d, eff.cells)) return hypAccept(); // a normal solve
+    if (H.active && !locked() && L.solved(d, eff.cells)) return H.accept(); // a normal solve
     // Rule violations (two stars touching, a full row …) unless switched off;
     // "Prüfen" still marks wrong cells, as asked for explicitly.
     const probs = prefs.showProblems ? L.problems(d, eff.cells) : [];
     const bad = new Set(probs.flatMap((p) => p.cells));
     const view = { cells: eff.cells, auto: eff.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
-    if (hyp) { // the marks tried out, auto-crosses included
-      view.marks.hyp = new Set(L.diffOps(L.effective(d, hyp.base, prefs.autocross).cells, eff.cells).map(([i]) => i));
-      if (hyp.root >= 0) view.marks.hyproot = new Set([hyp.root]);
-    }
-    boardEl.classList.toggle("hypothesis", !!hyp);
-    drawBoard(party && party.gaveUp ? solutionView() : view);
+    H.decorate(view, eff.cells); // the marks tried out
+    drawBoard(party && party.gaveUp ? party.solutionView() : view);
 
     const list = $("problems");
     list.replaceChildren(...probs.map((p) => elr("li", "", p.msg)));
@@ -383,32 +392,19 @@ function boot() {
     // ignores input and scrolls on touch like the rest of the page.
     const frozen = locked() || L.solved(d, eff.cells);
     document.body.classList.toggle("frozen", frozen);
-    if (party) {
-      document.body.classList.toggle("party-wait", !party.gaveUp && !done && !partyStarted());
-      $("giveup").disabled = frozen;
-      $("reset").disabled = frozen;
-      if (coop) {
-        $("giveup").textContent = coop.voted ? "Doch nicht aufgeben" : "Aufgeben";
-        $("giveup").classList.toggle("voted", coop.voted);
-      }
-      if (race) raceSkipButton(frozen);
-    }
-    $("undo").disabled = frozen || (hyp ? hyp.undo : undoStack).length === 0;
-    $("redo").disabled = frozen || (hyp ? hyp.redo : redoStack).length === 0;
-    $("hint").disabled = frozen || !!hyp; // they would judge the hypothesis by the solution
-    $("check").disabled = frozen || !!hyp;
-    $("hyp").hidden = !!hyp;
-    $("hyp").disabled = frozen;
-    $("hyp-contra").hidden = $("hyp-drop").hidden = !hyp;
-    $("hyp-contra").disabled = frozen || !hyp || hyp.root < 0;
-    $("hyp-drop").disabled = frozen;
+    if (party) party.controls(frozen);
+    $("undo").disabled = frozen || (H.active ? H.undo : undoStack).length === 0;
+    $("redo").disabled = frozen || (H.active ? H.redo : redoStack).length === 0;
+    $("hint").disabled = frozen || H.active; // they would judge the hypothesis by the solution
+    $("check").disabled = frozen || H.active;
+    H.controls(frozen);
     $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
     // In a coop round the server says when the board is solved.
     const solved = L.solved(d, eff.cells) && !(party && party.gaveUp) && (!coop || done);
     if (solved && !done) {
       clockStop();
       done = true;
-      if (party) partySolve();
+      if (party) party.solve();
     }
     if (solved && !race && !tut) { // against the clock, the party banner tells how it goes on; in the tutorial its card
       if (lib) libRecord(clockMs(), bare ? 0 : hintCount);
@@ -427,22 +423,22 @@ function boot() {
         $("banner").append(" ", a);
       }
     } else {
-      const b = party ? partyBanner() : null;
+      const b = party ? party.banner() : null;
       if (b) banner(b[0], b[1]);
-      else if (hyp) banner(hypText(), "hypothesis");
+      else if (H.active) banner(H.text(), "hypothesis");
       else banner(null);
     }
     drawClock();
     store();
     if (party) {
-      partyTabs();
-      partyReport();
+      party.tabs();
+      party.report();
     }
     if (bare) {
       $("tab-watch").hidden = !done;
       if (done && lib.pending) loadTrace();
     }
-    if (tut) tutDraw(eff.cells);
+    if (T) T.draw(eff.cells);
   }
 
   // A library page may come before the solver is done (lib.pending): the
@@ -459,7 +455,7 @@ function boot() {
       .then((t) => {
         for (const f of ["solution", "status", "error", "stats", "steps"]) d[f] = t[f];
         lib.pending = false;
-        setTrace();
+        W.setTrace();
         drawSummary();
       })
       .catch((e) => {
@@ -470,7 +466,7 @@ function boot() {
       .finally(() => {
         lib.loading = false;
         $("tab-watch").classList.remove("loading");
-        if (mode === "watch") render();
+        if (mode === "watch") W.render();
       });
   }
 
@@ -527,8 +523,8 @@ function boot() {
 
   function store() {
     if (coop) return; // the board lives on the server
-    const v = { marks: [...committed()], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
-    if (hyp) v.hyp = { cells: [...marks], root: hyp.root };
+    const v = { marks: [...H.committed()], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
+    H.save(v);
     if (party) v.gaveUp = party.gaveUp;
     save(v);
   }
@@ -724,15 +720,15 @@ function boot() {
       if (ev.type === "pointerup") clickCell(dr.start, dr.shift || ev.shiftKey);
       return;
     }
-    if (hyp) {
+    if (H.active) {
       const next = marks;
       marks = dr.before;
-      if (next.some((v, i) => v !== dr.before[i])) hypChange(next);
+      if (next.some((v, i) => v !== dr.before[i])) H.change(next);
       else renderPlay();
       return;
     }
     if (coop) { // one drag is one bundle of changes
-      coopCommit(L.diffOps(dr.before, marks));
+      coop.commit(L.diffOps(dr.before, marks));
       return;
     }
     if (marks.some((v, i) => v !== dr.before[i])) {
@@ -751,9 +747,9 @@ function boot() {
   });
   $("undo").onclick = () => {
     if (locked()) return;
-    if (hyp) return hypStep(hyp.undo, hyp.redo);
+    if (H.active) return H.undoStep();
     if (!undoStack.length) return;
-    if (coop) return coopUndo(undoStack, redoStack);
+    if (coop) return coop.undo(undoStack, redoStack);
     redoStack.push(marks);
     marks = undoStack.pop();
     overlay = null;
@@ -761,9 +757,9 @@ function boot() {
   };
   $("redo").onclick = () => {
     if (locked()) return;
-    if (hyp) return hypStep(hyp.redo, hyp.undo);
+    if (H.active) return H.redoStep();
     if (!redoStack.length) return;
-    if (coop) return coopUndo(redoStack, undoStack);
+    if (coop) return coop.undo(redoStack, undoStack);
     undoStack.push(marks);
     marks = redoStack.pop();
     overlay = null;
@@ -772,14 +768,14 @@ function boot() {
   $("reset").onclick = () => {
     if (party) { // only the marks: time and hints count on
       if (locked() || !marks.some((v) => v !== L.FREE)) return;
-      if (coop && committed().some((v) => v !== L.FREE) && !confirm("Das Brett für alle löschen?")) return;
-      hypDrop();
+      if (coop && H.committed().some((v) => v !== L.FREE) && !confirm("Das Brett für alle löschen?")) return;
+      H.drop();
       rerollMark();
       if (marks.some((v) => v !== L.FREE)) setMarks(new Uint8Array(n * n));
       else renderPlay();
       return;
     }
-    hypDrop();
+    H.drop();
     rerollMark();
     elapsed = 0;
     hintCount = 0;
@@ -791,266 +787,22 @@ function boot() {
     else renderPlay();
   };
 
-  // ---------- hypothesis mode (see hyp above) ----------
-  function hypStart() {
-    if (locked() || hyp) return;
-    hyp = { base: marks, over: new Map(), root: -1, undo: [], redo: [] };
-    overlay = null;
-    message(...intro.map((x) => x.cloneNode(true))); // a hint shown is no longer at hand
-    renderPlay();
-  }
-  function hypSet(over, root) {
-    hyp.over = over;
-    hyp.root = root;
-    marks = L.compose(hyp.base, over);
-    overlay = null;
-    renderPlay();
-  }
-  // A change of the marks in the mode: one undo step of its own.
-  function hypChange(next) {
-    hyp.undo.push({ over: hyp.over, root: hyp.root });
-    hyp.redo.length = 0;
-    hypSet(L.overlay(hyp.base, next), L.hypRoot(hyp.base, marks, next, hyp.root));
-  }
-  function hypStep(from, to) {
-    if (!from.length) return;
-    to.push({ over: hyp.over, root: hyp.root });
-    const s = from.pop();
-    hypSet(s.over, s.root);
-  }
-  // Leaves the mode without a trace (no rendering): marks are base again.
-  function hypDrop() {
-    if (!hyp) return;
-    marks = hyp.base;
-    hyp = null;
-  }
-  // Ends the mode with next as an ordinary change of base (one undo step;
-  // in coop sent to the server like any other).
-  function hypEnd(next) {
-    hypDrop();
-    setMarks(next);
-  }
-  function hypContradict() {
-    if (locked() || !hyp || hyp.root < 0) return;
-    const next = Uint8Array.from(hyp.base);
-    next[hyp.root] = L.CROSS;
-    hypEnd(next);
-  }
-  function hypDiscard() {
-    if (locked() || !hyp) return;
-    hypDrop();
-    renderPlay();
-  }
-  function hypAccept() {
-    hypEnd(marks);
-  }
-  function hypText() {
-    const who = coop ? " Die anderen sehen sie nicht." : party ? " Sie zählt nicht für deinen Stand." : "";
-    if (hyp.root < 0) return "Annahme: Setze einen Stern und verfolge, wohin er führt." + who;
-    const r = Math.floor(hyp.root / n), c = hyp.root % n;
-    return `Annahme: Stern auf (${r},${c}). Führt sie zu einem Widerspruch, kommt dort ein Kreuz hin („Widerspruch“).` + who;
-  }
-  $("hyp").onclick = hypStart;
-  $("hyp-contra").onclick = hypContradict;
-  $("hyp-drop").onclick = hypDiscard;
-
   document.addEventListener("visibilitychange", () => { clockRun(!document.hidden); store(); });
   window.addEventListener("pagehide", store);
   setInterval(() => {
     if (runningSince !== null) { drawClock(); store(); }
     if (race) drawClock();
-    if (party && (!partyStarted() || party.live !== partyLive())) renderPlay(); // countdown, start
+    if (party) party.tick(); // countdown, start
   }, 1000);
   clockRun(!document.hidden);
   $("hint").onclick = toggleHint;
   $("check").onclick = checkMistakes;
 
-  // ---------- watch mode ----------
-  let prefix = L.prefixStates(d, d.steps);
-  let expanded = d.steps.map((s) => !!s.hypothesis);
-  // A position is {k} (board after k steps, explaining step k-1) or {k, j}
-  // (inside the refuted chain of step k-1, after its sub-steps 0..j). The chain
-  // comes before its conclusion: "Angenommen … Widerspruch … also X".
-  let positions = [];
-  let cursor = 0;
-  let timer = null;
-  const rowEls = new Map(); // "k" or "k.j" → row element
-
-  function buildPositions() {
-    const cur = positions[cursor];
-    positions = [{ k: 0 }];
-    d.steps.forEach((s, i) => {
-      if (s.hypothesis && expanded[i]) s.hypothesis.steps.forEach((_, j) => positions.push({ k: i + 1, j }));
-      positions.push({ k: i + 1 });
-    });
-    if (cur) {
-      const same = positions.findIndex((p) => p.k === cur.k && p.j === cur.j);
-      cursor = same >= 0 ? same : positions.findIndex((p) => p.k === cur.k && p.j === undefined);
-    }
-  }
-
-  function buildList() {
-    const ol = $("steps");
-    ol.replaceChildren();
-    rowEls.clear();
-    const start = el("li");
-    const r0 = el("div", "row");
-    r0.append(el("span", "num", "0"), el("span"), el("span", "text muted", "Leeres Brett"));
-    r0.onclick = () => go({ k: 0 });
-    start.append(r0);
-    ol.append(start);
-    rowEls.set("0", r0);
-    d.steps.forEach((s, i) => {
-      const li = el("li");
-      const row = el("div", "row");
-      const text = elr("span", "text", s.reason || s.source);
-      if (s.hypothesis) {
-        const t = el("button", "toggle-chain", expanded[i] ? "Gedankengang ausblenden" : "Gedankengang zeigen");
-        t.onclick = (ev) => {
-          ev.stopPropagation();
-          expanded[i] = !expanded[i];
-          buildPositions();
-          buildList();
-          render();
-        };
-        text.append(t);
-      }
-      row.append(el("span", "num", i + 1), chip(s), text);
-      row.onclick = () => go({ k: i + 1 });
-      li.append(row);
-      rowEls.set(String(i + 1), row);
-      if (s.hypothesis && expanded[i]) {
-        const chain = el("ol", "chain");
-        s.hypothesis.steps.forEach((h, j) => {
-          const cli = el("li");
-          const crow = el("div", "row");
-          crow.append(el("span", "num", `${i + 1}.${j + 1}`), chip(h), elr("span", "text", h.reason || h.source));
-          crow.onclick = () => go({ k: i + 1, j });
-          cli.append(crow);
-          chain.append(cli);
-          rowEls.set(`${i + 1}.${j}`, crow);
-        });
-        chain.append(elr("li", "end", "⇒ Widerspruch: " + s.hypothesis.contradiction));
-        li.append(chain);
-      }
-      ol.append(li);
-    });
-  }
-
-  function go(pos) {
-    const i = positions.findIndex((p) => p.k === pos.k && p.j === pos.j);
-    if (i >= 0) {
-      cursor = i;
-      render();
-    }
-  }
-
-  function viewAt(pos) {
-    const toSet = (ms) => new Set(ms.map(([r, c]) => L.idx(d, r, c)));
-    if (pos.j === undefined) {
-      if (pos.k === 0) return { cells: prefix[0], step: null, marks: {} };
-      const step = d.steps[pos.k - 1];
-      const refs = L.refs(d, step.reason);
-      return { cells: prefix[pos.k], step, marks: { new: toSet(step.marks), ref: refs.units, refcell: refs.cells } };
-    }
-    const parent = d.steps[pos.k - 1];
-    const h = parent.hypothesis;
-    const cells = Uint8Array.from(prefix[pos.k - 1]);
-    for (let j = 0; j <= pos.j; j++) L.apply(d, cells, h.steps[j]);
-    const step = h.steps[pos.j];
-    const refs = L.refs(d, step.reason);
-    const marks = { new: toSet(step.marks), ref: refs.units, refcell: refs.cells };
-    const last = pos.j === h.steps.length - 1;
-    if (last) marks.bad = new Set((h.cells || []).map(([r, c]) => L.idx(d, r, c)));
-    return { cells, step, parent, last, marks };
-  }
-
-  // A trace that arrived later (loadTrace).
-  function setTrace() {
-    prefix = L.prefixStates(d, d.steps);
-    expanded = d.steps.map((s) => !!s.hypothesis);
-    positions = [];
-    cursor = 0;
-    buildPositions();
-    buildList();
-  }
-
-  function render() {
-    $("panel-watch").classList.toggle("pending", !!(lib && lib.pending));
-    if (lib && lib.pending && done) loadTrace(); // e.g. opened with #weg
-    const pos = positions[cursor];
-    const v = viewAt(pos);
-    drawBoard(v);
-    const cur = $("current");
-    cur.replaceChildren();
-    const head = el("div", "head");
-    if (pos.k === 0) {
-      head.append(el("span", "", `Start · ${d.steps.length} Schritte`));
-      cur.append(head, el("p", "reason muted", "Leeres Brett. Mit ▶ oder → geht es Schritt für Schritt durch die Lösung."));
-    } else {
-      const num = pos.j === undefined ? `Schritt ${pos.k} von ${d.steps.length}` : `Gedankengang ${pos.k}.${pos.j + 1}`;
-      head.append(chip(v.step), el("span", "", num));
-      cur.append(head, elr("p", "reason", v.step.reason || v.step.source));
-      if (v.last) cur.append(elr("p", "contra", "⇒ Widerspruch: " + v.parent.hypothesis.contradiction));
-    }
-    if (pos.j !== undefined) {
-      const first = v.parent.hypothesis.steps[0].marks.find((m) => m[2] === 1);
-      banner(first ? `Gedankenexperiment: Was wäre, wenn auf (${first[0]},${first[1]}) ein Stern stünde?` : "Gedankenexperiment", "what-if");
-    } else if (d.status === "pending") banner(null);
-    else if (pos.k === d.steps.length && d.status === "solved") banner("Gelöst.", "good");
-    else if (pos.k === d.steps.length && d.status !== "solved") banner(d.status === "stuck" ? "Hier kommt der Solver nicht weiter." : "Widerspruch: " + (d.error || ""), "what-if");
-    else banner(null);
-
-    for (const r of rowEls.values()) r.classList.remove("active");
-    const key = pos.j === undefined ? String(pos.k) : `${pos.k}.${pos.j}`;
-    const row = rowEls.get(key);
-    if (row) {
-      row.classList.add("active");
-      // Scroll only the list (scrollIntoView would also move the page).
-      const list = $("steps");
-      if (row.offsetTop < list.scrollTop) list.scrollTop = row.offsetTop - 8;
-      else if (row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight)
-        list.scrollTop = row.offsetTop + row.offsetHeight - list.clientHeight + 8;
-    }
-    $("first").disabled = $("prev").disabled = cursor === 0;
-    $("last").disabled = $("next").disabled = cursor === positions.length - 1;
-    if (cursor === positions.length - 1) stop();
-  }
-
-  const PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2v12l10-6z"/></svg> Abspielen';
-  const PAUSE = '<svg viewBox="0 0 16 16"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg> Pause';
-  function stop() {
-    clearInterval(timer);
-    timer = null;
-    $("play").innerHTML = PLAY;
-  }
-  function step(delta) {
-    cursor = Math.max(0, Math.min(positions.length - 1, cursor + delta));
-    render();
-  }
-  $("first").onclick = () => { stop(); cursor = 0; render(); };
-  $("last").onclick = () => { stop(); cursor = positions.length - 1; render(); };
-  $("prev").onclick = () => { stop(); step(-1); };
-  $("next").onclick = () => { stop(); step(1); };
-  $("play").onclick = () => {
-    if (timer) return stop();
-    if (cursor === positions.length - 1) cursor = 0;
-    $("play").innerHTML = PAUSE;
-    step(1);
-    timer = setInterval(() => step(1), +$("speed").value);
-  };
-  $("speed").onchange = () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = setInterval(() => step(1), +$("speed").value);
-    }
-  };
-
   // ---------- tabs and keys ----------
   let mode = "play";
   function setMode(m) {
     mode = m;
-    stop();
+    W.stop();
     $("tab-play").setAttribute("aria-selected", m === "play");
     $("tab-watch").setAttribute("aria-selected", m === "watch");
     $("panel-play").hidden = m !== "play";
@@ -1064,7 +816,7 @@ function boot() {
           " · lila: Annahme"
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
-    else render();
+    else W.render();
   }
   $("tab-play").onclick = () => setMode("play");
   $("tab-watch").onclick = () => setMode("watch");
@@ -1085,505 +837,7 @@ function boot() {
     }
   });
 
-  // ---------- party mode: a round played together (d.party) ----------
-  // The server's state arrives as events (Party.live, party.js): the common
-  // start, the clock, our result and everybody's progress. The board opens at
-  // the start; solving or giving up is reported, and so is progress (stars set,
-  // hints taken) while playing. A lost report is repeated with the next state.
-  let partyView = null;
-  function partyMe() {
-    const s = party.snap;
-    return s && s.you ? s.ranking.find((e) => e.id === s.you) : null;
-  }
-  function partyStarted() {
-    return party.startLocal !== null && Date.now() >= party.startLocal;
-  }
-  function partyLive() {
-    const me = partyMe();
-    if (race && me && (me.puzzle !== d.party.puzzle || Date.now() >= raceDeadline())) return false;
-    return !!me && party.snap.phase === "playing" && partyStarted() && (me.status === "playing" || me.status === "absent");
-  }
-  function partyPost(action, body) {
-    return Party.post(d.party.code, action, { round: d.party.round, hints: hintCount, ...body });
-  }
-  function partyError(e) {
-    if (partyView) partyView.error(e.message);
-  }
-
-  // The solution with every other cell crossed, shown after giving up.
-  function solutionView() {
-    const cells = new Uint8Array(n * n).fill(L.CROSS), auto = new Uint8Array(n * n).fill(1);
-    if (d.solution) d.solution.forEach((c, r) => { cells[L.idx(d, r, c)] = L.STAR; auto[L.idx(d, r, c)] = 0; });
-    return { cells, auto, marks: {} };
-  }
-
-  // [text, class] for the banner while not solved, or null.
-  function partyBanner() {
-    if (race) return raceBanner();
-    const s = party.snap;
-    if (party.gaveUp) return [coop ? "Gemeinsam aufgegeben. Die Lösung ist eingeblendet." : "Aufgegeben. Die Lösung ist eingeblendet.", "what-if"];
-    if (!s) return ["Verbinde mit der Party …", ""];
-    const me = partyMe();
-    if (!me) return ["Du spielst in dieser Runde nicht mit.", "what-if"];
-    if (!partyStarted()) return [`Gleich geht es los: ${Math.max(1, Math.ceil((party.startLocal - Date.now()) / 1000))} …`, ""];
-    if (s.phase !== "playing") return ["Die Runde ist vorbei.", "what-if"];
-    if (coop && s.coop && s.coop.votes.length) {
-      const k = s.coop.votes.length, m = s.ranking.filter((e) => e.status === "playing").length;
-      return [`${k} von ${m} wollen aufgeben. Die Runde endet, wenn alle dafür sind.`, ""];
-    }
-    return null;
-  }
-
-  function partyTabs() {
-    const open = !race && (done || party.gaveUp); // no solving trace against the clock
-    $("tab-watch").hidden = !open;
-    if (!open && mode === "watch") setMode("play");
-  }
-
-  function partySolve() {
-    if (race) return raceSolve();
-    if (party.solving) return;
-    party.solving = true;
-    const eff = L.effective(d, marks, prefs.autocross);
-    partyPost("solve", { stars: L.starColumns(d, eff.cells) })
-      .then((r) => {
-        elapsed = r.result.timeMs; // the server's time counts
-        runningSince = null;
-        hintCount = Math.max(hintCount, r.result.hints);
-        renderPlay();
-      })
-      .catch(partyError)
-      .finally(() => { party.solving = false; });
-  }
-
-  let partyTimer = null;
-  function partyReport() {
-    const was = party.live;
-    party.live = partyLive();
-    if (race) {
-      if (!party.live && was) raceReport(); // e.g. the time is up: the last state counts
-      if (!party.live || partyTimer) return;
-      partyTimer = setTimeout(() => {
-        partyTimer = null;
-        if (partyLive()) raceReport();
-      }, 400);
-      return;
-    }
-    if (coop || !party.live || partyTimer) return;
-    partyTimer = setTimeout(() => {
-      partyTimer = null;
-      if (!partyLive()) return;
-      let stars = 0;
-      for (const v of committed()) if (v === L.STAR) stars++; // not those of a hypothesis
-      if (stars === party.sentStars && hintCount === party.sentHints) return;
-      party.sentStars = stars;
-      party.sentHints = hintCount;
-      partyPost("progress", { count: stars }).catch(() => { party.sentStars = -1; });
-    }, 700);
-  }
-
-  function partyGiveUp() {
-    if (coop) return coopVote();
-    if (locked() || !confirm("Wirklich aufgeben? Die Lösung wird angezeigt, und du landest hinter allen, die lösen.")) return;
-    party.gaveUp = true;
-    hypDrop();
-    clockStop();
-    overlay = null;
-    message(...intro.map((x) => x.cloneNode(true)));
-    partyPost("giveup", {}).catch(partyError);
-    renderPlay();
-  }
-
-  function partySnap(s, at) {
-    if (coop) { // event stream and replies may overtake each other
-      if (s.version < coop.version) return;
-      coop.version = s.version;
-    }
-    party.snap = s;
-    if (s.round !== d.party.round) { // a new round: the lobby sends us on
-      location.href = "/party/" + d.party.code;
-      return;
-    }
-    party.startLocal = at + s.startInMs - s.elapsedMs;
-    if (coop) return coopSnap(s);
-    if (race) return raceSnap(s);
-    const me = partyMe();
-    if (me) {
-      hintCount = Math.max(hintCount, me.hints);
-      if (me.status === "gaveup") party.gaveUp = true;
-      if (me.status === "solved") {
-        elapsed = me.timeMs;
-        runningSince = null;
-        if (!done && !party.gaveUp && d.solution) { // e.g. storage cleared
-          hyp = null;
-          marks = new Uint8Array(n * n);
-          d.solution.forEach((c, r) => { marks[L.idx(d, r, c)] = L.STAR; });
-          done = true;
-        }
-      } else if (s.phase === "playing" && done && !party.gaveUp) {
-        partySolve(); // the report got lost
-      } else if (s.phase === "playing" && party.gaveUp && me.status !== "gaveup") {
-        partyPost("giveup", {}).catch(partyError);
-      } else if (!done && !party.gaveUp && s.phase === "playing") {
-        elapsed = 0;
-        runningSince = party.startLocal;
-      } else {
-        clockStop();
-      }
-    }
-    renderPlay();
-  }
-
-  // ---------- coop mode: one board for all (d.party.mode "coop") ----------
-  // The server keeps the board and orders everybody's changes (internal/party/coop.go). We
-  // show its board plus our own changes not yet confirmed (pending), so input
-  // never waits for the network. Changes are operations [num, i, from, to]
-  // (L.applyOps): a change based on an outdated view of a cell is rejected
-  // instead of overwriting what somebody else did. One request at a time
-  // keeps our operations in order; repeating one after a lost reply is
-  // harmless, the server skips numbers it has seen (acked).
-  function coopShow() {
-    showBoard(L.applyOps(coop.server, coop.pending).cells);
-    renderPlay();
-  }
-  // The shared board as we see it; a hypothesis stays on top of it.
-  function showBoard(cells) {
-    if (hyp) {
-      hyp.base = cells;
-      marks = L.compose(cells, hyp.over);
-    } else marks = cells;
-  }
-
-  // ops: [i, from, to] as seen on the board now; one undo step.
-  function coopCommit(ops, undoable = true) {
-    overlay = null;
-    if (ops.length && undoable) {
-      undoStack.push(ops);
-      redoStack.length = 0;
-    }
-    for (const op of ops) coop.pending.push([++coop.nextNum, ...op]);
-    coopShow();
-    coopFlush();
-  }
-
-  // Undo and redo take back only our own changes: a cell somebody else
-  // changed since is left alone (and blinks).
-  function coopUndo(from, to) {
-    const ops = from.pop().map(([i, a, b]) => [i, b, a]);
-    const ok = ops.filter(([i, a]) => marks[i] === a);
-    flash(ops.filter(([i, a]) => marks[i] !== a).map(([i]) => i), "conflict");
-    if (ok.length) to.push(ok.map(([i, a, b]) => [i, b, a]));
-    coopCommit(ok, false);
-  }
-
-  function coopFlush() {
-    if (coop.sending || !coop.pending.length || !partyLive()) return;
-    coop.sending = true;
-    partyPost("mark", { ops: coop.pending.slice() })
-      .then((r) => {
-        coop.sending = false;
-        partySnap(r.snapshot, Date.now());
-        coopFlush();
-      })
-      .catch((e) => {
-        coop.sending = false;
-        if (e.status === 0) { // no connection: try again
-          setTimeout(coopFlush, 1500);
-          return;
-        }
-        coop.pending = []; // e.g. the round is over: the server's board counts
-        partyError(e);
-        coopShow();
-      });
-  }
-
-  // A new state from the server: its board replaces ours, our confirmed
-  // operations drop out and the rest is replayed on top.
-  function coopSnap(s) {
-    const c = s.coop;
-    if (c) {
-      const first = !coop.ready;
-      coop.server = L.decodeBoard(c.board);
-      if (first) coop.nextNum = Math.max(coop.nextNum, c.acked);
-      coop.ready = true;
-      // Our own changes that did not make it (somebody was faster) blink red,
-      // once each: as soon as the new board shows they cannot apply any more,
-      // or when the server confirms that (only a cell's last change counts).
-      const last = new Map();
-      for (const op of coop.pending) if (op[0] <= c.acked) last.set(op[1], op);
-      const lostOps = [...last.values()].filter((op) => coop.server[op[1]] !== op[3]);
-      coop.pending = coop.pending.filter((op) => op[0] > c.acked);
-      const doomed = new Set(L.applyOps(coop.server, coop.pending).rejected);
-      lostOps.push(...coop.pending.filter((op) => doomed.has(op[0])));
-      const lost = [];
-      for (const op of lostOps) {
-        if (!coop.lost.has(op[0])) lost.push(op[1]);
-        coop.lost.add(op[0]);
-      }
-      coop.voted = !!s.you && c.votes.includes(s.you);
-      if (c.solved) { // by whoever: a hypothesis of ours is moot
-        done = true;
-        hypDrop();
-      }
-      if (!drag) { // a drag in progress keeps its view until it ends
-        const before = marks;
-        showBoard(L.applyOps(coop.server, coop.pending).cells);
-        if (!first) flash(L.diffOps(before, marks).map(([i]) => i).filter((i) => !lost.includes(i)), "remote");
-      }
-      flash(lost, "conflict");
-    }
-    const end = s.ranking.length ? s.ranking[0].timeMs : 0;
-    if (c && c.solved) {
-      elapsed = end;
-      runningSince = null;
-    } else if (s.phase === "playing") {
-      elapsed = 0;
-      runningSince = party.startLocal;
-    } else { // given up together
-      party.gaveUp = true;
-      elapsed = end;
-      runningSince = null;
-    }
-    renderPlay();
-    coopFlush();
-  }
-
-  function coopVote() {
-    if (locked()) return;
-    if (!coop.voted && !confirm("Für Aufgeben stimmen? Die Runde endet, wenn alle dafür sind. Bis dahin geht es weiter.")) return;
-    coop.voted = !coop.voted;
-    renderPlay();
-    partyPost("vote", { giveUp: coop.voted })
-      .then((r) => partySnap(r.snapshot, Date.now()))
-      .catch(partyError);
-  }
-
-  // Lets cells blink briefly: "remote" for changes by others, "conflict"
-  // for our own changes that lost.
-  function flash(cells, cls) {
-    for (const i of cells) {
-      const e = cellEls[i];
-      e.classList.remove(cls);
-      void e.offsetWidth; // restarts the animation
-      e.classList.add(cls);
-      clearTimeout(e[cls]);
-      e[cls] = setTimeout(() => e.classList.remove(cls), 1200);
-    }
-  }
-
-  // ---------- against the clock: many puzzles in a set time (d.party.mode "clock") ----------
-  // Each puzzle of the round has its own page (d.party.puzzle, from 1), the
-  // same sequence for everybody. Solving it (checked by the server) or
-  // skipping it moves us on: the server's state says which puzzle is ours,
-  // and we follow it to that page as soon as the puzzle is prepared. There
-  // are no hints. Our stars count when the time is up, so they are reported
-  // as we go, and once more at the end.
-  function raceDeadline() {
-    const s = party.snap;
-    return s && s.clock && party.startLocal !== null ? party.startLocal + s.clock.minutes * 60000 : Infinity;
-  }
-  function raceLeft() {
-    const s = party.snap;
-    if (!s || !s.clock) return 0;
-    const total = s.clock.minutes * 60000;
-    if (s.phase !== "playing") return 0;
-    return Math.max(0, Math.min(total, raceDeadline() - Date.now()));
-  }
-  function raceClock() {
-    const me = party.snap ? partyMe() : null;
-    let t = `⏱ noch ${fmtTime(Math.ceil(raceLeft() / 1000) * 1000)}`;
-    if (me) t += ` · ${me.solved || 0} gelöst`;
-    $("clock").textContent = t;
-  }
-  const puzzlesText = (k) => (k === 1 ? "1 Puzzle" : `${k} Puzzles`);
-  function raceBanner() {
-    const s = party.snap;
-    if (!s) return ["Verbinde mit der Party …", ""];
-    const me = partyMe();
-    if (!me) return ["Du spielst in dieser Runde nicht mit.", "what-if"];
-    if (!partyStarted()) return [`Gleich geht es los: ${Math.max(1, Math.ceil((party.startLocal - Date.now()) / 1000))} …`, ""];
-    if (s.phase !== "playing" || Date.now() >= raceDeadline()) {
-      const solved = me.solved || 0;
-      let t = `Die Zeit ist um! ${puzzlesText(solved)} gelöst`;
-      if (me.stars) t += `, im letzten ${me.stars > 0 ? "+" : "−"}${Math.abs(me.stars)} ★`;
-      return [t + ".", solved ? "good" : "what-if"];
-    }
-    if (me.puzzle > d.party.puzzle) {
-      const how = done ? "Gelöst!" : "Übersprungen.";
-      return me.puzzle > s.clock.sizes.length ? [`${how} Das nächste Puzzle wird noch vorbereitet …`, done ? "good" : ""] : [`${how} Weiter geht es …`, done ? "good" : ""];
-    }
-    if (done) return ["Gelöst! Weiter geht es …", "good"];
-    return null;
-  }
-  function raceSkipButton(frozen) {
-    const s = party.snap;
-    const b = $("giveup");
-    const lim = s && s.clock ? s.clock.skips : 0;
-    b.hidden = lim === 0;
-    if (lim === 0) return;
-    const me = partyMe();
-    const left = lim < 0 ? Infinity : lim - ((me && me.skips) || 0);
-    b.textContent = lim < 0 ? "Überspringen" : `Überspringen (${Math.max(0, left)} übrig)`;
-    b.disabled = frozen || race.skipping || left <= 0;
-  }
-  function raceSkip() {
-    if (locked() || race.skipping) return;
-    race.skipping = true;
-    renderPlay();
-    partyPost("skip", { puzzle: d.party.puzzle })
-      .then((r) => partySnap(r.snapshot, Date.now()))
-      .catch(partyError)
-      .finally(() => { race.skipping = false; renderPlay(); });
-  }
-  function raceSolve() {
-    if (party.solving) return;
-    party.solving = true;
-    const eff = L.effective(d, marks, prefs.autocross);
-    partyPost("solve", { puzzle: d.party.puzzle, stars: L.starColumns(d, eff.cells) })
-      .then((r) => partySnap(r.snapshot, Date.now()))
-      .catch(partyError)
-      .finally(() => { party.solving = false; });
-  }
-  // Reports the cells with a star, if they changed since the last report.
-  function raceReport() {
-    const cells = [];
-    committed().forEach((v, i) => { if (v === L.STAR) cells.push(i); }); // not those of a hypothesis
-    const key = cells.join(",");
-    if (key === race.sent) return;
-    race.sent = key;
-    partyPost("progress", { puzzle: d.party.puzzle, cells }).catch(() => { race.sent = null; });
-  }
-  function raceSnap(s) {
-    const me = partyMe();
-    if (me && s.phase === "playing" && me.puzzle !== d.party.puzzle && me.puzzle <= s.clock.sizes.length) {
-      location.replace(`/party/${d.party.code}/round/${d.party.round}/${me.puzzle}`); // our puzzle now
-      return;
-    }
-    if (me && s.phase === "playing" && me.puzzle === d.party.puzzle && done) partySolve(); // the report got lost
-    renderPlay();
-  }
-
-  if (party) {
-    $("party-box").hidden = false;
-    $("party-lobby").href = "/party/" + d.party.code;
-    $("giveup").hidden = false;
-    $("giveup").onclick = partyGiveUp;
-    $("reset").textContent = "Alles löschen";
-    $("reset").title = coop ? "Löscht das Brett für alle; die Zeit läuft weiter" : "Löscht deine Markierungen; Zeit und Hinweise zählen weiter";
-    if (coop) { // no hints when playing together
-      $("hint").hidden = $("check").hidden = true;
-      $("giveup").title = "Stimme fürs Aufgeben; die Runde endet, wenn alle dafür sind";
-    }
-    if (race) { // no hints against the clock; skipping instead of giving up
-      $("hint").hidden = $("check").hidden = true;
-      $("giveup").onclick = raceSkip;
-      $("giveup").title = "Weiter zum nächsten Puzzle, ohne dieses zu lösen";
-      $("reset").title = "Löscht deine Markierungen; die Zeit läuft weiter";
-      $("clock").title = "Verbleibende Zeit der Runde und deine gelösten Puzzles";
-    }
-    elapsed = 0; // the server's clock; our result's time once it is known
-    if (location.hash === "#weg") history.replaceState(null, "", location.pathname);
-    partyView = Party.live(d.party.code, $("party-panel"), {
-      onSnap: partySnap,
-      onGone() { $("party-lobby").parentElement.hidden = true; }, // the panel shows the ways on
-    });
-  }
-
-  // ---------- tutorial (/anleitung, d.tutorial, see tutorial.go) ----------
-  // A card above the board guides through the steps, marking the cells each
-  // one asks for; the player's moves decide which step is shown. Once solved,
-  // a tour points at the page's buttons one by one, then the player goes on
-  // to the page they came from.
-  if (tut) {
-    try { L.tutorialDue(localStorage); } catch { /* storage blocked */ } // shown: not again by itself
-    document.body.classList.add("tutorial-mode");
-    $("clock").hidden = true;
-  }
-  function tutLeave() {
-    let from = new URLSearchParams(location.search).get("weiter");
-    if (from == null) { // the "?" link: back to where it was clicked
-      try {
-        const u = new URL(document.referrer);
-        if (u.origin === location.origin && u.pathname !== location.pathname) from = u.pathname + u.search;
-      } catch { /* no referrer */ }
-    }
-    location.href = L.returnPath(from);
-  }
-  function tutDraw(cells) {
-    const steps = d.tutorial.steps;
-    const k = L.tutorialStep(d, steps, cells);
-    const goal = new Set();
-    if (k < steps.length) {
-      for (const [list, v] of [[steps[k].stars, L.STAR], [steps[k].crosses, L.CROSS]]) {
-        for (const [r, c] of list || []) if (cells[L.idx(d, r, c)] !== v) goal.add(L.idx(d, r, c));
-      }
-    }
-    cellEls.forEach((e, i) => e.classList.toggle("goal", goal.has(i)));
-    if (k === tut.step) return;
-    tut.step = k;
-    const skip = el("button", "quiet", "Überspringen");
-    skip.onclick = tutLeave;
-    const head = el("div", "head");
-    if (k < steps.length) {
-      head.append(el("span", null, `Anleitung · Schritt ${k + 1} von ${steps.length}`), skip);
-      $("tutorial").replaceChildren(head, el("strong", null, steps[k].action), elr("p", null, steps[k].text));
-    } else {
-      const go = el("button", "primary", "Weiter");
-      go.onclick = () => tourShow(0);
-      const actions = el("div", "actions");
-      actions.append(go);
-      head.append(el("span", null, "Anleitung"), skip);
-      $("tutorial").replaceChildren(head, el("strong", null, "Gelöst!"), el("p", null, "Zum Schluss ein kurzer Blick auf die Knöpfe."), actions);
-    }
-    $("tutorial").hidden = false;
-  }
-
-  // The tour: a dimmed page with a hole around the element of stop k and a
-  // tip next to it. The page below takes no clicks meanwhile.
-  function tourShow(k) {
-    const stops = d.tutorial.tour;
-    const target = k < stops.length ? $(stops[k].target) : null;
-    if (k < stops.length && (!target || !target.getClientRects().length)) return tourShow(k + 1); // not on this page
-    if (!target) return tutLeave();
-    if (mode !== "play") setMode("play");
-    if (!tut.tour) {
-      const block = el("div", "tour-block"), spot = el("div", "tour-spot"), tip = el("div", "tour-tip");
-      tip.setAttribute("role", "dialog");
-      tip.setAttribute("aria-live", "polite");
-      document.body.append(block, spot, tip);
-      tut.tour = { block, spot, tip, target: null };
-      const place = () => tut.tour && tourPlace();
-      window.addEventListener("resize", place);
-      window.addEventListener("scroll", place, { passive: true });
-      document.addEventListener("keydown", (ev) => {
-        if (ev.key === "Escape" && tut.tour) tutLeave();
-      });
-    }
-    const last = k === stops.length - 1;
-    const ok = el("button", "primary", last ? "Fertig" : "OK");
-    ok.onclick = () => tourShow(k + 1);
-    const skip = el("button", "quiet", "Überspringen");
-    skip.onclick = tutLeave;
-    const actions = el("div", "actions");
-    actions.append(el("span", "muted", `${k + 1}/${stops.length}`), ...(last ? [] : [skip]), ok);
-    tut.tour.tip.replaceChildren(el("p", null, stops[k].text), actions);
-    if (tut.tour.target) tut.tour.target.classList.remove("tour-target");
-    target.classList.add("tour-target");
-    tut.tour.target = target;
-    target.scrollIntoView({ block: "nearest" });
-    tourPlace();
-    ok.focus({ preventScroll: true });
-  }
-  function tourPlace() {
-    const { spot, tip, target } = tut.tour;
-    const r = target.getBoundingClientRect(), pad = 4, gap = 10, margin = 12;
-    Object.assign(spot.style, { left: r.left - pad + "px", top: r.top - pad + "px", width: r.width + 2 * pad + "px", height: r.height + 2 * pad + "px" });
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    const left = Math.max(margin, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - margin));
-    let top = r.bottom + pad + gap; // below, or above if there is no room
-    if (top + h > innerHeight - margin && r.top - pad - gap - h >= margin) top = r.top - pad - gap - h;
-    Object.assign(tip.style, { left: left + "px", top: top + "px" });
-  }
+  if (party) party.start();
 
   // ---------- served by `starbattle serve`: new puzzles ----------
   if (d.served) {
@@ -1601,7 +855,6 @@ function boot() {
     $("newgame").hidden = false;
   }
 
-  buildPositions();
-  buildList();
+  W.init();
   setMode(location.hash === "#weg" && !(bare && !done) ? "watch" : "play");
 }

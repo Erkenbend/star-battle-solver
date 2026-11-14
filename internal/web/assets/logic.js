@@ -2,7 +2,7 @@
 
 // Logic: pure functions on the page data, shared by every page with script
 // (puzzle page, library, settings, designer) and tested with node (see
-// logic_test.js). The puzzle page's UI is app.js, which runs after this.
+// logic_test.js). The puzzle page's UI (app.js and its parts) runs after this.
 // Cells are stored row-major in a Uint8Array: 0 free, 1 cross, 2 star.
 const Logic = (() => {
   const FREE = 0, CROSS = 1, STAR = 2;
