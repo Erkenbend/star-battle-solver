@@ -36,7 +36,7 @@ func TestLibraryIndex(t *testing.T) {
 		if e.nr != perSize[e.p.N] || e.name() != fmt.Sprintf("%d-%d", e.p.N, e.nr) || len(e.id) != 10 {
 			t.Errorf("entry %d: %s, id %q", i, e.name(), e.id)
 		}
-		// Every hard puzzle is rated (starbattle hard -rate).
+		// Every hard puzzle is rated (starbattle hardsearch -rate).
 		if e.rating < 1 || e.rating > 3 {
 			t.Errorf("%s: rating %d", e.name(), e.rating)
 		}

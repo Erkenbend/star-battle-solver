@@ -9,7 +9,7 @@ import (
 const (
 	// RatingKey starts the line of a hard puzzle that gives its difficulty
 	// for players, 1 to 3 stars, maybe followed by the reason:
-	// "# rating: 2 (4 lookahead steps, longest 5)". `starbattle hard` writes
+	// "# rating: 2 (4 lookahead steps, longest 5)". `starbattle hardsearch` writes
 	// it (see hardsearch.Rating); motifs have none.
 	RatingKey = "# rating:"
 	// NameKey starts the line of a motif that gives its name in the library:

@@ -8,8 +8,8 @@
 //	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
 //	starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags]   generate and solve in the browser
 //	starbattle design [-addr localhost:6370] [-dir designs] [solver flags]   draw a pattern, complete it (for developers)
-//	starbattle hard -n N [-from S] [-count C] [-min-lookahead K] [-o testdata/hard] [-workers W]   find hard puzzles (for developers)
-//	starbattle hard -rate -o testdata/hard   rate the puzzles there anew (for developers)
+//	starbattle hardsearch -n N [-from S] [-count C] [-min-lookahead K] [-o testdata/hard] [-workers W]   find hard puzzles (for developers)
+//	starbattle hardsearch -rate -o testdata/hard   rate the puzzles there anew (for developers)
 package main
 
 import (
@@ -62,8 +62,8 @@ func main() {
 		err = cmdServe(os.Args[2:])
 	case "design":
 		err = cmdDesign(os.Args[2:])
-	case "hard":
-		err = cmdHard(os.Args[2:])
+	case "hardsearch":
+		err = cmdHardsearch(os.Args[2:])
 	default:
 		usage()
 	}
@@ -83,8 +83,8 @@ func usage() {
   starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
   starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]
   starbattle design [-addr localhost:6370] [-dir designs] [solver flags as for solve]
-  starbattle hard -n N [-from S] [-count C] [-min-lookahead K] [-o dir] [-workers W]
-  starbattle hard -rate -o dir`)
+  starbattle hardsearch -n N [-from S] [-count C] [-min-lookahead K] [-o dir] [-workers W]
+  starbattle hardsearch -rate -o dir`)
 	os.Exit(2)
 }
 
@@ -366,12 +366,12 @@ func cmdDesign(args []string) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// cmdHard searches seeds for hard puzzles (see hardsearch), a tool for
+// cmdHardsearch searches seeds for hard puzzles (see hardsearch), a tool for
 // developers of this project to grow testdata/hard and so the library. One
 // line per seed, in seed order; Ctrl-C stops after the running seeds and
 // still prints where to continue.
-func cmdHard(args []string) error {
-	fs := flag.NewFlagSet("hard", flag.ExitOnError)
+func cmdHardsearch(args []string) error {
+	fs := flag.NewFlagSet("hardsearch", flag.ExitOnError)
 	n := fs.Int("n", 10, "grid size")
 	from := fs.Uint64("from", 1, "first seed")
 	count := fs.Uint64("count", 100, "number of seeds")

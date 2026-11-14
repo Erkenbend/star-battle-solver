@@ -1,6 +1,6 @@
 // Package collection is the format of the project's puzzle collections: the
 // hard puzzles in testdata/hard and the motifs in designs/. The web library
-// serves them; the developer tools `starbattle hard` and `starbattle design`
+// serves them; the developer tools `starbattle hardsearch` and `starbattle design`
 // add to them.
 //
 // A collection is a directory with

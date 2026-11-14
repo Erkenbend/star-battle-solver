@@ -9,7 +9,7 @@ Alles läuft über ein einziges Programm, `starbattle`. Wie man es bekommt, steh
 | [`solve`](#solve-puzzle-lösen-und-erklären) | Puzzle lösen und jeden Schritt erklären |
 | [`html`](#html-interaktive-seite-als-datei) | interaktive Seite als einzelne Datei |
 | [`serve`](#serve-im-browser-spielen) | im Browser spielen, mit Bibliothek und Party-Modus |
-| [`design`](development.md#design-puzzles-entwerfen), [`hard`](development.md#hard-schwere-puzzles-suchen) | Werkzeuge für die Entwicklung, siehe [development.md](development.md) |
+| [`design`](development.md#design-puzzles-entwerfen), [`hardsearch`](development.md#hardsearch-schwere-puzzles-suchen) | Werkzeuge für die Entwicklung, siehe [development.md](development.md) |
 
 Alle Befehle, die ein Puzzle lesen, nehmen eine Datei als Argument oder lesen ohne Datei von der Standardeingabe.
 

@@ -58,7 +58,7 @@ What the review found that needs no change now, only attention later:
 - **1. One home for puzzle collections** (November 2026): `internal/collection`
   owns the format of `testdata/hard` and `designs` (index, file names, header
   lines, ID, duplicate checks, create-never-overwrite). The root package keeps
-  only the embeds, `web` only the library pages, and the designer and `hard`
+  only the embeds, `web` only the library pages, and the designer and `hardsearch`
   (still in `main.go`: its search loop, provenance header and output) call
   the package instead of knowing the format themselves.
 - **2. Split `internal/web` along its concerns** (November 2026):

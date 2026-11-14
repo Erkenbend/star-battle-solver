@@ -9,9 +9,9 @@ lookahead or `Pigeonhole`; otherwise ★. In the library this gives 31 / 46 /
 41.
 
 Stored as `# rating:` in every file of `testdata/hard` (written by
-`starbattle hard`, re-rate with `hard -rate -o testdata/hard`, checked by
-`TestLibraryRatings`), shown on the tiles, above the board and in the shared
-result. Motifs are not rated.
+`starbattle hardsearch`, re-rate with `hardsearch -rate -o testdata/hard`,
+checked by `TestLibraryRatings`), shown on the tiles, above the board and in
+the shared result. Motifs are not rated.
 
 Chosen after a measurement over all 118: no puzzle needs guessing, and the
 chain length (3 to 8) separates less than the number of lookahead steps (1 to

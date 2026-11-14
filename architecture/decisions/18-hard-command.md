@@ -11,3 +11,6 @@ directly as a file; `bibliothek.idx` stays manual work.
 
 The test checks that seed 453 again gives `n10_s453.txt` with 4 lookahead
 steps, i.e. that the generator and the rules still reproduce the library.
+
+Renamed from `hard` to `hardsearch` on 2026-11-14, like its package; there is
+no alias for the old name.

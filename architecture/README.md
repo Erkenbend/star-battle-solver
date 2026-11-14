@@ -17,7 +17,7 @@ written in German. Code, comments, scripts and this directory are in English.
 Related documents:
 
 - [`README.md`](../README.md): what the project is, for players (German).
-- [`docs/development.md`](../docs/development.md): build, test, and the developer tools `design` and `hard` (German).
+- [`docs/development.md`](../docs/development.md): build, test, and the developer tools `design` and `hardsearch` (German).
 - [`PLAN.md`](../PLAN.md): the rules, their priority levels and measurements, the current state and open ideas (German). Read it, and the matching entries in [`decisions/`](decisions/README.md), before changing a rule, the generator or the search: most "why not …?" questions are answered there.
 - [`grober_plan.md`](../grober_plan.md): the original idea, the only human-written text. Keep it unchanged.
 
@@ -87,7 +87,7 @@ something far away.
                                    party HTTP)              no HTTP)
                                        ▲
               internal/designer ───────┘      internal/hardsearch
-              (`design`: draw, complete,      (`hard`: find hard puzzles,
+              (`design`: draw, complete,      (`hardsearch`: find hard puzzles,
                save motifs)                    rate them)
 
  content      internal/collection: format of testdata/hard and designs/
@@ -160,7 +160,7 @@ There are **two runners with identical semantics**:
 - `bruteforce` is the independent oracle (see principle 4).
 - `hardsearch` scans seeds for puzzles that defeat the rules and computes the
   1–3 star difficulty rating shown in the library. It powers the developer
-  command `starbattle hard`.
+  command `starbattle hardsearch`.
 
 ### 3.4 Delivery: `cmd/starbattle`, `render`, `web`, `party`, `designer`
 
@@ -230,7 +230,7 @@ Consequences worth knowing:
 - **Generator changes change puzzles.** Any change to the generator or its
   defaults gives the same seeds different puzzles. That breaks old `/?n=…&seed=…`
   links but not the library, whose files are fixed data. A test checks that
-  `hard` still finds a known hard puzzle at a known seed, so such a change is
+  `hardsearch` still finds a known hard puzzle at a known seed, so such a change is
   noticed.
 - **Trust model.** Pages carry the solution and the full trace; the UI
   decides what to reveal (no help in the library, no solution before the end
@@ -261,10 +261,10 @@ because `go:embed` cannot reach parent directories.
 `internal/collection`: the index, file names (`nNN_STEM.txt`), header lines
 (`# rating:`, `# name:`), the region-based ID, duplicate checks, and creating
 files without ever overwriting. Everything that reads or writes these
-directories (the library, `hard`, the designer) goes through it, so the
+directories (the library, `hardsearch`, the designer) goes through it, so the
 append-only rule and the header format are defined in one place.
 
-New content comes from the developer tools (`starbattle hard -o testdata/hard`,
+New content comes from the developer tools (`starbattle hardsearch -o testdata/hard`,
 `starbattle design`) and is then appended to the index file by hand (the
 designer appends for you). The workflows are in `docs/development.md`.
 
@@ -300,7 +300,7 @@ browser code. The full suite with every hard puzzle is CI's job.
 ## 7. Build, CI and deployment
 
 - `go build ./cmd/starbattle` is the whole build. `go build` (not `go run`)
-  matters for `hard`, which writes the commit into the files it creates.
+  matters for `hardsearch`, which writes the commit into the files it creates.
 - **CI** (`.github/workflows/ci.yml`) on every push: vet, the full test suite
   with all hard puzzles and coverage, a race run, cross-compiled archives for
   Linux (incl. Raspberry Pi), macOS and Windows as workflow artifacts, and on
@@ -319,7 +319,7 @@ browser code. The full suite with every hard puzzle is CI's job.
 | a new deduction rule | `internal/solver/observers` | priority level, German wording, soundness test; measure its effect on `testdata/hard`, update the rules in `PLAN.md` and record the measurement as a new file in `architecture/decisions` |
 | solver search behaviour | `internal/solver` (search) | explanations must stay reproducible; the sync runner drives trial runs |
 | generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see decisions 8, 12, 13) and record it in `architecture/decisions` |
-| more hard puzzles | `starbattle hard`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges in [decision 17](decisions/17-library-over-100-sample-tests.md) and `PLAN.md` |
+| more hard puzzles | `starbattle hardsearch`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges in [decision 17](decisions/17-library-over-100-sample-tests.md) and `PLAN.md` |
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
 | a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German |
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |

@@ -96,7 +96,7 @@ func TestRate(t *testing.T) {
 
 // TestLibraryRatings: the rating line of every hard puzzle the tests run is
 // what Classify gives today. After a change to the rules or the search,
-// `starbattle hard -rate -o testdata/hard` writes them anew.
+// `starbattle hardsearch -rate -o testdata/hard` writes them anew.
 func TestLibraryRatings(t *testing.T) {
 	names, err := starbattle.HardTestSet()
 	if err != nil {
@@ -116,7 +116,7 @@ func TestLibraryRatings(t *testing.T) {
 		}
 		want := collection.RatingKey + " " + v.Rating.String()
 		if !strings.Contains(string(text), want+"\n") {
-			t.Errorf("%s: rating line is not %q; run starbattle hard -rate -o testdata/hard", name, want)
+			t.Errorf("%s: rating line is not %q; run starbattle hardsearch -rate -o testdata/hard", name, want)
 		}
 		if got := collection.Rating(text); got != v.Rating.Stars {
 			t.Errorf("%s: Rating %d, want %d", name, got, v.Rating.Stars)

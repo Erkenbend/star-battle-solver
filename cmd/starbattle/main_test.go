@@ -205,10 +205,10 @@ func TestServeAndDesignBadAddr(t *testing.T) {
 	mustContain(t, "design", errOut, "Designer auf http://localhost:-1/")
 }
 
-func TestHard(t *testing.T) {
+func TestHardsearch(t *testing.T) {
 	dir := t.TempDir()
 	// Seed 453 is n10_s453.txt of the library.
-	out, _, err := run(t, cmdHard, "", "-n", "10", "-from", "452", "-count", "2", "-o", dir)
+	out, _, err := run(t, cmdHardsearch, "", "-n", "10", "-from", "452", "-count", "2", "-o", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,18 +231,18 @@ func TestHard(t *testing.T) {
 		t.Errorf("written puzzle differs from %s:\n%s", hard10, text)
 	}
 
-	out, _, err = run(t, cmdHard, "", "-n", "10", "-from", "453", "-count", "1", "-min-lookahead", "0", "-o", dir)
+	out, _, err = run(t, cmdHardsearch, "", "-n", "10", "-from", "453", "-count", "1", "-min-lookahead", "0", "-o", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, "second search", out, "(n10_s453.txt exists, kept)", "base rules stuck)")
 
-	if _, _, err := run(t, cmdHard, "", "-n", "3"); err == nil {
+	if _, _, err := run(t, cmdHardsearch, "", "-n", "3"); err == nil {
 		t.Error("n=3: expected error")
 	}
 }
 
-func TestHardRate(t *testing.T) {
+func TestHardsearchRate(t *testing.T) {
 	dir := t.TempDir()
 	lib, err := os.ReadFile(hard10)
 	if err != nil {
@@ -261,7 +261,7 @@ func TestHardRate(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	out, _, err := run(t, cmdHard, "", "-rate", "-o", dir)
+	out, _, err := run(t, cmdHardsearch, "", "-rate", "-o", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,16 +272,16 @@ func TestHardRate(t *testing.T) {
 			t.Errorf("%s after -rate:\n%s\nwant:\n%s", name, got, lib)
 		}
 	}
-	out, _, err = run(t, cmdHard, "", "-rate", "-o", dir)
+	out, _, err = run(t, cmdHardsearch, "", "-rate", "-o", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, "rate again", out, "0 files written")
 
-	if _, _, err := run(t, cmdHard, "", "-rate"); err == nil {
+	if _, _, err := run(t, cmdHardsearch, "", "-rate"); err == nil {
 		t.Error("-rate without -o: expected error")
 	}
-	if _, _, err := run(t, cmdHard, "", "-rate", "-o", t.TempDir()); err == nil {
+	if _, _, err := run(t, cmdHardsearch, "", "-rate", "-o", t.TempDir()); err == nil {
 		t.Error("-rate on an empty directory: expected error")
 	}
 }

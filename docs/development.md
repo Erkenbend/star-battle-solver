@@ -47,7 +47,7 @@ Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit 
 | `internal/bruteforce` | Referenz-Solver für Generator und Tests |
 | `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen, auch um ein gezeichnetes Muster herum |
 | `internal/collection` | Format der Puzzle-Sammlungen `testdata/hard` und `designs`: Index `bibliothek.idx`, Dateinamen, Kopfzeilen (`# rating:`, `# name:`), ID |
-| `internal/hardsearch` | Suche nach schweren Puzzles für `testdata/hard` (`starbattle hard`) |
+| `internal/hardsearch` | Suche nach schweren Puzzles für `testdata/hard` (`starbattle hardsearch`) |
 | `internal/render` | Ausgabe im Terminal |
 | `internal/party` | Party-Modus: Partys, Runden, gegeneinander, miteinander, gegen die Uhr (ohne HTTP) |
 | `internal/web` | HTML-Seite, Server, Bibliothek, Einstellungen, HTTP des Party-Modus |
@@ -55,7 +55,7 @@ Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit 
 | `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder, siehe [symbols/README.md](../symbols/README.md)) |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi (siehe [deploy/README.md](../deploy/README.md)) |
 | `designs` | mit `starbattle design` entworfene Puzzles; zugleich die Motive der Bibliothek (Reihenfolge in `bibliothek.idx`, Name in der Zeile `# name:` jeder Datei) |
-| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern (Nachschub mit `starbattle hard`); zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
+| `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern (Nachschub mit `starbattle hardsearch`); zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
 | `docs` | diese Dokumentation und die Screenshots |
 | `architecture` | Architektur für Entwickelnde (englisch), mit Vorschlägen zum Umbau |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |
@@ -89,11 +89,11 @@ Bis 12×12 dauert ein Vorschlag meist unter einer Sekunde, 14×14 kann mehrere M
 
 Dazu die [Solver-Optionen](commands.md#solver-optionen).
 
-## `hard`: schwere Puzzles suchen
+## `hardsearch`: schwere Puzzles suchen
 
 ```sh
 go build -o starbattle ./cmd/starbattle    # go build, nicht go run: nur dann steht der Commit im Kopf der Dateien
-./starbattle hard -n 13 -from 3001 -count 500 -min-lookahead 4 -o testdata/hard
+./starbattle hardsearch -n 13 -from 3001 -count 500 -min-lookahead 4 -o testdata/hard
 ```
 
 So entsteht Nachschub für `testdata/hard` und damit für die Bibliothek. Der Befehl erzeugt die Puzzles der Seeds `-from` bis `-from + count − 1` genau wie `generate` und prüft jedes: Kommen die Basisregeln weiter? Und wenn nicht, alle Regeln? Wenn auch die nicht weiterkommen, wie viele Lookahead-Schritte (und ob Raten) braucht der Solver? Pro Seed eine Zeile, in Seed-Reihenfolge; Treffer sind mit `HIT` markiert:
@@ -128,4 +128,4 @@ Jedes schwere Puzzle hat eine Bewertung von 1 bis 3 Sternen, die die Bibliothek 
 | ★★☆ | sonst: mindestens ein Lookahead-Schritt oder die Regel `Pigeonhole` |
 | ★☆☆ | sonst: Die Regeln allein lösen es |
 
-Die Bewertung steht in der Datei (Zeile `# rating:`), damit die Bibliothek beim Start nichts rechnen muss. Ändern sich Regeln oder Suche, schreibt `./starbattle hard -rate -o testdata/hard` alle Zeilen neu (dauert ein paar Minuten); unveränderte Dateien bleiben unberührt. `TestLibraryRatings` vergleicht die Zeilen mit der heutigen Bewertung, für die Stichprobe bzw. mit `STARBATTLE_ALL_HARD=1` für alle. Motive aus `designs` werden nicht bewertet.
+Die Bewertung steht in der Datei (Zeile `# rating:`), damit die Bibliothek beim Start nichts rechnen muss. Ändern sich Regeln oder Suche, schreibt `./starbattle hardsearch -rate -o testdata/hard` alle Zeilen neu (dauert ein paar Minuten); unveränderte Dateien bleiben unberührt. `TestLibraryRatings` vergleicht die Zeilen mit der heutigen Bewertung, für die Stichprobe bzw. mit `STARBATTLE_ALL_HARD=1` für alle. Motive aus `designs` werden nicht bewertet.

@@ -91,7 +91,7 @@ Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.d
 |---|---|
 | [Spielen im Browser](docs/playing.md) | Lösungsweg, Bibliothek, Partys, Einstellungen |
 | [Befehle](docs/commands.md) | Puzzle-Format, `generate`, `show`, `solve`, `html`, `serve` mit allen Optionen |
-| [Entwicklung](docs/development.md) | Bauen und testen, Aufbau des Codes, die Werkzeuge `design` und `hard` |
+| [Entwicklung](docs/development.md) | Bauen und testen, Aufbau des Codes, die Werkzeuge `design` und `hardsearch` |
 | [Symbole](symbols/README.md) | eigene Symbole statt ★ hinzufügen |
 | [Raspberry Pi](deploy/README.md) | Installation als Dienst |
 | [PLAN.md](PLAN.md) | Regeln, Messungen, Stand und offene Ideen |
