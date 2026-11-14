@@ -1,10 +1,12 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"starbattle"
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/generator"
@@ -308,9 +311,13 @@ func freeWhenStuck(p *puzzle.Puzzle, trace []solver.Step) int {
 var designName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,40}$`)
 
 // saveDesign checks the chosen completion (valid, unique, contains the
-// pattern, and with req.Strict no drawn region larger than drawn) and writes it to dir as nNN_name.txt, with the seed and the
-// pattern in comments. Without a name, the next free nNN_dNNN is used. An
-// existing file is never overwritten. Returns the file name.
+// pattern, and with req.Strict no drawn region larger than drawn) and writes
+// it to dir as nNN_name.txt, with its name for the library (MotifNameKey,
+// made from the file name), the seed and the pattern in comments, and appends
+// it to the library's index (LibraryIndex). Without a name, the next free
+// nNN_dNNN is used. An existing file is never overwritten, and a name is used
+// only once across sizes (the library tells motifs apart by name). Returns
+// the file name.
 func saveDesign(dir string, req designRequest) (string, error) {
 	n := len(req.Pattern)
 	if len(req.Regions) != n {
@@ -367,8 +374,18 @@ func saveDesign(dir string, req designRequest) (string, error) {
 		}
 	}
 	file := prefix + name + ".txt"
+	if prev, err := sameInIndex(dir, p); err != nil || prev != "" {
+		if err == nil {
+			err = fmt.Errorf("Dieses Puzzle ist schon als %s gespeichert.", prev)
+		}
+		return "", err
+	}
+	if same, _ := filepath.Glob(filepath.Join(dir, "n[0-9][0-9]_"+name+".txt")); len(same) > 0 && filepath.Base(same[0]) != file {
+		return "", fmt.Errorf("Den Namen hat schon %s.", filepath.Base(same[0]))
+	}
 
 	var b strings.Builder
+	fmt.Fprintf(&b, "%s %s\n", MotifNameKey, MotifNameFromFile(file))
 	mode := ""
 	if req.Strict {
 		mode = ", Strict"
@@ -397,5 +414,54 @@ func saveDesign(dir string, req designRequest) (string, error) {
 		return "", err
 	}
 	_, err = io.WriteString(f, b.String())
-	return file, errors.Join(err, f.Close())
+	if err = errors.Join(err, f.Close()); err != nil {
+		return "", err
+	}
+	return file, appendIndex(filepath.Join(dir, LibraryIndex), file)
 }
+
+// sameInIndex names the file of dir's library index (if there is one) that
+// holds p, as the library would load both as the same puzzle; "" if none.
+func sameInIndex(dir string, p *puzzle.Puzzle) (string, error) {
+	fsys := os.DirFS(dir)
+	names, err := starbattle.ReadIndex(fsys, LibraryIndex)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	id := LibraryID(p)
+	for _, name := range names {
+		text, err := fs.ReadFile(fsys, name)
+		if err != nil {
+			continue // the library reports it
+		}
+		if q, err := puzzle.Parse(bytes.NewReader(text)); err == nil && LibraryID(q) == id {
+			return name, nil
+		}
+	}
+	return "", nil
+}
+
+// appendIndex appends file to the library index at path, made with a header
+// if it is not there.
+func appendIndex(path, file string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	var b strings.Builder
+	if st, err := f.Stat(); err == nil && st.Size() == 0 {
+		b.WriteString(motifIndexHeader)
+	}
+	b.WriteString(file + "\n")
+	_, err = io.WriteString(f, b.String())
+	return errors.Join(err, f.Close())
+}
+
+// motifIndexHeader starts a new index of motifs.
+const motifIndexHeader = `# Bibliothek, Motive: Reihenfolge der Puzzles je Größe. Der Designer hängt neue unten an.
+# Nur unten anhängen, nie umsortieren: Die Übersicht zeigt sie je Größe in dieser Reihenfolge.
+# Gespeichert und verlinkt wird über eine ID aus den Regionen; der Name steht in der Datei („# name:“).
+`

@@ -1,6 +1,7 @@
 // Package starbattle holds data shared by the commands: the hard puzzles of
 // testdata/hard, which the web server offers as a library and the tests use
-// (a sample of them by default), and the catalog of star symbols in symbols/.
+// (a sample of them by default), the motifs drawn in the designer (designs/),
+// the library's other part, and the catalog of star symbols in symbols/.
 package starbattle
 
 import (
@@ -53,6 +54,16 @@ func ReadIndex(fsys fs.FS, name string) ([]string, error) {
 	}
 	return names, sc.Err()
 }
+
+// Designs is designs/: the motifs saved by the designer (*.txt, each with
+// its name in a "# name:" line) and their order in the library
+// (bibliothek.idx).
+//
+//go:embed designs
+var Designs embed.FS
+
+// DesignsDir is the directory of Designs, also relative to the module root.
+const DesignsDir = "designs"
 
 // Symbols is symbols/: the catalog of symbols the players can choose for
 // their stars (symbols.json) and the image files it names. Further image

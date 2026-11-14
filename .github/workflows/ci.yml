@@ -45,7 +45,7 @@ jobs:
 
   # Stores the badge data as shields.io endpoint JSON on the orphan branch
   # "badges" (history overwritten each time): coverage.json and library.json
-  # (number of puzzles in the library). The README badges read them from
+  # (number of puzzles in the library, hard ones and motifs). The README badges read them from
   # there. No external service or token needed.
   badges:
     name: Badges
@@ -69,7 +69,7 @@ jobs:
             else if (t >= 70) print "yellowgreen"; else if (t >= 60) print "yellow";
             else print "red" }')
           # Same rule as starbattle.ReadIndex: '#' starts a comment, blank lines are skipped.
-          puzzles=$(awk '{ sub(/#.*/, "") } NF { n++ } END { print n + 0 }' testdata/hard/bibliothek.idx)
+          puzzles=$(awk '{ sub(/#.*/, "") } NF { n++ } END { print n + 0 }' testdata/hard/bibliothek.idx designs/bibliothek.idx)
           git checkout --orphan badges
           git rm -rfq .
           printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' "$TOTAL" "$color" > coverage.json

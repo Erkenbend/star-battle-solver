@@ -49,7 +49,7 @@ func TestLibraryAmbiguous(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := Handler(testSolve, nil, nil, lib, nil)
+	h := Handler(testSolve, nil, nil, []*Library{lib}, nil)
 	rec := get(h, "/bibliothek/weg?id="+lib.entries[0].id)
 	if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "2 Lösungen") {
 		t.Fatalf("got %d %s", rec.Code, rec.Body)

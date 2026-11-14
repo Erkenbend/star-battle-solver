@@ -1,3 +1,4 @@
+# name: Inseln
 # designer: generator.Complete(pattern, rand.NewPCG(67625, 12)), 2026-11-11
 # pattern (. = free):
 #   .........HHH

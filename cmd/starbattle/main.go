@@ -272,7 +272,8 @@ func cmdHTML(args []string) error {
 // each puzzle is solved on request. Unless -no-pregen is given, one
 // puzzle of every size is generated ahead in the background.
 // /party serves the party mode: playing the same puzzles together in rounds.
-// /bibliothek offers the hard puzzles of testdata/hard to solve without help.
+// /bibliothek offers the motifs of designs/ and the hard puzzles of
+// testdata/hard (those to solve without help).
 // /einstellungen lets players choose the symbol of their stars (symbols/).
 func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
@@ -293,7 +294,11 @@ func cmdServe(args []string) error {
 	// from it, so open event streams end too and Shutdown does not hang.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	lib, err := web.LoadLibrary(starbattle.Hard, "testdata/hard", solve)
+	motifs, err := web.LoadMotifs(starbattle.Designs, starbattle.DesignsDir, solve)
+	if err != nil {
+		return err
+	}
+	hard, err := web.LoadLibrary(starbattle.Hard, starbattle.HardDir, solve)
 	if err != nil {
 		return err
 	}
@@ -305,7 +310,7 @@ func cmdServe(args []string) error {
 	go parties.Run(5*time.Second, ctx.Done())
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           web.Handler(solve, pool, parties, lib, syms),
+		Handler:           web.Handler(solve, pool, parties, []*web.Library{motifs, hard}, syms),
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

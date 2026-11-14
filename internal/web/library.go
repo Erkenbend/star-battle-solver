@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,19 +27,34 @@ import (
 // appended.
 const LibraryIndex = "bibliothek.idx"
 
-// Library is a fixed collection of (hard) puzzles to browse and solve without
-// help. Each puzzle has a name for people ("10-3": the third 10×10 puzzle)
-// and an ID derived from its regions
-// for links and the browser's storage, so neither depends on the generator,
-// the file name or the order.
+// Library is a fixed collection of puzzles to browse, one part of
+// /bibliothek. There are two kinds:
+//
+//   - Hard: puzzles the simple rules fail on (testdata/hard), solved without
+//     help. Their name is size and number, "10-3": the third 10×10 puzzle.
+//   - Motifs: pictures drawn in the designer (designs/), played like solo
+//     puzzles, with hints and checks. Their name is given in the file (see
+//     MotifName).
+//
+// Each puzzle also has an ID derived from its regions for links and the
+// browser's storage, so neither depends on the generator, the file name or
+// the order.
 type Library struct {
+	kind    string // KindHard or KindMotifs
 	solve   SolveFunc
 	entries []*libEntry
 	byID    map[string]*libEntry
 }
 
+// The kinds of library, as the page sees them (LibraryInfo.Kind).
+const (
+	KindHard   = "schwer"
+	KindMotifs = "motive"
+)
+
 type libEntry struct {
-	nr    int // among the puzzles of size p.N, from 1
+	nr    int    // among the puzzles of size p.N, from 1
+	title string // a motif's name; empty for hard puzzles
 	id    string
 	p     *puzzle.Puzzle
 	once  sync.Once
@@ -48,14 +64,24 @@ type libEntry struct {
 	err   error
 }
 
-// LoadLibrary reads the library in dir of fsys (see LibraryIndex).
+// LoadLibrary reads the hard puzzles in dir of fsys (see LibraryIndex).
 func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
+	return loadLibrary(fsys, dir, KindHard, solve)
+}
+
+// LoadMotifs reads the motifs in dir of fsys (see LibraryIndex and MotifName).
+func LoadMotifs(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
+	return loadLibrary(fsys, dir, KindMotifs, solve)
+}
+
+func loadLibrary(fsys fs.FS, dir, kind string, solve SolveFunc) (*Library, error) {
 	names, err := starbattle.ReadIndex(fsys, path.Join(dir, LibraryIndex))
 	if err != nil {
 		return nil, err
 	}
-	lib := &Library{solve: solve, byID: map[string]*libEntry{}}
+	lib := &Library{kind: kind, solve: solve, byID: map[string]*libEntry{}}
 	files := map[string]bool{}
+	titles := map[string]string{}
 	perSize := map[int]int{}
 	for _, name := range names {
 		if files[name] {
@@ -75,6 +101,13 @@ func LoadLibrary(fsys fs.FS, dir string, solve SolveFunc) (*Library, error) {
 		}
 		perSize[p.N]++
 		e := &libEntry{nr: perSize[p.N], id: LibraryID(p), p: p, ready: make(chan struct{})}
+		if kind == KindMotifs {
+			e.title = MotifName(name, text)
+			if prev, ok := titles[e.title]; ok {
+				return nil, fmt.Errorf("%s: Name %q hat schon %s", name, e.title, prev)
+			}
+			titles[e.title] = name
+		}
 		if prev := lib.byID[e.id]; prev != nil {
 			return nil, fmt.Errorf("%s: dasselbe Puzzle wie %s", name, prev.name())
 		}
@@ -107,8 +140,48 @@ func LibraryID(p *puzzle.Puzzle) string {
 	return hex.EncodeToString(h.Sum(nil))[:10]
 }
 
-// name is what people call e: its size and number, "10-3".
-func (e *libEntry) name() string { return fmt.Sprintf("%d-%d", e.p.N, e.nr) }
+// MotifNameKey starts the line of a motif's file that gives its name:
+// "# name: Trauriger Smiley". The puzzle parser skips it as a comment.
+const MotifNameKey = "# name:"
+
+// MotifName is the name of the motif in file (its base name) with contents
+// text: the MotifNameKey line, or else the file name without the size prefix,
+// '_' and '-' as spaces, each word capitalized ("n08_sad_smiley.txt": "Sad
+// Smiley").
+func MotifName(file string, text []byte) string {
+	for _, line := range strings.Split(string(text), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), MotifNameKey); ok {
+			if v = strings.TrimSpace(v); v != "" {
+				return v
+			}
+		}
+	}
+	return MotifNameFromFile(file)
+}
+
+// MotifNameFromFile makes a name from a motif's file name (see MotifName).
+func MotifNameFromFile(file string) string {
+	base := strings.TrimSuffix(path.Base(file), path.Ext(file))
+	if len(base) > 4 && base[0] == 'n' && base[3] == '_' && isDigit(base[1]) && isDigit(base[2]) {
+		base = base[4:]
+	}
+	words := strings.FieldsFunc(base, func(r rune) bool { return r == '_' || r == '-' || r == ' ' })
+	for i, w := range words {
+		words[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	return strings.Join(words, " ")
+}
+
+func isDigit(b byte) bool { return '0' <= b && b <= '9' }
+
+// name is what people call e: a motif's name, or a hard puzzle's size and
+// number, "10-3".
+func (e *libEntry) name() string {
+	if e.title != "" {
+		return e.title
+	}
+	return fmt.Sprintf("%d-%d", e.p.N, e.nr)
+}
 
 // Len is the number of puzzles.
 func (lib *Library) Len() int { return len(lib.entries) }
@@ -147,6 +220,9 @@ func (e *libEntry) done() bool {
 // data is the page data of e, with the solver's result if it is there.
 func (lib *Library) data(e *libEntry) Data {
 	title := fmt.Sprintf("Star Battle %d×%d · Bibliothek %s", e.p.N, e.p.N, e.name())
+	if lib.kind == KindMotifs {
+		title = fmt.Sprintf("Star Battle %d×%d · Motiv %s", e.p.N, e.p.N, e.name())
+	}
 	var d Data
 	if e.done() && e.err == nil {
 		d = Build(title, e.p, e.sol, e.res)
@@ -156,12 +232,13 @@ func (lib *Library) data(e *libEntry) Data {
 	}
 	d.Served = true
 	d.Text = e.p.String()
-	d.Library = &LibraryInfo{ID: e.id, Name: e.name(), Entries: lib.refs(false), Pending: d.Status == "pending"}
+	d.Library = &LibraryInfo{Kind: lib.kind, ID: e.id, Name: e.name(), Entries: lib.refs(false), Pending: d.Status == "pending"}
 	return d
 }
 
 // LibraryInfo places a page's puzzle in the library.
 type LibraryInfo struct {
+	Kind    string   `json:"kind"` // KindHard or KindMotifs
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`
 	Entries []LibRef `json:"entries"` // all puzzles, for "next unsolved"
@@ -173,14 +250,20 @@ type LibraryInfo struct {
 // LibRef is one puzzle of the library in the overview.
 type LibRef struct {
 	ID      string  `json:"id"`
-	Name    string  `json:"name"` // "10-3"
+	Name    string  `json:"name"` // "10-3", or a motif's name
 	Nr      int     `json:"nr"`   // among the puzzles of size N, from 1
 	N       int     `json:"n"`
 	Regions [][]int `json:"regions,omitempty"` // overview only
 }
 
-// LibraryPage is the data of the overview page.
+// LibraryPage is the data of the overview page: its parts, one per library.
 type LibraryPage struct {
+	Parts []LibraryPart `json:"parts"`
+}
+
+// LibraryPart is one library in the overview.
+type LibraryPart struct {
+	Kind    string   `json:"kind"`
 	Entries []LibRef `json:"entries"`
 }
 
@@ -200,22 +283,42 @@ func WriteLibrary(w io.Writer, d LibraryPage) error {
 	return render(w, libraryHTML, "Star Battle · Bibliothek", d, appJS, libraryJS)
 }
 
-// libraryRoutes adds the library to mux:
+// libraryRoutes adds the libraries to mux, all under /bibliothek; a puzzle
+// is found by its ID in any of them:
 //
 //	GET /bibliothek              overview
-//	GET /bibliothek?id=...       a puzzle of the library
+//	GET /bibliothek?id=...       a puzzle of a library
 //	GET /bibliothek/weg?id=...   its solution and trace as JSON (Data), waits for the solver
-func libraryRoutes(mux *http.ServeMux, lib *Library) {
+//
+// A hard puzzle's page comes before the solver is done (it is needed only
+// once the puzzle is solved by hand); a motif's page waits for it, as hints
+// need the trace from the start.
+func libraryRoutes(mux *http.ServeMux, libs []*Library) {
+	find := func(id string) (*Library, *libEntry) {
+		for _, lib := range libs {
+			if e := lib.byID[id]; e != nil {
+				return lib, e
+			}
+		}
+		return nil, nil
+	}
+	// wait starts the solver on e and waits for it; false if the request is gone.
+	wait := func(r *http.Request, lib *Library, e *libEntry) bool {
+		lib.start(e)
+		select {
+		case <-e.ready:
+			return true
+		case <-r.Context().Done():
+			return false
+		}
+	}
 	mux.HandleFunc("GET /bibliothek/weg", func(w http.ResponseWriter, r *http.Request) {
-		e := lib.byID[r.URL.Query().Get("id")]
+		lib, e := find(r.URL.Query().Get("id"))
 		if e == nil {
 			http.Error(w, "unbekanntes Puzzle", http.StatusNotFound)
 			return
 		}
-		lib.start(e)
-		select {
-		case <-e.ready:
-		case <-r.Context().Done():
+		if !wait(r, lib, e) {
 			return
 		}
 		if e.err != nil {
@@ -229,13 +332,26 @@ func libraryRoutes(mux *http.ServeMux, lib *Library) {
 	mux.HandleFunc("GET /bibliothek", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("id")
 		if id == "" {
-			writeHTML(w, http.StatusOK, func(b io.Writer) error { return WriteLibrary(b, LibraryPage{Entries: lib.refs(true)}) })
+			var page LibraryPage
+			for _, lib := range libs {
+				page.Parts = append(page.Parts, LibraryPart{Kind: lib.kind, Entries: lib.refs(true)})
+			}
+			writeHTML(w, http.StatusOK, func(b io.Writer) error { return WriteLibrary(b, page) })
 			return
 		}
-		e := lib.byID[id]
+		lib, e := find(id)
 		if e == nil {
 			writeError(w, http.StatusNotFound, "Dieses Puzzle gibt es in der Bibliothek nicht.", Link{"/bibliothek", "Zur Bibliothek"})
 			return
+		}
+		if lib.kind == KindMotifs {
+			if !wait(r, lib, e) {
+				return
+			}
+			if e.err != nil {
+				writeError(w, http.StatusInternalServerError, e.err.Error(), Link{"/bibliothek", "Zur Bibliothek"})
+				return
+			}
 		}
 		d := lib.data(e) // before start: a finished result goes into the page
 		lib.start(e)

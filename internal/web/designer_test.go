@@ -134,18 +134,40 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 	if err != nil || bruteforce.CountSolutions(p, 2) != 1 {
 		t.Fatalf("saved file: %v\n%s", err, text)
 	}
-	if !strings.Contains(string(text), "#   .AA..AA.") {
-		t.Errorf("pattern missing in the comments:\n%s", text)
+	if !strings.Contains(string(text), "#   .AA..AA.") || !strings.HasPrefix(string(text), MotifNameKey+" Herz\n") {
+		t.Errorf("pattern or name missing in the comments:\n%s", text)
 	}
 	// Never overwrite.
 	if rec = postDesign(t, h, "/api/save", save); rec.Code != http.StatusBadRequest {
 		t.Fatalf("second save: %d", rec.Code)
 	}
+	// Nor save the same puzzle under another name: the library would refuse it.
+	save.Name = "herz2"
+	if rec = postDesign(t, h, "/api/save", save); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "schon als n08_herz.txt") {
+		t.Fatalf("same puzzle again: %d %s", rec.Code, rec.Body)
+	}
+	// It is in the library's index, which loads.
+	motifs, err := LoadMotifs(os.DirFS(dir), ".", testSolve)
+	if err != nil || motifs.Len() != 1 || motifs.entries[0].name() != "Herz" {
+		t.Fatalf("index: %v", err)
+	}
 	// Without a name: numbered.
 	save.Name = ""
-	if rec = postDesign(t, h, "/api/save", save); !strings.Contains(rec.Body.String(), "n08_d001.txt") {
+	if rec = postDesign(t, DesignerHandler(t.TempDir(), testSolve, nil), "/api/save", save); !strings.Contains(rec.Body.String(), "n08_d001.txt") {
 		t.Fatalf("unnamed save: %s", rec.Body)
 	}
+	// A name is used once across sizes: n10_herz.txt would be "Herz" too.
+	if err := os.WriteFile(filepath.Join(dir, "n10_herz.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(dir, "n08_herz.txt"), filepath.Join(dir, "n08_herz.bak")); err != nil {
+		t.Fatal(err)
+	}
+	save.Name = "herz"
+	if rec = postDesign(t, h, "/api/save", save); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "n10_herz.txt") {
+		t.Fatalf("name of another size: %d %s", rec.Code, rec.Body)
+	}
+	save.Name = ""
 	// A layout that does not keep the pattern is refused.
 	save.Pattern = patternOf("........", "........", "........", "........", "........", "........", "........", "........")
 	save.Pattern[7][7] = (c.Regions[7][7] + 1) % 8

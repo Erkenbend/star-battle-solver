@@ -24,7 +24,7 @@ Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) un
 - **Logische Regeln statt Suche:** letztes freies Feld, eingesperrte Farben, Schubfachprinzip … Einfache Regeln haben Vorrang, so wie man selbst zuerst nach dem Offensichtlichen sucht. Schon die drei Basisregeln lösen etwa 96,5 % der erzeugten Puzzles.
 - **Gedankenexperiment statt Raten:** Stecken die Regeln fest, probiert der Solver „Was wäre, wenn hier ein Stern stünde?“ und nimmt den Widerspruch mit der kürzesten Kette. Echtes Raten gibt es nur als allerletzten Ausweg.
 - **Erklärungen auf Deutsch,** im Terminal und auf einer interaktiven Seite zum Abspielen des Lösungswegs oder für Hinweise beim eigenen Lösen.
-- **Eine Bibliothek der härtesten Fälle,** im Browser ohne jede Hilfe zu lösen. Den Lösungsweg des Solvers gibt es zum Vergleich erst danach.
+- **Eine Bibliothek der härtesten Fälle,** im Browser ohne jede Hilfe zu lösen. Den Lösungsweg des Solvers gibt es zum Vergleich erst danach. Daneben Motive: Puzzles, deren Regionen ein Bild ergeben, mit Hinweisen wie beim Solo-Spiel.
 - **Brute Force nur als Schiedsrichter:** Sie prüft, dass jedes erzeugte Puzzle genau eine Lösung hat und dass die Regeln nichts Falsches folgern.
 
 Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer, eine Goroutine pro Regel, die ihre Folgerungen über Channels austauschen. Regeln, Messungen und Entscheidungen stehen in [PLAN.md](PLAN.md).

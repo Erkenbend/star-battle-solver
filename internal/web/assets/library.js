@@ -1,9 +1,10 @@
 "use strict";
 
-// The library overview (/bibliothek): one tile per puzzle with a preview of
-// its regions, grouped by size. Which puzzles are solved, and in what time,
-// lives on this device only (written by app.js when a library puzzle is
-// solved), keyed by the puzzle's stable ID.
+// The library overview (/bibliothek): its parts (motifs, hard puzzles) as
+// tabs, chosen by the URL's hash (#motive, #schwer); in each, one tile per
+// puzzle with a preview of its regions, grouped by size. Which puzzles are
+// solved, and in what time, lives on this device only (written by app.js when
+// a library puzzle is solved), keyed by the puzzle's stable ID.
 (() => {
   if (typeof document === "undefined" || !document.getElementById("groups")) return;
   const L = Logic;
@@ -23,6 +24,9 @@
     if (v && typeof v === "object") solved = v;
   } catch { /* private mode etc. */ }
   const hideKey = "starbattle.library.hideSolved";
+  const parts = d.parts || [];
+  const partOf = (kind) => parts.find((p) => p.kind === kind);
+  let part = partOf(location.hash.slice(1)) || parts[0];
   try { $("hide-solved").checked = localStorage.getItem(hideKey) === "1"; } catch { /* ignore */ }
 
   const fmtTime = (ms) => {
@@ -69,12 +73,18 @@
   }
 
   function render() {
+    for (const t of document.querySelectorAll(".lib-tabs [role=tab]")) {
+      t.hidden = !partOf(t.dataset.kind);
+      t.setAttribute("aria-selected", t.dataset.kind === part.kind);
+    }
+    for (const note of document.querySelectorAll(".lib-note")) note.hidden = note.dataset.kind !== part.kind;
+    const entries = part.entries;
     const hide = $("hide-solved").checked;
     const isSolved = (e) => Object.hasOwn(solved, e.id);
-    const k = d.entries.filter(isSolved).length;
-    $("progress").textContent = `${k} von ${d.entries.length} gelöst`;
+    const k = entries.filter(isSolved).length;
+    $("progress").textContent = `${k} von ${entries.length} gelöst`;
     const bySize = new Map();
-    for (const e of [...d.entries].sort((a, b) => a.n - b.n || a.nr - b.nr)) {
+    for (const e of [...entries].sort((a, b) => a.n - b.n || a.nr - b.nr)) {
       if (hide && isSolved(e)) continue;
       if (!bySize.has(e.n)) bySize.set(e.n, []);
       bySize.get(e.n).push(e);
@@ -95,6 +105,7 @@
         meta.append(el("span", "nr", e.name));
         if (s) meta.append(el("span", "done", Number.isFinite(s.time) ? `✓ ${fmtTime(s.time)}` : "✓"));
         a.append(meta);
+        if (s && s.hints > 0) a.append(el("span", "sub", s.hints === 1 ? "mit 1 Hinweis" : `mit ${s.hints} Hinweisen`));
         grid.append(a);
       }
       g.append(grid);
@@ -104,6 +115,17 @@
     $("groups").replaceChildren(...groups);
   }
 
+  for (const t of document.querySelectorAll(".lib-tabs [role=tab]")) {
+    t.onclick = () => {
+      part = partOf(t.dataset.kind) || part;
+      history.replaceState(null, "", "#" + part.kind);
+      render();
+    };
+  }
+  window.addEventListener("hashchange", () => {
+    part = partOf(location.hash.slice(1)) || part;
+    render();
+  });
   $("hide-solved").onchange = () => {
     try { localStorage.setItem(hideKey, $("hide-solved").checked ? "1" : "0"); } catch { /* ignore */ }
     render();

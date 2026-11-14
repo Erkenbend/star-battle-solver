@@ -1,3 +1,4 @@
+# name: Lines
 # designer: generator.Complete(pattern, rand.NewPCG(720676, 8)), 2026-11-11
 # pattern (. = free):
 #   AAAAAAAF

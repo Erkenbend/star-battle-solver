@@ -19,12 +19,20 @@
   </nav>
   <div class="title">
     <h1>Bibliothek</h1>
-    <p class="sub">Eine Sammlung besonders schwerer Puzzles zum Selbstlösen.</p>
+    <p class="sub">Motive aus dem Designer und besonders schwere Puzzles.</p>
   </div>
 </header>
 
 <main class="lib-main">
-  <div class="card lib-note">
+  <nav class="tabs lib-tabs" role="tablist" aria-label="Teil der Bibliothek">
+    <button role="tab" id="tab-motive" data-kind="motive" aria-selected="true">Motive</button>
+    <button role="tab" id="tab-schwer" data-kind="schwer" aria-selected="false">Schwer</button>
+  </nav>
+  <div class="card lib-note" data-kind="motive">
+    <p><strong>Motive:</strong> Puzzles, deren Regionen ein Bild ergeben, gezeichnet im Designer.</p>
+    <p class="muted">Gespielt wird wie beim Solo-Spiel: mit Hinweisen, Prüfen und dem Lösungsweg des Solvers.</p>
+  </div>
+  <div class="card lib-note" data-kind="schwer" hidden>
     <p><strong>Achtung, besonders schwer:</strong> Diese Puzzles sind keine gewöhnlichen Puzzles aus dem Generator. Sie wurden ausgesucht, weil die einfachen Regeln an ihnen scheitern. Oft hilft nur noch ein Gedankenexperiment („Was wäre, wenn hier ein Stern stünde?“), und selbst der Solver braucht dafür manchmal viele Anläufe.</p>
     <p class="muted">Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast.</p>
   </div>

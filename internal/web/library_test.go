@@ -79,7 +79,7 @@ func TestLibraryID(t *testing.T) {
 
 func TestLibraryServer(t *testing.T) {
 	lib := testLibrary(t)
-	h := Handler(testSolve, nil, nil, lib, nil)
+	h := Handler(testSolve, nil, nil, []*Library{lib}, nil)
 
 	rec := get(h, "/bibliothek")
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id="groups"`) {
@@ -136,5 +136,89 @@ func TestLibraryServer(t *testing.T) {
 	}
 	if rec := get(Handler(testSolve, nil, nil, nil, nil), "/bibliothek"); rec.Code != http.StatusNotFound {
 		t.Errorf("without library: %d", rec.Code)
+	}
+}
+
+func testMotifs(t *testing.T) *Library {
+	t.Helper()
+	lib, err := LoadMotifs(starbattle.Designs, starbattle.DesignsDir, testSolve)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return lib
+}
+
+// TestMotifsIndex: the index lists every file of designs/ once, each has its
+// name in the file, and no motif is also a hard puzzle (IDs are looked up in
+// both).
+func TestMotifsIndex(t *testing.T) {
+	motifs := testMotifs(t)
+	files, _ := filepath.Glob("../../designs/*.txt")
+	if len(files) == 0 || motifs.Len() != len(files) {
+		t.Fatalf("index lists %d motifs, designs has %d", motifs.Len(), len(files))
+	}
+	for _, f := range files {
+		text, _ := os.ReadFile(f)
+		if !strings.HasPrefix(string(text), MotifNameKey+" ") {
+			t.Errorf("%s: no %q line at the top", filepath.Base(f), MotifNameKey)
+		}
+	}
+	hard := testLibrary(t)
+	for _, e := range motifs.entries {
+		if hard.byID[e.id] != nil {
+			t.Errorf("motif %s is also hard puzzle %s", e.name(), hard.byID[e.id].name())
+		}
+	}
+}
+
+func TestMotifName(t *testing.T) {
+	for _, tt := range []struct{ file, text, want string }{
+		{"n08_sad_smiley.txt", "AAB\n", "Sad Smiley"},
+		{"n10_herz-klein.txt", "", "Herz Klein"},
+		{"x.txt", "", "X"},
+		{"n08_a.txt", "# designer: …\n  # name:  Trauriger Smiley \nAB\n", "Trauriger Smiley"},
+		{"n08_a.txt", "# name:\n", "A"},
+	} {
+		if got := MotifName(tt.file, []byte(tt.text)); got != tt.want {
+			t.Errorf("MotifName(%q, %q) = %q, want %q", tt.file, tt.text, got, tt.want)
+		}
+	}
+}
+
+func TestMotifsServer(t *testing.T) {
+	motifs, hard := testMotifs(t), testLibrary(t)
+	h := Handler(testSolve, nil, nil, []*Library{motifs, hard}, nil)
+
+	rec := get(h, "/bibliothek")
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, `"kind":"motive"`) || !strings.Contains(body, `"kind":"schwer"`) {
+		t.Fatalf("overview: %d", rec.Code)
+	}
+	for _, e := range append(motifs.entries, hard.entries...) {
+		if !strings.Contains(body, `"id":"`+e.id+`"`) {
+			t.Errorf("overview lacks %s", e.name())
+		}
+	}
+
+	// A motif's page waits for the solver: hints need the trace.
+	e := motifs.entries[0]
+	d := pageData(t, get(h, "/bibliothek?id="+e.id).Body.String())
+	if d.Library == nil || d.Library.Kind != KindMotifs || d.Library.Name != "Simple" || len(d.Library.Entries) != motifs.Len() {
+		t.Fatalf("library info: %+v", d.Library)
+	}
+	if d.Library.Pending || d.Status != "solved" || d.Solution == nil || len(d.Steps) == 0 || !strings.Contains(d.Title, "Motiv Simple") {
+		t.Errorf("motif page: pending %v, status %s, %d steps, title %q", d.Library.Pending, d.Status, len(d.Steps), d.Title)
+	}
+	// Hard puzzles stay where they were, in their own list.
+	d = pageData(t, get(h, "/bibliothek?id="+hard.entries[0].id).Body.String())
+	if d.Library == nil || d.Library.Kind != KindHard || d.Library.Name != "5-1" || len(d.Library.Entries) != hard.Len() {
+		t.Fatalf("hard library info: %+v", d.Library)
+	}
+}
+
+func TestLoadMotifsDuplicateName(t *testing.T) {
+	fsys := libFS("n05_a.txt\nb.txt\n", map[string]string{"n05_a.txt": lib5, "b.txt": "# name: A\n" + lib4Ambiguous})
+	if _, err := LoadMotifs(fsys, "lib", testSolve); err == nil || !strings.Contains(err.Error(), `Name "A" hat schon n05_a.txt`) {
+		t.Fatalf("got %v", err)
 	}
 }

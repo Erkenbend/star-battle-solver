@@ -41,7 +41,7 @@ Die Screenshots in [docs/screenshots](screenshots) nimmt `docs/screenshots/take.
 | `internal/web` | HTML-Seite, Server, Party-Modus, Bibliothek, Einstellungen, Designer |
 | `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder, siehe [symbols/README.md](../symbols/README.md)) |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi (siehe [deploy/README.md](../deploy/README.md)) |
-| `designs` | mit `starbattle design` entworfene Puzzles (entsteht beim ersten Speichern) |
+| `designs` | mit `starbattle design` entworfene Puzzles; zugleich die Motive der Bibliothek (Reihenfolge in `bibliothek.idx`, Name in der Zeile `# name:` jeder Datei) |
 | `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern (Nachschub mit `starbattle hard`); zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
 | `docs` | diese Dokumentation und die Screenshots |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |
@@ -64,7 +64,7 @@ Danach berechnet „Vorschläge berechnen“ mehrere Vervollständigungen gleich
 
 Mit „Streng: Farben nicht erweitern“ bleibt jede gezeichnete Farbe genau so, wie sie ist. Dann muss sie zusammenhängend gezeichnet sein, groß genug und mit Platz für ihren Stern, und die freien Felder füllen nur die Farben, die nicht gezeichnet sind: Jede getrennte freie Fläche braucht mindestens eine davon. Bekommt jede freie Fläche genau eine, steht das Puzzle schon fest, und die Seite prüft gleich, ob es eindeutig ist. Sonst lässt der strenge Modus dem Generator weniger Spielraum und scheitert öfter.
 
-Zu jedem Vorschlag steht, wie weit die Regeln allein kommen. Den passenden auswählen, optional benennen und speichern: Er landet als `nNN_name.txt` (ohne Namen `nNN_d001.txt` usw.) im Verzeichnis, mit Seed und Muster als Kommentar. Bestehende Dateien werden nie überschrieben. „Ausprobieren“ öffnet den Vorschlag als normale Spielseite.
+Zu jedem Vorschlag steht, wie weit die Regeln allein kommen. Den passenden auswählen, optional benennen und speichern: Er landet als `nNN_name.txt` (ohne Namen `nNN_d001.txt` usw.) im Verzeichnis, mit Seed und Muster als Kommentar, und wird unten an `bibliothek.idx` angehängt. Damit ist er nach dem nächsten Bauen ein Motiv der Bibliothek. Den Namen dort (`# name: Sad Smiley`, erste Zeile) bildet der Designer aus dem Dateinamen; ändern lässt er sich direkt in der Datei. Bestehende Dateien werden nie überschrieben, und derselbe Name in einer anderen Größe oder dasselbe Puzzle unter anderem Namen wird abgelehnt, weil die Bibliothek beides nicht laden würde. „Ausprobieren“ öffnet den Vorschlag als normale Spielseite.
 
 Bis 12×12 dauert ein Vorschlag meist unter einer Sekunde, 14×14 kann mehrere Minuten brauchen, besonders mit großen rechteckigen Blöcken. Sehr dichte oder verwinkelte Muster schafft der Generator nicht immer; dann hilft es, weniger zu zeichnen.
 

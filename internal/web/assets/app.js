@@ -726,10 +726,14 @@ function boot() {
     done = party.gaveUp = false;
     hintCount = 0;
   }
-  // A library puzzle is solved without help: no hints, no checks, and the
-  // solver's way only once it is solved. Solved IDs are kept on this device
-  // for the overview (/bibliothek), with the best time.
+  // A library puzzle (d.library) is a motif or a hard puzzle. A motif is
+  // played like a solo puzzle, with hints and checks. A hard one is solved
+  // without help (bare): no hints, no checks, and the solver's way only once
+  // it is solved. Solved IDs of both are kept on this device for the overview
+  // (/bibliothek), with the best result.
   const lib = d.library || null;
+  const motif = !!lib && lib.kind === "motive";
+  const bare = !!lib && !motif;
   const libSolvedKey = "starbattle:library:solved";
   function libSolved() {
     try {
@@ -737,14 +741,19 @@ function boot() {
       return v && typeof v === "object" ? v : {};
     } catch { return {}; }
   }
-  function libRecord(ms) {
+  // Keeps the result if it is better: fewer hints (a motif's), then less time.
+  function libRecord(ms, hints) {
     const all = libSolved();
     const prev = all[lib.id];
-    if (prev && Number.isFinite(prev.time) && prev.time <= ms) return;
+    if (prev && Number.isFinite(prev.time)) {
+      const ph = num(prev.hints);
+      if (ph < hints || (ph === hints && prev.time <= ms)) return;
+    }
     all[lib.id] = { time: Math.round(ms), at: new Date().toISOString().slice(0, 10) };
+    if (hints) all[lib.id].hints = hints;
     try { localStorage.setItem(libSolvedKey, JSON.stringify(all)); } catch { /* private mode etc. */ }
   }
-  if (lib) {
+  if (bare) {
     $("hint").hidden = true;
     $("check").hidden = true;
     $("play-msg").append(el("p", "muted", "Bibliothek: ein besonders schweres Puzzle, an dem die einfachen Regeln scheitern. Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast."));
@@ -758,7 +767,7 @@ function boot() {
   }
   const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
   function drawClock() {
-    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : lib ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
+    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : bare ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
   }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
@@ -821,19 +830,19 @@ function boot() {
         done = true;
         if (party) partySolve();
       }
-      if (lib) libRecord(clockMs());
-      const with_ = lib ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
+      if (lib) libRecord(clockMs(), bare ? 0 : hintCount);
+      const with_ = bare ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
       banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
       if (!party) {
         const share = el("button", "share", "Ergebnis kopieren");
-        share.title = lib ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
+        share.title = bare ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
         share.onclick = () => copyText(shareText(with_), share);
         $("banner").append(" ", share);
       }
       if (lib) {
         const next = L.nextUnsolved(lib.entries, libSolved(), lib.id);
         const a = el("a", "next", next ? `Weiter: ${next.name}` : "Alle gelöst: zur Bibliothek");
-        a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek";
+        a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek#" + lib.kind;
         $("banner").append(" ", a);
       }
     } else if (party) {
@@ -846,7 +855,7 @@ function boot() {
       partyTabs();
       partyReport();
     }
-    if (lib) {
+    if (bare) {
       $("tab-watch").hidden = !done;
       if (done && lib.pending) loadTrace();
     }
@@ -885,6 +894,11 @@ function boot() {
   // one (served pages: /?n=8&seed=42 or /play?p=...), not for a local file.
   function shareText(with_) {
     const web = d.served && /^https?:$/.test(location.protocol);
+    if (motif) {
+      let t = `Star-Battle-Motiv „${lib.name}“ (${n}×${n}) in ${fmtTime(clockMs())} gelöst (${with_})!`;
+      if (web) t += " " + location.origin + "/bibliothek?id=" + encodeURIComponent(lib.id);
+      return t;
+    }
     if (lib) {
       let t = `Schweres Star Battle ${lib.name} (${n}×${n}) aus der Bibliothek in ${fmtTime(clockMs())} gelöst, ${with_}!`;
       if (web) t += " " + location.origin + "/bibliothek?id=" + encodeURIComponent(lib.id);
@@ -1379,8 +1393,8 @@ function boot() {
     $("legend").textContent =
       m === "play"
         ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt" +
-          (prefs.showProblems ? " · rot: Regelverstoß" : lib ? "" : " · rot: falsch laut Prüfen") +
-          (lib ? "" : " · orange: Hinweis")
+          (prefs.showProblems ? " · rot: Regelverstoß" : bare ? "" : " · rot: falsch laut Prüfen") +
+          (bare ? "" : " · orange: Hinweis")
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
     else render();
@@ -1701,5 +1715,5 @@ function boot() {
 
   buildPositions();
   buildList();
-  setMode(location.hash === "#weg" && !(lib && !done) ? "watch" : "play");
+  setMode(location.hash === "#weg" && !(bare && !done) ? "watch" : "play");
 }

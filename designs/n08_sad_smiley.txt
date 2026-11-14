@@ -1,3 +1,4 @@
+# name: Sad Smiley
 # designer: generator.Complete(pattern, rand.NewPCG(805025, 8), Strict), 2026-11-11
 # pattern (. = free):
 #   ........
