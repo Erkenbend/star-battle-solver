@@ -731,7 +731,7 @@ function boot() {
     hintCount = 0;
   }
   // A round against the clock (one page per puzzle), see "against the clock" below.
-  const race = party && d.party.mode === "clock" ? { sent: null, skipping: false } : null;
+  const race = party && d.party.mode === "clock" ? { sent: null, skipping: false, checking: false } : null;
   if (race) {
     party.gaveUp = false;
     hintCount = 0;
@@ -1021,6 +1021,7 @@ function boot() {
   // paid for in their current state are not charged again.
   const paid = new Set(saved && Array.isArray(saved.paid) ? saved.paid : []); // "i:mark" of wrong fields already shown
   function checkMistakes() {
+    if (race) return raceCheck();
     if (!d.solution) {
       message(el("p", "", "Für dieses Puzzle ist keine eindeutige Lösung bekannt."));
       return;
@@ -1779,6 +1780,20 @@ function boot() {
       .catch(partyError)
       .finally(() => { party.solving = false; });
   }
+  // "Prüfen" asks the server (the page has no solution) and only tells
+  // whether everything so far fits, not where it does not.
+  function raceCheck() {
+    if (locked() || race.checking) return;
+    race.checking = true;
+    overlay = null;
+    const eff = L.effective(d, marks, prefs.autocross);
+    partyPost("check", { puzzle: d.party.puzzle, board: [...eff.cells].join("") })
+      .then((r) => message(el("p", "", r.correct
+        ? "Bisher alles richtig."
+        : "Da stimmt etwas nicht: mindestens ein Feld passt nicht zur Lösung. Wo, verrät gegen die Uhr niemand.")))
+      .catch(partyError)
+      .finally(() => { race.checking = false; });
+  }
   // Reports the cells with a star, if they changed since the last report.
   function raceReport() {
     const cells = [];
@@ -1809,8 +1824,9 @@ function boot() {
       $("hint").hidden = $("check").hidden = true;
       $("giveup").title = "Stimme fürs Aufgeben; die Runde endet, wenn alle dafür sind";
     }
-    if (race) { // no hints against the clock; skipping instead of giving up
-      $("hint").hidden = $("check").hidden = true;
+    if (race) { // no hints against the clock, only checking; skipping instead of giving up
+      $("hint").hidden = true;
+      $("check").title = "Prüft, ob bisher alles zur Lösung passt, ohne zu zeigen, wo nicht";
       $("giveup").onclick = raceSkip;
       $("giveup").title = "Weiter zum nächsten Puzzle, ohne dieses zu lösen";
       $("reset").title = "Löscht deine Markierungen; die Zeit läuft weiter";

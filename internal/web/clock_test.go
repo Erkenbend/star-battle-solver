@@ -339,6 +339,12 @@ func TestClockServer(t *testing.T) {
 	if out.Snapshot.Ranking[0].Stars != 3 {
 		t.Fatalf("stars %+v", out.Snapshot.Ranking[0])
 	}
+	var checked struct {
+		Correct bool `json:"correct"`
+	}
+	if st := postJSON(t, h, "/party/"+code+"/check", map[string]any{"token": tok, "round": 1, "puzzle": 1, "board": boardOf(rp, solutionCells(rp)[:3], nil)}, &checked); st != http.StatusOK || !checked.Correct {
+		t.Fatalf("check: %d, %+v", st, checked)
+	}
 	if st := postJSON(t, h, "/party/"+code+"/solve", map[string]any{"token": tok, "round": 1, "puzzle": 1, "stars": rp.Solution}, &out); st != http.StatusOK {
 		t.Fatalf("solve: %d", st)
 	}
@@ -352,4 +358,63 @@ func TestClockServer(t *testing.T) {
 	if got := get("/party/" + code + "/round/1/2"); got != http.StatusOK {
 		t.Fatalf("puzzle 2: %d", got)
 	}
+}
+
+// boardOf returns rp's board with the given stars and crosses, as sent by "Prüfen".
+func boardOf(rp *RoundPuzzle, stars, crosses []int) string {
+	b := []byte(strings.Repeat("0", rp.N*rp.N))
+	for _, i := range stars {
+		b[i] = '2'
+	}
+	for _, i := range crosses {
+		b[i] = '1'
+	}
+	return string(b)
+}
+
+func TestClockCheck(t *testing.T) {
+	pm, clk := newTestParties(t)
+	code, toks, onTime := startClock(t, pm, clk, ClockRules{2, 0}, "Ada")
+	a := toks[0]
+	rp := testPuzzle(t, 5)
+	sol := solutionCells(rp)
+	other := (sol[0] + 1) % 5 // a cell of row 0 without a star
+
+	for _, c := range []struct {
+		name           string
+		stars, crosses []int
+		want           bool
+	}{
+		{"empty", nil, nil, true},
+		{"right star and cross", sol[:2], []int{other}, true},
+		{"star off the solution", []int{other}, nil, false},
+		{"cross on a star", nil, sol[:1], false},
+		{"solved", sol, nil, true},
+	} {
+		ok, err := pm.ClockCheck(code, a, 1, 1, boardOf(rp, c.stars, c.crosses))
+		must(t, err)
+		if ok != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, ok, c.want)
+		}
+	}
+	for _, bad := range []string{"", "0", strings.Repeat("0", 24) + "3"} {
+		_, err := pm.ClockCheck(code, a, 1, 1, bad)
+		wantStatus(t, err, http.StatusBadRequest)
+	}
+	_, err := pm.ClockCheck(code, a, 1, 2, boardOf(rp, nil, nil))
+	wantStatus(t, err, http.StatusConflict) // not there yet
+
+	must(t, pm.ClockSolve(code, a, 1, 1, rp.Solution))
+	_, err = pm.ClockCheck(code, a, 1, 1, boardOf(rp, nil, nil))
+	wantStatus(t, err, http.StatusConflict) // done with it
+
+	clk.add(2 * time.Minute)
+	onTime()
+	_, err = pm.ClockCheck(code, a, 1, 2, boardOf(rp, nil, nil))
+	wantStatus(t, err, http.StatusConflict) // time is up, no grace for checking
+
+	// Only against the clock.
+	vcode, vtoks := startRound(t, pm, clk, "Bob")
+	_, err = pm.ClockCheck(vcode, vtoks[0], 1, 1, boardOf(rp, nil, nil))
+	wantStatus(t, err, http.StatusConflict)
 }
