@@ -95,6 +95,7 @@ Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.d
 | [Symbole](symbols/README.md) | eigene Symbole statt ★ hinzufügen |
 | [Raspberry Pi](deploy/README.md) | Installation als Dienst |
 | [PLAN.md](PLAN.md) | Regeln, Messungen und Entscheidungen |
+| [Architektur](architecture/README.md) | Aufbau und Zweck der Teile, für Entwickelnde (englisch) |
 
 ## Lizenz
 

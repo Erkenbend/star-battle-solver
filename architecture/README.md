@@ -1,0 +1,281 @@
+# Architecture
+
+This directory explains how the project is organised and why, for whoever
+picks it up again (human or agent) without the commit history, chat sessions
+or agent memory at hand. It stays at the level of purposes and boundaries; the
+code and its comments carry the details.
+
+The user documentation lives in [`docs/`](../docs) and, like the whole UI, is
+written in German. Code, comments, scripts and this directory are in English.
+
+| File | Content |
+|---|---|
+| this file | what the system is, how it is cut into parts, where state lives, how it is tested and shipped |
+| [refactorings.md](refactorings.md) | a review of the architecture with suggested (not yet done) refactorings |
+
+Related documents:
+
+- [`README.md`](../README.md): what the project is, for players (German).
+- [`docs/development.md`](../docs/development.md): build, test, and the developer tools `design` and `hard` (German).
+- [`PLAN.md`](../PLAN.md): the rules, measurements and the log of decisions, including rejected ideas (German). Read it before changing a rule, the generator or the search: most "why not …?" questions are answered there.
+- [`grober_plan.md`](../grober_plan.md): the original idea, the only human-written text. Keep it unchanged.
+
+## 1. What the system is
+
+A Star Battle ("Meowdoku", "Queens") **solver that reasons like a human** and
+explains every step in German, plus everything built around it so people can
+use it: a puzzle generator, a terminal UI, and a browser game with a library of
+hard puzzles and multiplayer "parties".
+
+Variant: an N×N board with N regions ("colors"), exactly **one star** per row,
+column and region, and stars never touch, not even diagonally.
+
+The goal was never speed. Brute force solves any puzzle in milliseconds. The
+goal is a **chain of understandable deductions**, simplest first, and a
+justification for every cross and star. Everything else exists to produce
+puzzles for that solver, to check that it is right, or to show its reasoning
+to people.
+
+It is also a Go experiment: the rules can run as concurrent observers, one
+goroutine per rule, exchanging marks over channels (the premise of
+`grober_plan.md`).
+
+## 2. Principles that shape the code
+
+These hold across the code base. Changes that break one of them usually break
+something far away.
+
+1. **Monotone board.** A cell only goes from *free* to *star* or *cross*,
+   never back. Hence the order in which deductions arrive does not matter,
+   duplicates are harmless, every rule can work on its own copy of the board
+   without locks, and both runners reach the same fixpoint. The browser relies
+   on it too: a hint is valid as soon as the trace steps before it are on the
+   board.
+2. **Rules are pure functions.** A rule (an *observer*) looks at a board and
+   returns marks with a reason. It knows nothing about goroutines, scheduling
+   or search. Concurrency lives in the runners only, so each rule can be tested
+   with a plain table test.
+3. **Simplest explanation wins.** Each rule has a priority level. A rule may
+   only fire when no simpler one finds anything; lookahead ("what if a star
+   were here?") comes after all rules, real guessing comes last. Among
+   refuted assumptions, the shortest chain is taken. This is what makes the
+   trace read like a person thinking.
+4. **Brute force is the referee, never the explanation.** A separate,
+   independent backtracking solver decides uniqueness for the generator and
+   serves as the test oracle for every rule. It never appears in a trace.
+5. **Reproducibility.** Same size and seed give the same puzzle on every
+   machine and with any number of workers. The explanation shown to people is
+   produced by the deterministic runner. Puzzle URLs and file names rely on
+   this.
+6. **One binary, no dependencies.** No third-party Go modules, no JavaScript
+   build, no CDN, no database. Pages, styles, scripts, the puzzle library and
+   the symbols are embedded into the binary. A page saved with `starbattle
+   html` is a single file that works offline.
+7. **German for people, English for code.** All user-visible text (traces,
+   UI, user docs) is German. Identifiers, comments, scripts, file names and
+   this directory are English.
+
+## 3. The parts
+
+```
+                 ┌──────────────────────── cmd/starbattle ───────────────────────┐
+                 │ generate · show · solve · html · serve   │ design · hard (dev)│
+                 └───────┬──────────────┬───────────────┬───┴──────────┬────────┘
+                         │              │               │              │
+                   internal/render  internal/web   internal/hardsearch │
+                    (terminal)      (pages, site,   (find hard puzzles,│
+                         │           parties,        rate them)        │
+                         │           library,             │            │
+                         │           designer)            │            │
+                         │              │                 │            │
+          ┌──────────────┴──────────────┴─────────────────┴────────────┘
+          │                         │
+   internal/solver ◄── internal/solver/observers      internal/generator
+   (runners, search,    (the rules + German text)     (unique puzzles, also
+    trace)                                             around a drawn pattern)
+          │                                                   │
+   internal/board  (cell states, implied crosses,      internal/bruteforce
+                    contradictions)                    (referee / oracle)
+          │                                                   │
+          └────────────── internal/puzzle (layout, units, text format) ─┘
+
+   module root package `starbattle` (hard.go): embeds testdata/hard, designs/, symbols/
+```
+
+Dependencies only point downwards. `puzzle` knows nothing else; `board` adds
+state; `solver` adds deduction mechanics; `observers` adds the actual rules.
+The generator deliberately depends on brute force, not on the solver (it was
+tried and was slower, see `PLAN.md`).
+
+### 3.1 Model: `puzzle` and `board`
+
+`puzzle` is the immutable layout (which region each cell belongs to), the
+*units* (every row, column and region: the things that need exactly one star)
+and the text format (one letter per cell, `#` comments). `board` is a mutable
+snapshot of marks on a puzzle, with the knowledge of what a star implies
+(crosses in its row, column, region and neighbourhood) and detection of
+contradictions (a unit with no room left, two stars in conflict). The
+contradiction carries the cells involved, so it can be explained and shown.
+
+### 3.2 Reasoning: `solver` and `solver/observers`
+
+The split is "mechanics" versus "knowledge":
+
+- `solver` defines what a mark and an observer are, how a mark is applied, and
+  how observers are driven to a fixpoint. It also owns the **search** on top of
+  the rules (lookahead, then guessing) and the **trace**: every step with its
+  rule, priority level, reason, marks, and for assumptions the nested chain
+  that led to the contradiction.
+- `observers` holds the rules themselves, their configuration and their German
+  wording. Adding a rule means adding an observer type, giving it a priority
+  level and registering it; the runners need no change. The rules, their
+  levels and why each exists are documented in `PLAN.md`.
+
+There are **two runners with identical semantics**:
+
+- the *sync* runner calls the observers in priority order and restarts after
+  every change. It is simple and deterministic, so it produces the
+  explanations people see (`html`, `serve`, and all trial runs inside
+  lookahead);
+- the *concurrent* runner gives every observer its own goroutine and mailbox
+  and detects the end via version numbers. It is the original experiment and
+  the default of `starbattle solve`. A test asserts that both runners reach
+  the same result and that the concurrent one honours the priority levels.
+
+### 3.3 Puzzle production: `generator`, `bruteforce`, `hardsearch`
+
+- `generator` makes puzzles with exactly one solution: random solution, grow
+  regions around it, then repair until brute force finds no second solution.
+  It can also *complete* a partially drawn pattern (used by the designer for
+  picture puzzles). Several attempts run in parallel, but the result depends
+  only on the seed.
+- `bruteforce` is the independent oracle (see principle 4).
+- `hardsearch` scans seeds for puzzles that defeat the rules and computes the
+  1–3 star difficulty rating shown in the library. It powers the developer
+  command `starbattle hard`.
+
+### 3.4 Delivery: `cmd/starbattle`, `render`, `web`
+
+`cmd/starbattle` is a thin dispatcher: one subcommand per use, flag parsing,
+and wiring of the packages. The solver flags are defined once and shared by
+every command that solves. `render` draws boards in the terminal.
+
+`web` is the browser side and the largest package. Its parts:
+
+| Part | Purpose |
+|---|---|
+| page rendering (`web.go`, `assets/`) | turns a puzzle + solution + trace into **one self-contained HTML page**: template, CSS, JS and the data as inline JSON. `html` writes it to a file, `serve` sends it. |
+| site (`server.go`, `pool.go`, `tutorial.go`) | the routes of `serve`: generated puzzles under stable URLs, pasted puzzles, the tutorial. The pool keeps one solved puzzle per size ready so "new puzzle" is instant. |
+| library (`library.go`) | the embedded collections (hard puzzles, motifs) as browsable pages; each puzzle is solved lazily in the background on first visit. |
+| parties (`party*.go`, `coop.go`, `clock.go`) | multiplayer rounds in three modes: against each other, together on one board, against the clock. A server-side state machine in memory, pushed to browsers via server-sent events. |
+| settings / symbols (`symbols.go`) | the catalog of star symbols players can pick. |
+| designer (`designer.go`) | the developer tool behind `starbattle design`; deliberately a separate handler, not part of `serve`. |
+
+The browser code is plain JavaScript without a build step. `app.js` has two
+layers: a pure `Logic` module (board rules, hints, coop operations, …) that is
+also run under node by a Go test, and `boot()`, which builds the UI for every
+kind of page (solo, library, party round, tutorial). Some board logic thus
+exists twice, in Go and in JS; the comments point to the counterpart, and the
+node test checks that following the hints solves every hard puzzle.
+
+## 4. Where state lives
+
+There is no database, on purpose. Knowing where each kind of state lives
+explains most of the design:
+
+| State | Where | Lifetime |
+|---|---|---|
+| Puzzles and their order in the library | text files in the repo (`testdata/hard`, `designs`), embedded at build time | forever; only ever appended to |
+| A generated puzzle | nowhere: recomputed from size + seed (the URL) | stateless |
+| Solver results | computed per request; cached in memory for the pool, the library and party rounds | process lifetime |
+| Parties, players, rounds, the shared coop board | server memory behind one mutex | expire after inactivity; lost on restart |
+| A player's progress, timer, solved library puzzles, preferences, chosen symbol, party token | the browser's `localStorage` | per device |
+
+Consequences worth knowing:
+
+- **Library numbering is append-only.** A puzzle's display name ("10-3") is
+  its position among puzzles of its size in `bibliothek.idx`. Links and saved
+  progress use a hash of the region layout instead, because the old seeds no
+  longer reproduce the old puzzles with today's generator. Never reorder or
+  delete lines in an index file.
+- **Generator changes change puzzles.** Any change to the generator or its
+  defaults gives the same seeds different puzzles. That breaks old `/?n=…&seed=…`
+  links but not the library, whose files are fixed data. A test checks that
+  `hard` still finds a known hard puzzle at a known seed, so such a change is
+  noticed.
+- **Trust model.** Pages carry the solution and the full trace; the UI
+  decides what to reveal (no help in the library, no solution before the end
+  of a party round). The server re-checks solutions only where results are
+  shared between players (parties). This is friendly play, not anti-cheat.
+- **Restarting the server ends all parties.** Acceptable for a home server;
+  persistence would be the first thing to add if that changes.
+
+## 5. Content directories
+
+The binary is the data. Three directories at the module root are embedded by
+the tiny root package `starbattle` (`hard.go`); it sits at the root only
+because `go:embed` cannot reach parent directories.
+
+- `testdata/hard`: puzzles that defeat the basic rules. It is **both** the
+  regression corpus of the solver **and** the "hard" half of the browser
+  library. `bibliothek.idx` gives the library order, `sample.idx` the subset
+  run by default in local tests. Each file's header says which command and
+  commit produced it and carries its difficulty rating, so the server does not
+  compute ratings on start.
+- `designs`: picture puzzles ("motifs") drawn with the designer, the other
+  half of the library.
+- `symbols`: the star symbols to choose from, plus the Python scripts that
+  draw the animated ones.
+
+New content comes from the developer tools (`starbattle hard -o testdata/hard`,
+`starbattle design`) and is then appended to the index file by hand (the
+designer appends for you). The workflows are in `docs/development.md`.
+
+## 6. Testing strategy
+
+- **Soundness against the oracle:** every deduction of every rule, on many
+  generated puzzles and states, must agree with the brute-force solution.
+- **Runner equivalence and priority order:** sync and concurrent reach the
+  same state; no step fires while a simpler rule would have applied.
+- **Hard corpus:** the puzzles in `testdata/hard` stay unsolvable for the
+  basic rules and solvable with search; their stored ratings match today's
+  rating. Locally only `sample.idx` runs; `STARBATTLE_ALL_HARD=1` (and CI)
+  run all of them, which takes minutes.
+- **Rules in isolation:** table tests on hand-written board states.
+- **Web:** party state machines with a fake clock, HTTP and SSE end to end,
+  page data and escaping; the JS `Logic` module under node (skipped if node is
+  missing). The UI itself has no automated browser tests;
+  `docs/screenshots/take.sh` drives a headless Chromium to retake the
+  README screenshots and is the closest thing to one.
+- **CLI:** smoke tests call the commands directly.
+
+Day to day, run `go test -short ./...`. The full suite with every hard puzzle
+is CI's job.
+
+## 7. Build, CI and deployment
+
+- `go build ./cmd/starbattle` is the whole build. `go build` (not `go run`)
+  matters for `hard`, which writes the commit into the files it creates.
+- **CI** (`.github/workflows/ci.yml`) on every push: vet, the full test suite
+  with all hard puzzles and coverage, a race run, cross-compiled archives for
+  Linux (incl. Raspberry Pi), macOS and Windows as workflow artifacts, and on
+  `main` the badge data (coverage, library size) pushed to the orphan branch
+  `badges`, which the README badges read. There are no releases; the latest
+  successful CI run is the download.
+- **Deployment** (`deploy/`): a script cross-compiles for a Raspberry Pi,
+  copies the binary and installs it as a systemd service. TLS and access
+  control (the public instance uses basic auth) belong to a reverse proxy in
+  front, not to the binary.
+
+## 8. Where to start for typical changes
+
+| Change | Start at | Keep in mind |
+|---|---|---|
+| a new deduction rule | `internal/solver/observers` | priority level, German wording, soundness test; measure its effect on `testdata/hard` and record it in `PLAN.md` |
+| solver search behaviour | `internal/solver` (search) | explanations must stay reproducible; the sync runner drives trial runs |
+| generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see `PLAN.md`) |
+| more hard puzzles | `starbattle hard`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges recorded in `PLAN.md` |
+| a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `app.js` with a node test; text in German |
+| party modes | `party.go` (shared lifecycle), `coop.go`, `clock.go`, `party_server.go` (HTTP/SSE), `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
+| a star symbol | `symbols/` | see `symbols/README.md` |
+| a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |

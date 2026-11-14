@@ -1,6 +1,6 @@
 # Entwicklung
 
-Hintergrund, Regeln, Messungen und Entscheidungen stehen in [PLAN.md](../PLAN.md), die ursprüngliche Idee in [grober_plan.md](../grober_plan.md). Hier geht es ums Bauen, Testen und die Werkzeuge für die Entwicklung.
+Hintergrund, Regeln, Messungen und Entscheidungen stehen in [PLAN.md](../PLAN.md), die ursprüngliche Idee in [grober_plan.md](../grober_plan.md), der Aufbau des Ganzen und warum er so ist in [architecture/](../architecture/README.md) (englisch). Hier geht es ums Bauen, Testen und die Werkzeuge für die Entwicklung.
 
 ## Bauen und testen
 
@@ -44,6 +44,7 @@ Die Screenshots in [docs/screenshots](screenshots) nimmt `docs/screenshots/take.
 | `designs` | mit `starbattle design` entworfene Puzzles; zugleich die Motive der Bibliothek (Reihenfolge in `bibliothek.idx`, Name in der Zeile `# name:` jeder Datei) |
 | `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern (Nachschub mit `starbattle hard`); zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
 | `docs` | diese Dokumentation und die Screenshots |
+| `architecture` | Architektur für Entwickelnde (englisch), mit Vorschlägen zum Umbau |
 | `.github/workflows` | Tests und Builds auf GitHub Actions |
 
 ## `design`: Puzzles entwerfen
