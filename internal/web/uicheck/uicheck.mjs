@@ -137,6 +137,11 @@ async function click(sel, { shift = false } = {}) {
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", buttons: 0, clickCount: 1, modifiers });
   await sleep(60);
 }
+const tapDone = () => settle(`!document.querySelector("#board[data-pending]")`, 2000); // a click waiting for its double
+async function dblclick(sel) {
+  await click(sel);
+  await click(sel);
+}
 async function drag(sels) {
   const ps = [];
   for (const s of sels) ps.push(await pos(s));
@@ -182,7 +187,7 @@ function record(o) {
 // What the page shows, normalized (see the top).
 async function obs(label, { random = false } = {}) {
   await sleep(120);
-  await settle(`!document.querySelector("#problems[data-pending]")`, 2000); // new rule violations show late
+  await tapDone();
   const o = await js(`(() => {
     const q = (s) => document.querySelector(s);
     const t = (e) => e ? (e.hidden ? "[hidden] " : "") + e.textContent.trim().replace(/\\s+/g, " ") : null;
@@ -292,7 +297,7 @@ const scenarios = {
     const d = await data();
     const n = d.n;
     for (const st of d.tutorial.steps) {
-      for (const [r, c] of st.stars || []) await click(cell(r * n + c), { shift: true });
+      for (const [r, c] of st.stars || []) await dblclick(cell(r * n + c));
       if ((st.crosses || []).length > 2) await drag(st.crosses.map(([r, c]) => cell(r * n + c)));
       else for (const [r, c] of st.crosses || []) await click(cell(r * n + c));
       await obs("step " + st.action);
@@ -332,7 +337,8 @@ const scenarios = {
     await go("/?n=8&seed=42");
     await obs("start");
     for (const i of [0, 1, 9]) await click(cell(i));
-    await click(cell(9));
+    await tapDone();
+    await dblclick(cell(9)); // cross → star, one undo step
     await obs("clicks");
     await click("#undo");
     await obs("undo");
@@ -400,7 +406,9 @@ const scenarios = {
     await click("#hyp");
     await obs("hyp start");
     const bad = 8 + ((d.solution[1] + 3) % 8);
-    await click(cell(bad), { shift: true });
+    await click(cell(bad));
+    await tapDone();
+    await dblclick(cell(bad)); // cross → star, the hypothesis' first star
     await obs("hyp star");
     await click(cell(bad + 8));
     await obs("hyp cross");
@@ -517,7 +525,9 @@ const scenarios = {
     party = true;
     const p = await partyStart("coop");
     await obs("started");
-    await click(cell(p.sol[0]), { shift: true });
+    await click(cell(p.sol[0]));
+    await tapDone();
+    await dblclick(cell(p.sol[0])); // cross → star, one undo step
     await server(p, "browser star", (me, s) => s.coop.board.includes("2"));
     const other = p.n + ((p.sol[1] + 2) % p.n);
     await api(`/party/${p.code}/mark`, { token: p.token, round: 1, ops: [[1, other, 0, 1]] });
@@ -526,7 +536,7 @@ const scenarios = {
     await click("#undo");
     await settle(`!${hasClass(p.sol[0], "star")}`);
     await obs("undo own");
-    await server(p, "after undo", (me, s) => !s.coop.board.includes("2"));
+    await server(p, "after undo", (me, s) => !s.coop.board.includes("2") && s.coop.board[p.sol[0]] === "1");
     await click("#redo");
     await settle(hasClass(p.sol[0], "star"));
     await obs("redo own");

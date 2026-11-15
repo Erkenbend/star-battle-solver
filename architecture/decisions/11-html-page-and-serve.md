@@ -8,8 +8,9 @@ Implemented as `starbattle html [-o page.html] [solver options] puzzle.txt`
 (default runner `sync`, so the explanation is reproducible, see
 [2](02-sync-runner-for-trial-runs.md)).
 
-- **Solving yourself:** a click cycles free → ✕ → ★, right click/shift sets ★
-  directly; undo/redo; neighbours of a star optionally crossed automatically
+- **Solving yourself:** a click sets ✕, a double click ★, a click on ✕ or ★
+  frees the cell (a click on a free cell waits briefly for a second one, so
+  no passing ✕ shows); right click/shift toggles ★ directly; undo/redo; neighbours of a star optionally crossed automatically
   (off by default; the last choice applies per device to new puzzles and
   party rounds, puzzles with saved progress keep their own); rule violations
   shown live in red (two stars, touching, a unit without room). "Prüfen"

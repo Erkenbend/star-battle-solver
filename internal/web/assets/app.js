@@ -353,50 +353,77 @@ function boot() {
   if (!coop) H.restore(saved);
   const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
 
-  function setMarks(next) {
+  // merge: part of the last change, together one undo step.
+  function setMarks(next, merge = false) {
     if (locked()) return; // solved puzzles are frozen
-    if (H.active) return H.change(next);
+    if (H.active) return H.change(next, merge);
     if (coop) {
-      coop.commit(L.diffOps(marks, next));
+      coop.commit(L.diffOps(marks, next), true, merge);
       return;
     }
-    undoStack.push(marks);
+    if (!merge || !undoStack.length) undoStack.push(marks);
     redoStack.length = 0;
     marks = next;
     overlay = null;
     renderPlay();
   }
 
+  // Tap on a cell (a press without dragging). A star directly (right click,
+  // shift+click) toggles at once. A plain click on a symbol frees the cell at
+  // once; on a free cell it waits briefly whether a second click follows: a
+  // double click sets a star, a single one a cross. So no passing state shows
+  // (and no rule violation flashes red). A double click on a cross makes it a
+  // star as one undo step; the second click on a star just removed does
+  // nothing. tap: {i, was, timer} while a second click may follow.
+  const DOUBLE_CLICK_MS = 250;
+  let tap = null;
   function clickCell(i, star) {
+    if (star) {
+      flushTap();
+      const next = Uint8Array.from(marks);
+      next[i] = marks[i] === L.STAR ? L.FREE : L.STAR;
+      return setMarks(next);
+    }
+    if (tap && tap.i === i) { // the second click of a double click
+      const was = tap.was;
+      endTap();
+      if (was === L.STAR) return;
+      const next = Uint8Array.from(marks);
+      next[i] = L.STAR;
+      return setMarks(next, was === L.CROSS);
+    }
+    flushTap();
+    const was = marks[i];
+    if (was !== L.FREE) {
+      const next = Uint8Array.from(marks);
+      next[i] = L.FREE;
+      setMarks(next);
+    }
+    tap = { i, was, timer: setTimeout(flushTap, DOUBLE_CLICK_MS) };
+    boardEl.toggleAttribute("data-pending", was === L.FREE); // the UI check waits for it
+  }
+  function endTap() {
+    clearTimeout(tap.timer);
+    tap = null;
+    boardEl.removeAttribute("data-pending");
+  }
+  // No second click (in time): a click on a free cell was a single one.
+  function flushTap() {
+    if (!tap) return;
+    const { i, was } = tap;
+    endTap();
+    if (was !== L.FREE || marks[i] !== L.FREE) return; // a partner may have been quicker
     const next = Uint8Array.from(marks);
-    if (star) next[i] = marks[i] === L.STAR ? L.FREE : L.STAR;
-    else next[i] = (marks[i] + 1) % 3; // free → cross → star → free
+    next[i] = L.CROSS;
     setMarks(next);
   }
-
-  const PROBLEM_DELAY_MS = 600;
-  let probsShown = new Set(), probsRevealed = false, probsTimer = 0;
 
   function renderPlay() {
     const eff = L.effective(d, marks, prefs.autocross);
     if (H.active && !locked() && L.solved(d, eff.cells)) return H.accept(); // a normal solve
     // Rule violations (two stars touching, a full row …) unless switched off;
     // "Prüfen" still marks wrong cells, as asked for explicitly.
-    // A new violation shows only once the board has rested a moment, so
-    // passing states (cycling free → cross → star empties a row for a
-    // moment) don't flash red. Ones already shown stay, fixed ones go at once.
-    const all = prefs.showProblems ? L.problems(d, eff.cells) : [];
-    const probs = probsRevealed ? all : all.filter((p) => probsShown.has(p.msg));
-    probsRevealed = false;
-    probsShown = new Set(probs.map((p) => p.msg));
-    clearTimeout(probsTimer);
-    const pending = probs.length < all.length;
-    $("problems").toggleAttribute("data-pending", pending); // the UI check waits for it
-    if (pending)
-      probsTimer = setTimeout(() => {
-        probsRevealed = true;
-        if (mode === "play") renderPlay();
-      }, PROBLEM_DELAY_MS);
+    const probs = prefs.showProblems ? L.problems(d, eff.cells) : [];
     const bad = new Set(probs.flatMap((p) => p.cells));
     const view = { cells: eff.cells, auto: eff.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
@@ -642,8 +669,8 @@ function boot() {
     renderPlay();
   }
 
-  // Pointer input: a press without moving to another cell is a click (cycle
-  // free → cross → star). Moving on paints crosses over every cell passed, or
+  // Pointer input: a press without moving to another cell is a click (see
+  // clickCell: cross, star by double click, free on a symbol). Moving on paints crosses over every cell passed, or
   // removes them if the press started on a cross. One drag is one undo step.
   // With the fat-finger guard on, a drag draws one straight line (row or
   // column) from the start cell instead, redrawn as the finger moves, so a
@@ -701,6 +728,12 @@ function boot() {
     const c = e && e.closest ? e.closest(".cell") : null;
     return c ? +c.dataset.i : -1;
   };
+  // Any other input first settles a click still waiting for its double.
+  document.addEventListener("pointerdown", (ev) => {
+    const c = ev.target.closest && ev.target.closest(".cell");
+    if (tap && !(c && +c.dataset.i === tap.i && ev.button === 0 && !ev.shiftKey)) flushTap();
+  }, true);
+  document.addEventListener("keydown", () => flushTap(), true);
   boardEl.addEventListener("pointerdown", (ev) => {
     const c = ev.target.closest(".cell");
     if (!c || mode !== "play" || locked() || ev.button !== 0) return;
@@ -717,6 +750,10 @@ function boot() {
     if (i < 0 || i === drag.last) return;
     if (!drag.moved) {
       drag.moved = true;
+      if (tap) { // a drag from the cell just clicked: that click was a single one
+        flushTap();
+        drag.before = marks;
+      }
       overlay = null;
     }
     if (drag.straight) {

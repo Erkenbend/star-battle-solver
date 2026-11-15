@@ -29,16 +29,23 @@ function Coop(P, R) {
     if (!P.hyp.rebase(cells)) P.marks = cells;
   }
 
-  // ops: [i, from, to] as seen on the board now; one undo step.
-  function commit(ops, undoable = true) {
+  // ops: [i, from, to] as seen on the board now; one undo step, or with
+  // merge part of the last one (a cell changed twice keeps one op).
+  function commit(ops, undoable = true, merge = false) {
     P.overlay = null;
     if (ops.length && undoable) {
-      P.undoStack.push(ops);
+      P.undoStack.push(merge && P.undoStack.length ? mergeOps(P.undoStack.pop(), ops) : ops);
       P.redoStack.length = 0;
     }
     for (const op of ops) coop.pending.push([++coop.nextNum, ...op]);
     show();
     flush();
+  }
+
+  function mergeOps(a, b) {
+    const m = new Map(a.map(([i, from, to]) => [i, [from, to]]));
+    for (const [i, from, to] of b) m.set(i, [m.has(i) ? m.get(i)[0] : from, to]);
+    return [...m].filter(([, [from, to]]) => from !== to).map(([i, [from, to]]) => [i, from, to]);
   }
 
   // Undo and redo take back only our own changes: a cell somebody else

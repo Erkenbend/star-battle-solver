@@ -41,9 +41,10 @@ function Hypothesis(P) {
     P.overlay = null;
     P.renderPlay();
   }
-  // A change of the marks in the mode: one undo step of its own.
-  function change(next) {
-    hyp.undo.push({ over: hyp.over, root: hyp.root });
+  // A change of the marks in the mode: one undo step of its own, or with
+  // merge part of the last one.
+  function change(next, merge = false) {
+    if (!merge || !hyp.undo.length) hyp.undo.push({ over: hyp.over, root: hyp.root });
     hyp.redo.length = 0;
     set(L.overlay(hyp.base, next), L.hypRoot(hyp.base, P.marks, next, hyp.root));
   }
