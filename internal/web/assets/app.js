@@ -371,10 +371,12 @@ function boot() {
   // Tap on a cell (a press without dragging). A star directly (right click,
   // shift+click) toggles at once. A plain click on a symbol frees the cell at
   // once; on a free cell it waits briefly whether a second click follows: a
-  // double click sets a star, a single one a cross. So no passing state shows
-  // (and no rule violation flashes red). A double click on a cross makes it a
-  // star as one undo step; the second click on a star just removed does
-  // nothing. tap: {i, was, timer} while a second click may follow.
+  // double click sets a star, a single one a cross. Meanwhile the cross is
+  // only shown (see renderPlay); it counts, for the rules too, once settled,
+  // so a double click passes no state that could flash red. A double click
+  // on a cross makes it a star as one undo step; the second click on a star
+  // just removed does nothing. tap: {i, was, timer} while a second click may
+  // follow.
   const DOUBLE_CLICK_MS = 250;
   let tap = null;
   function clickCell(i, star) {
@@ -401,12 +403,17 @@ function boot() {
     }
     tap = { i, was, timer: setTimeout(flushTap, DOUBLE_CLICK_MS) };
     boardEl.toggleAttribute("data-pending", was === L.FREE); // the UI check waits for it
+    if (was === L.FREE) renderPlay(); // the placeholder cross
   }
   function endTap() {
+    const shown = tapCross();
     clearTimeout(tap.timer);
     tap = null;
     boardEl.removeAttribute("data-pending");
+    if (shown && mode === "play") renderPlay(); // in case nothing replaces it
   }
+  // A click waiting for its double: its cell is shown as a cross.
+  const tapCross = () => !!tap && tap.was === L.FREE && marks[tap.i] === L.FREE && !locked();
   // No second click (in time): a click on a free cell was a single one.
   function flushTap() {
     if (!tap) return;
@@ -425,9 +432,15 @@ function boot() {
     // "Prüfen" still marks wrong cells, as asked for explicitly.
     const probs = prefs.showProblems ? L.problems(d, eff.cells) : [];
     const bad = new Set(probs.flatMap((p) => p.cells));
-    const view = { cells: eff.cells, auto: eff.auto, marks: { bad } };
+    let shown = eff; // with the placeholder cross of a click waiting for its double
+    if (tapCross()) {
+      const m = Uint8Array.from(marks);
+      m[tap.i] = L.CROSS;
+      shown = L.effective(d, m, prefs.autocross);
+    }
+    const view = { cells: shown.cells, auto: shown.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
-    H.decorate(view, eff.cells); // the marks tried out
+    H.decorate(view, shown.cells); // the marks tried out
     drawBoard(party && party.gaveUp ? party.solutionView() : view);
 
     const list = $("problems");
