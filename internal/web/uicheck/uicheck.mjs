@@ -182,6 +182,7 @@ function record(o) {
 // What the page shows, normalized (see the top).
 async function obs(label, { random = false } = {}) {
   await sleep(120);
+  await settle(`!document.querySelector("#problems[data-pending]")`, 2000); // new rule violations show late
   const o = await js(`(() => {
     const q = (s) => document.querySelector(s);
     const t = (e) => e ? (e.hidden ? "[hidden] " : "") + e.textContent.trim().replace(/\\s+/g, " ") : null;

@@ -374,12 +374,29 @@ function boot() {
     setMarks(next);
   }
 
+  const PROBLEM_DELAY_MS = 600;
+  let probsShown = new Set(), probsRevealed = false, probsTimer = 0;
+
   function renderPlay() {
     const eff = L.effective(d, marks, prefs.autocross);
     if (H.active && !locked() && L.solved(d, eff.cells)) return H.accept(); // a normal solve
     // Rule violations (two stars touching, a full row …) unless switched off;
     // "Prüfen" still marks wrong cells, as asked for explicitly.
-    const probs = prefs.showProblems ? L.problems(d, eff.cells) : [];
+    // A new violation shows only once the board has rested a moment, so
+    // passing states (cycling free → cross → star empties a row for a
+    // moment) don't flash red. Ones already shown stay, fixed ones go at once.
+    const all = prefs.showProblems ? L.problems(d, eff.cells) : [];
+    const probs = probsRevealed ? all : all.filter((p) => probsShown.has(p.msg));
+    probsRevealed = false;
+    probsShown = new Set(probs.map((p) => p.msg));
+    clearTimeout(probsTimer);
+    const pending = probs.length < all.length;
+    $("problems").toggleAttribute("data-pending", pending); // the UI check waits for it
+    if (pending)
+      probsTimer = setTimeout(() => {
+        probsRevealed = true;
+        if (mode === "play") renderPlay();
+      }, PROBLEM_DELAY_MS);
     const bad = new Set(probs.flatMap((p) => p.cells));
     const view = { cells: eff.cells, auto: eff.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
