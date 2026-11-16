@@ -542,8 +542,17 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   opacity: 0; transform: translate(-50%, 8px); pointer-events: none;
   transition: opacity 0.3s, transform 0.3s;
 }
-.saved-toast.shown { opacity: 1; transform: translate(-50%, 0); transition-duration: 0.12s; }
-@media (prefers-reduced-motion: reduce) { .saved-toast { transform: translate(-50%, 0); } }
+/* Each change plays the entry anew, starting with a short gap, so a second
+   change shows a new notice rather than the old one staying. */
+.saved-toast.shown { opacity: 1; transform: translate(-50%, 0); animation: saved-in 0.4s; }
+@keyframes saved-in {
+  0%, 35% { opacity: 0; transform: translate(-50%, 8px); }
+  100% { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .saved-toast, .saved-toast.shown { transform: translate(-50%, 0); }
+  @keyframes saved-in { 0%, 35% { opacity: 0; } 100% { opacity: 1; } }
+}
 
 /* ---------- tutorial (/anleitung) ---------- */
 .tutorial-mode .board-frame { --size: min(440px, calc(100vw - 32px)); }

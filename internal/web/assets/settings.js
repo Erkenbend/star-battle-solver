@@ -70,14 +70,14 @@
   }
 
   // There is no save button: every change is stored at once, and a short
-  // notice says so. Restarting its fade-out on each change keeps it visible
-  // while the user keeps switching.
+  // notice says so. Each change makes it appear anew (see .saved-toast), so
+  // a second change is confirmed as visibly as the first.
   let savedTimer = 0;
   function saved(text) {
     const t = $("saved");
     t.textContent = "✓ " + text;
     t.classList.remove("shown");
-    void t.offsetWidth; // restart the fade-in
+    void t.offsetWidth; // restart the entry animation
     t.classList.add("shown");
     clearTimeout(savedTimer);
     savedTimer = setTimeout(() => t.classList.remove("shown"), 1800);
