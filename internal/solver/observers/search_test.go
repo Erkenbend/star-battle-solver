@@ -1,6 +1,7 @@
 package observers
 
 import (
+	"bytes"
 	"errors"
 	"math/rand/v2"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"starbattle"
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
+	"starbattle/internal/collection"
 	"starbattle/internal/generator"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
@@ -43,17 +45,21 @@ func hardTestFiles(t *testing.T) []string {
 }
 
 // TestHardPuzzles: puzzles where the base rules alone get stuck (testdata/hard,
-// the sample unless STARBATTLE_ALL_HARD=1).
+// the sample unless STARBATTLE_ALL_HARD=1). With -short without the 3-star
+// ones, which cost most of the time.
 func TestHardPuzzles(t *testing.T) {
 	files := hardTestFiles(t)
-	needGuess, byNewRules := 0, 0
+	needGuess, byNewRules, tested := 0, 0, 0
 	for _, f := range files {
-		in, err := os.Open(f)
+		text, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
-		p, err := puzzle.Parse(in)
-		in.Close()
+		if testing.Short() && collection.Rating(text) >= 3 {
+			continue
+		}
+		tested++
+		p, err := puzzle.Parse(bytes.NewReader(text))
 		if err != nil {
 			t.Fatalf("%s: %v", f, err)
 		}
@@ -75,8 +81,8 @@ func TestHardPuzzles(t *testing.T) {
 		full.Run = solver.RunConcurrent
 		checkSolution(t, name+" (concurrent)", p, solver.Solve(board.New(p), All(p), full))
 	}
-	t.Logf("%d/%d solved by all rules without lookahead", byNewRules, len(files))
-	t.Logf("%d/%d hard puzzles needed guessing beyond lookahead", needGuess, len(files))
+	t.Logf("%d/%d solved by all rules without lookahead", byNewRules, tested)
+	t.Logf("%d/%d hard puzzles needed guessing beyond lookahead", needGuess, tested)
 }
 
 // TestBacktrackingWithWeakRules forces real guessing by giving the solver only the

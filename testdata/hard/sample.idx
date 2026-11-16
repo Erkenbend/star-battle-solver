@@ -1,18 +1,42 @@
-# Sample for the tests: a plain `go test ./...` checks only these puzzles,
-# `STARBATTLE_ALL_HARD=1 go test ./...` all of bibliothek.idx.
-# It covers sizes 5 to 14 and every rule (Pigeonhole and DeadCells too, with
-# and without lookahead), but leaves out the expensive cases with long
-# lookahead chains (mostly N = 14, 3 to 5 s each).
+# Sample for the tests (locally and in CI): a plain `go test ./...` checks
+# only these puzzles, `STARBATTLE_ALL_HARD=1 go test ./...` all of
+# bibliothek.idx.
+# It covers sizes 5 to 14, every rule (Pigeonhole and DeadCells too, with and
+# without lookahead) and every rating, up to the deepest thought experiment of
+# the library (n13_s4661). Solving it takes about a tenth of the whole library
+# (20 of 200 s, one puzzle at a time); left out are the most expensive ones
+# (n14_s1262, n13_s1787, 8 to 13 s each).
+# The cheap ones come first: with -short some tests take only the first few.
 #
-# Solved by all rules without lookahead:
+# 1 star, solved by all rules without lookahead:
 n05_s029.txt  # smallest, library no. 1
 n08_s087.txt  # many Confinement steps
 n11_s059.txt  # many ForcedPartner steps
 n12_s005.txt  # DeadCells even without lookahead
+n06_s071.txt
+n07_s005.txt
+n09_s017.txt
+n10_s047.txt
 #
-# Need lookahead even with all rules:
-n10_s396.txt  # smallest with lookahead (9 steps)
-n11_s095.txt  # Pigeonhole, 11 lookahead steps
-n12_s082.txt  # many DeadCells steps, short
-n13_s181.txt  # N = 13
-n14_s024.txt  # N = 14, the cheapest of that size
+# 2 stars, need lookahead even with all rules:
+n10_s396.txt   # smallest with lookahead (9 steps)
+n12_s082.txt   # many DeadCells steps, short
+n13_s181.txt   # N = 13
+n14_s024.txt   # N = 14, the cheapest of that size
+n10_s1330.txt  # chain of 5
+n11_s3184.txt  # 9 steps
+n12_s1954.txt
+n13_s4124.txt  # chain of 6
+n13_s783.txt   # 9 steps
+n14_s1525.txt  # 9 steps, chain of 6
+#
+# 3 stars:
+n11_s095.txt   # Pigeonhole, 11 lookahead steps
+n10_s1271.txt  # 18 steps, chain of 6
+n11_s504.txt   # chain of 7
+n12_s1503.txt  # 17 steps
+n13_s3567.txt  # chain of 6
+n14_s1717.txt  # chain of 7
+n14_s155.txt   # 25 steps
+n14_s2876.txt  # 25 steps, chain of 8
+n13_s4661.txt  # 41 steps, chain of 9 (the deepest), 6 s

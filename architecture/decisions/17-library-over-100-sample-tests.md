@@ -1,6 +1,6 @@
 # 17. Library over 100 puzzles, tests only with a sample
 
-- **Status:** done
+- **Status:** done; CI running all puzzles replaced by [22](22-ci-sample-only.md)
 - **Date:** 2026-11-12 (`13ff7e6`, `05879ce` to `dabdb5e`, `93c508e`)
 
 73 new puzzles in `testdata/hard` (now 118); all of them need lookahead even

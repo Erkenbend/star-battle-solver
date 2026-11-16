@@ -8,14 +8,14 @@ Voraussetzung ist Go (Version siehe `go.mod`). Es gibt keine weiteren Abhängigk
 
 ```sh
 go build -o starbattle ./cmd/starbattle
-go test ./...            # dauert etwa 20 Sekunden
+go test ./...            # dauert etwa zwei Minuten
 go test -short ./...     # überspringt einige langsame Tests
 go test -race ./...
 STARBATTLE_ALL_HARD=1 go test ./...   # alle schweren Puzzles statt der Stichprobe
 go test -short -coverpkg=./... -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1   # Testabdeckung
 ```
 
-Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`), die alle Größen und Regeln abdeckt. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa zehn Minuten). Die CI auf GitHub Actions prüft immer alle.
+Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`, 27 Puzzles), die alle Größen, Regeln und Schwierigkeitsstufen abdeckt; die CI auf GitHub Actions ebenso. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa zehn Minuten, in der CI über eine halbe Stunde). Das lohnt sich nach Änderungen an Regeln, Suche oder Bewertung.
 
 Go kann für jede Plattform von jeder Plattform aus bauen, z. B. für einen Mac mit Intel-Chip:
 

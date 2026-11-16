@@ -26,11 +26,12 @@ and open ideas.
 | [14](14-party-mode.md) | Playing together (party mode) | done |
 | [15](15-hard-testdata-for-all-rules.md) | New test data that is hard even for the new rules | done |
 | [16](16-user-documentation.md) | User documentation: README with the commands, later split up | done |
-| [17](17-library-over-100-sample-tests.md) | Library over 100 puzzles, tests only with a sample | done |
+| [17](17-library-over-100-sample-tests.md) | Library over 100 puzzles, tests only with a sample | done, CI part replaced by [22](22-ci-sample-only.md) |
 | [18](18-hard-command.md) | The search for hard puzzles as a command | done |
 | [19](19-badges-and-coverage.md) | README badges and test coverage | done |
 | [20](20-difficulty-rating.md) | Difficulty of the hard puzzles | done |
 | [21](21-library-175.md) | Library with 175 puzzles | done |
+| [22](22-ci-sample-only.md) | CI runs only the sample of hard puzzles | done |
 
 ## Adding a decision
 

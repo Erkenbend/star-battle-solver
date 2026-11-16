@@ -248,7 +248,7 @@ because `go:embed` cannot reach parent directories.
 - `testdata/hard`: puzzles that defeat the basic rules. It is **both** the
   regression corpus of the solver **and** the "hard" half of the browser
   library. `bibliothek.idx` gives the library order, `sample.idx` the subset
-  run by default in local tests. Each file's header says which command and
+  the tests run by default (locally and in CI). Each file's header says which command and
   commit produced it and carries its difficulty rating, so the server does not
   compute ratings on start.
 - `designs`: picture puzzles ("motifs") drawn with the designer, the other
@@ -276,8 +276,9 @@ designer appends for you). The workflows are in `docs/development.md`.
   same state; no step fires while a simpler rule would have applied.
 - **Hard corpus:** the puzzles in `testdata/hard` stay unsolvable for the
   basic rules and solvable with search; their stored ratings match today's
-  rating. Locally only `sample.idx` runs; `STARBATTLE_ALL_HARD=1` (and CI)
-  run all of them, which takes minutes.
+  rating. Locally and in CI only `sample.idx` runs (27 puzzles, every size, rule
+  and rating); `STARBATTLE_ALL_HARD=1` runs all of them, which takes minutes
+  locally and over half an hour in CI ([decision 22](decisions/22-ci-sample-only.md)).
 - **Rules in isolation:** table tests on hand-written board states.
 - **Web:** party state machines with a fake clock, HTTP and SSE end to end,
   page data and escaping; the JS `Logic` module under node (skipped if node is
