@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"runtime"
 	"slices"
@@ -175,5 +176,21 @@ func TestMinRegionSize(t *testing.T) {
 				t.Fatalf("n=%d seed=%d: not unique\n%s", n, seed, p)
 			}
 		}
+	}
+}
+
+// BenchmarkGenerate: end-to-end generation, mostly brute-force uniqueness
+// checks. One worker, so the numbers do not depend on free cores.
+func BenchmarkGenerate(b *testing.B) {
+	for _, n := range []int{12, 16, 20} {
+		b.Run(fmt.Sprint("n=", n), func(b *testing.B) {
+			for b.Loop() {
+				for seed := range uint64(3) {
+					if _, _, err := Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), Options{Workers: 1}); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+		})
 	}
 }
