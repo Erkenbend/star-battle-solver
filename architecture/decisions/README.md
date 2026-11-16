@@ -30,6 +30,7 @@ and open ideas.
 | [18](18-hard-command.md) | The search for hard puzzles as a command | done |
 | [19](19-badges-and-coverage.md) | README badges and test coverage | done |
 | [20](20-difficulty-rating.md) | Difficulty of the hard puzzles | done |
+| [21](21-library-175.md) | Library with 175 puzzles | done |
 
 ## Adding a decision
 

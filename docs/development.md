@@ -15,7 +15,7 @@ STARBATTLE_ALL_HARD=1 go test ./...   # alle schweren Puzzles statt der Stichpro
 go test -short -coverpkg=./... -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1   # Testabdeckung
 ```
 
-Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`), die alle Größen und Regeln abdeckt. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa sechs Minuten). Die CI auf GitHub Actions prüft immer alle.
+Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`), die alle Größen und Regeln abdeckt. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa zehn Minuten). Die CI auf GitHub Actions prüft immer alle.
 
 Go kann für jede Plattform von jeder Plattform aus bauen, z. B. für einen Mac mit Intel-Chip:
 
@@ -106,7 +106,7 @@ n=10 seed=453 base=stuck all=stuck lookahead=4 guesses=0 rating=2 t=161ms  HIT �
 
 Mit `-o` landet jeder Treffer als `nNN_sSEED.txt` im Verzeichnis, mit Befehl, Commit und Grund als Kommentar und darunter der Schwierigkeit (`# rating: 2 (4 lookahead steps, longest 5)`, siehe unten); bestehende Dateien werden nie überschrieben. Am Ende stehen die Zahlen der Suche, der Seed, bei dem die nächste Suche weitermacht (die bisherigen Bereiche stehen in [PLAN.md](../PLAN.md) und [Entscheidung 17](../architecture/decisions/17-library-over-100-sample-tests.md)), und die neuen Dateien. In die Bibliothek kommen sie erst, wenn man sie unten an `testdata/hard/bibliothek.idx` anhängt. Ctrl-C bricht nach den laufenden Seeds ab und nennt trotzdem, wo es weitergeht.
 
-Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 etwa jedes 130. Puzzle, bei 13×13 jedes 70., bei 14×14 jedes 50., unter 10×10 praktisch keins. Ein 14×14-Seed dauert bis zu einigen Sekunden.
+Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 etwa jedes 140. Puzzle, bei 13×13 jedes 55., bei 14×14 jedes 50., unter 10×10 praktisch keins. Mindestens 4 Lookahead-Schritte sind bei 10×10 noch seltener (zuletzt keins in 2000 Seeds). Ein 14×14-Seed dauert allein bis zu einigen Sekunden; weil die Suche alle Kerne gleichzeitig nutzt, zeigt sie Zeiten bis knapp eine Minute.
 
 | Option | Bedeutung |
 |---|---|

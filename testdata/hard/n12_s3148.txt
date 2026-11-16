@@ -1,0 +1,14 @@
+# generate -n 12 -seed 3148 at commit ffc2880 (MinRegionSize 2); needs lookahead even with all rules (5 lookahead steps)
+# rating: 2 (5 lookahead steps, longest 4)
+JJJGGKKKKKCC
+JJCCGGKCCCCC
+JCCCCCCCCCCC
+HCCCCCCCCACC
+HHCCCDCCCACC
+HCCCDDDCCACA
+HCCDDIDCEAAA
+HCHIIIEEEAAA
+HHHHIIIEFBBB
+LIIHIIFEFFBB
+LIIHIIFEFFBB
+LLIIIIFFFFFF

@@ -1,7 +1,7 @@
 # 3. The files in `testdata/hard` are fixed data
 
 - **Status:** done
-- **Date:** 2026-11-04 (`aacce67`), provenance extended up to `e76b5ce`
+- **Date:** 2026-11-04 (`aacce67`), provenance extended up to `ffc2880`
 
 The CLI and the tests use the same seeding formula (`rand.NewPCG(seed, n)`).
 Still, the files in `testdata/hard` are treated as **fixed test data**, not as
@@ -18,9 +18,12 @@ Provenance of the files:
 - Ten more (`n10_s396` to `n14_s025`) come from commit `46ab527` (attempts in
   parallel; the header line of each file names the command). See
   [15](15-hard-testdata-for-all-rules.md).
-- The 73 newest (from `n10_s453` on in `bibliothek.idx`) come from commit
+- 73 more (from `n10_s453` on in `bibliothek.idx`) come from commit
   `e76b5ce`; there the generator still produced the same puzzles as at
   `46ab527`. See [17](17-library-over-100-sample-tests.md).
+- The 57 after them (from `n11_s2668` on in `bibliothek.idx`) come from
+  `starbattle hardsearch` at commit `ffc2880`; the generator is unchanged
+  since `e76b5ce`. See [21](21-library-175.md).
 
 Consequence for the library: names and links cannot rely on seeds. A puzzle's
 display name is its position in `bibliothek.idx` (append only), links and
