@@ -446,8 +446,16 @@ const scenarios = {
     await click("#showproblems");
     await click(cell(d.solution[0] + 1), { shift: true });
     await obs("problems off");
+    await click("#fadecolorsonly"); // a part of the option below: not yet
     await click("#fadedone");
     await obs("fade done on");
+    await click("#fadecolorsonly");
+    await click(cell(d.n + d.solution[1]), { shift: true }); // finishes its color
+    await obs("fade colors only");
+    await click("#fadedone"); // switches its part off with it
+    await obs("fade off, colors only kept");
+    await click("#fadedone");
+    await click("#fadecolorsonly");
     await click("#autocross");
     await click("#showproblems");
     await click("#fadedone");

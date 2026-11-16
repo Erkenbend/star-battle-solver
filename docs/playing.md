@@ -62,8 +62,9 @@ Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. 
 - **Fat-Finger-Schutz:** Beim Ziehen wird nur in gerader Zeile oder Spalte gekreuzt. Auf Touchscreens ist er von Anfang an an.
 - **Regelverstöße sofort rot markieren:** Ist das aus, zeigt nur noch „Prüfen“ Fehler.
 - **Erledigte Zeilen, Spalten und Farben blasser zeigen** (anfangs aus): Hat eine Zeile, Spalte oder Farbe genau einen Stern, verlieren ihre Felder etwas Farbe. Auf großen Brettern sieht man so leichter, was noch offen ist. Im gelösten Puzzle und in der Anleitung bleibt alles farbig.
+  - **Nur Farben blasser zeigen** (anfangs aus, nur schaltbar, wenn die Option darüber an ist): Zeilen und Spalten behalten ihre Farbe, damit eine blasse Zeile nicht wie eine Farbe mit ähnlichem Ton aussieht.
 - **Symbol für Sterne:** statt ★ zum Beispiel Herz, Pfote, 🐱 oder ein animiertes Kätzchen. Mit **Zufällig** würfelt die Spielseite beim Laden eines aus und behält es, bis man neu lädt oder „Neu beginnen“ drückt; dann kommt ein anderes. Animierte Symbole bewegen sich nur kurz nach dem Setzen eines Sterns, und gar nicht, wenn das System reduzierte Bewegung wünscht. Wie man neue Symbole hinzufügt, steht in [symbols/README.md](../symbols/README.md).
 
 Die Spielseite zeigt unter den Knöpfen, wie die Optionen stehen, mit einem Link dorthin. Eine offene Spielseite übernimmt Änderungen sofort.
 
-In einer mit `starbattle html` gespeicherten Datei gibt es keine Einstellungsseite, dort stehen die vier Schalter direkt auf der Seite. Symbole mit Bilddatei lädt die Seite vom Server; in der Datei erscheint stattdessen der Stern, und „Zufällig“ wählt nur unter den Symbolen ohne Bilddatei.
+In einer mit `starbattle html` gespeicherten Datei gibt es keine Einstellungsseite, dort stehen die Schalter direkt auf der Seite. Symbole mit Bilddatei lädt die Seite vom Server; in der Datei erscheint stattdessen der Stern, und „Zufällig“ wählt nur unter den Symbolen ohne Bilddatei.

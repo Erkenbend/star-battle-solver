@@ -292,6 +292,9 @@ body:not(.watch) .board.hypothesis { outline: 2px dashed var(--hyp); outline-off
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .clock { margin-left: auto; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .toggle { color: var(--muted); font-size: 14px; display: flex; gap: 6px; align-items: center; }
+/* An option that is part of the one above: indented, faint while that is off. */
+.toggle.sub { margin-left: 22px; }
+.toggle:has(input:disabled) { opacity: 0.5; }
 /* The options as set on /einstellungen, or the switches themselves in a page
    saved as a file. */
 #play-options { display: flex; flex-direction: column; gap: 12px; }
@@ -516,6 +519,8 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
 }
 .option input { margin: 3px 0 0; flex: none; }
+.option.sub { margin-left: 28px; max-width: 732px; }
+.option:has(input:disabled) { opacity: 0.5; cursor: default; }
 .option > span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .option .muted { font-size: 12.5px; }
 .symbol-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }

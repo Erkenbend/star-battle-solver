@@ -98,13 +98,14 @@ const Logic = (() => {
     return out;
   }
 
-  // Cells of the units (row, column, color) that have their one star, for the
-  // option "fadeDone". Empty once the board is solved: a fully faded board
-  // would only look washed out.
-  function doneCells(d, cells) {
+  // Cells of the units (row, column, color; only colors with colorsOnly) that
+  // have their one star, for the option "fadeDone". Empty once the board is
+  // solved: a fully faded board would only look washed out.
+  function doneCells(d, cells, colorsOnly = false) {
     const out = new Set();
     if (solved(d, cells)) return out;
     for (const u of units(d)) {
+      if (colorsOnly && u.kind !== "region") continue;
       let stars = 0;
       for (const i of u.cells) if (cells[i] === STAR) stars++;
       if (stars === 1) for (const i of u.cells) out.add(i);
@@ -381,6 +382,8 @@ const Logic = (() => {
     straight: { key: "starbattle.straight", def: () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches },
     showProblems: { key: "starbattle.showProblems", def: () => true },
     fadeDone: { key: "starbattle.fadeDone", def: () => false },
+    // Part of fadeDone: faded rows and columns look like colors of a similar hue.
+    fadeColorsOnly: { key: "starbattle.fadeColorsOnly", def: () => false },
   };
   function pref(name) {
     try {

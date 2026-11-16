@@ -84,13 +84,17 @@
   }
 
   // Play options (see L.pref): saved as soon as switched.
-  for (const [k, id] of [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"], ["fadeDone", "fadedone"]]) {
+  for (const [k, id] of [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"], ["fadeDone", "fadedone"], ["fadeColorsOnly", "fadecolorsonly"]]) {
     $(id).checked = L.pref(k);
     $(id).onchange = () => {
       L.setPref(k, $(id).checked);
       saved($(id).checked ? "Eingeschaltet und gespeichert" : "Ausgeschaltet und gespeichert");
     };
   }
+  // "Only colors" is a part of fading and can only be switched with it on.
+  const fadeParts = () => ($("fadecolorsonly").disabled = !$("fadedone").checked);
+  fadeParts();
+  $("fadedone").addEventListener("change", fadeParts);
 
   // The stored choice; refreshed from the catalog (e.g. a changed image), so
   // the copy does not go stale.

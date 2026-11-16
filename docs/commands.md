@@ -80,7 +80,7 @@ Am Ende steht das Ergebnis (`solved`, `stuck` oder ein Widerspruch) und, falls g
 starbattle html -o p.html p.txt
 ```
 
-Eine einzelne HTML-Datei ohne externe Abhängigkeiten: selbst lösen (mit Rückgängig, Prüfen, Hinweisen, Uhr) oder den Lösungsweg Schritt für Schritt abspielen. Eine Einstellungsseite gibt es darin nicht, die vier Schalter stehen direkt auf der Seite; Symbole mit Bilddatei erscheinen als Stern (siehe [Spielen im Browser](playing.md#einstellungen)).
+Eine einzelne HTML-Datei ohne externe Abhängigkeiten: selbst lösen (mit Rückgängig, Prüfen, Hinweisen, Uhr) oder den Lösungsweg Schritt für Schritt abspielen. Eine Einstellungsseite gibt es darin nicht, die Schalter stehen direkt auf der Seite; Symbole mit Bilddatei erscheinen als Stern (siehe [Spielen im Browser](playing.md#einstellungen)).
 
 | Option | Bedeutung |
 |---|---|

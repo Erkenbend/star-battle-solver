@@ -131,6 +131,8 @@ for (const f of files) {
   // board fades nothing.
   const done = L.doneCells(d, marks);
   assert.deepEqual([...done].sort((a, b) => a - b), [at(0, 0), at(0, 1), at(0, 2), at(0, 3), at(0, 4), at(1, 0), at(1, 1), at(2, 0), at(2, 1), at(3, 0), at(3, 1), at(3, 2), at(4, 0)]);
+  // Only colors: region D, not row 0 or column 0 outside it.
+  assert.deepEqual([...L.doneCells(d, marks, true)].sort((a, b) => a - b), [at(0, 0), at(1, 0), at(1, 1), at(2, 0), at(2, 1), at(3, 1), at(3, 2)]);
   const twice = new Uint8Array(25);
   twice[at(1, 1)] = twice[at(1, 4)] = L.STAR;
   assert.ok(!L.doneCells(d, twice).has(at(1, 2)) && L.doneCells(d, twice).has(at(0, 1)));
