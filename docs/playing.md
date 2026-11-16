@@ -56,7 +56,7 @@ Unter `/party` spielen mehrere Leute dieselben Runden, wahlweise:
 
 ## Einstellungen
 
-Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. Sie gelten in allen Spielmodi und werden im Browser gespeichert, also pro Gerät:
+Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. Sie gelten in allen Spielmodi und werden bei jeder Änderung sofort im Browser gespeichert, also pro Gerät; einen Speichern-Knopf gibt es nicht, ein kurzer Hinweis unten bestätigt jede Änderung:
 
 - **Nachbarn eines Sterns automatisch kreuzen:** Felder, auf denen wegen eines Sterns kein weiterer stehen kann, bekommen einen Punkt.
 - **Fat-Finger-Schutz:** Beim Ziehen wird nur in gerader Zeile oder Spalte gekreuzt. Auf Touchscreens ist er von Anfang an an.

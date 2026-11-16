@@ -69,10 +69,27 @@
     return a.slice(0, PREVIEW.length);
   }
 
+  // There is no save button: every change is stored at once, and a short
+  // notice says so. Restarting its fade-out on each change keeps it visible
+  // while the user keeps switching.
+  let savedTimer = 0;
+  function saved(text) {
+    const t = $("saved");
+    t.textContent = "✓ " + text;
+    t.classList.remove("shown");
+    void t.offsetWidth; // restart the fade-in
+    t.classList.add("shown");
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => t.classList.remove("shown"), 1800);
+  }
+
   // Play options (see L.pref): saved as soon as switched.
   for (const [k, id] of [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"], ["fadeDone", "fadedone"]]) {
     $(id).checked = L.pref(k);
-    $(id).onchange = () => L.setPref(k, $(id).checked);
+    $(id).onchange = () => {
+      L.setPref(k, $(id).checked);
+      saved($(id).checked ? "Eingeschaltet und gespeichert" : "Ausgeschaltet und gespeichert");
+    };
   }
 
   // The stored choice; refreshed from the catalog (e.g. a changed image), so
@@ -103,7 +120,8 @@
       if (!input.checked) return;
       L.saveMark(entry());
       current = id;
-      $("status").textContent = `„${name}“ gespeichert.`;
+      $("status").textContent = "";
+      saved(`„${name}“ gespeichert`);
       shown = specs();
       const next = preview(shown);
       box.replaceWith(next);

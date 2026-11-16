@@ -534,6 +534,16 @@ input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .symbol-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
 .symbol-text .muted { font-size: 12.5px; }
 .settings-status { min-height: 1.45em; margin: 0; font-size: 14px; color: var(--muted); }
+/* The notice after each change (settings.js saved), wherever the page is scrolled. */
+.saved-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 30; margin: 0; max-width: calc(100vw - 32px);
+  padding: 8px 16px; border-radius: 999px; background: var(--fg); color: var(--bg);
+  font-size: 14px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  opacity: 0; transform: translate(-50%, 8px); pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.saved-toast.shown { opacity: 1; transform: translate(-50%, 0); transition-duration: 0.12s; }
+@media (prefers-reduced-motion: reduce) { .saved-toast { transform: translate(-50%, 0); } }
 
 /* ---------- tutorial (/anleitung) ---------- */
 .tutorial-mode .board-frame { --size: min(440px, calc(100vw - 32px)); }
