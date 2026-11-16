@@ -193,7 +193,7 @@ async function obs(label, { random = false } = {}) {
     const t = (e) => e ? (e.hidden ? "[hidden] " : "") + e.textContent.trim().replace(/\\s+/g, " ") : null;
     const txt = (id) => t(document.getElementById(id));
     const btn = (id) => { const e = document.getElementById(id); return e ? id + ":" + (e.hidden ? "H" : "") + (e.disabled ? "D" : "") + ":" + e.textContent.trim().replace(/\\s+/g, " ") : id + ":-"; };
-    const cls = ["star", "cross", "auto", "hint", "bad", "hyp", "hyproot", "new", "dim", "goal", "refcell", "conflict", "remote"];
+    const cls = ["star", "cross", "auto", "hint", "bad", "hyp", "hyproot", "new", "dim", "goal", "refcell", "conflict", "remote", "done"];
     return {
       path: location.pathname + location.search + location.hash,
       body: document.body.className, board: q("#board") && q("#board").className,
@@ -446,8 +446,11 @@ const scenarios = {
     await click("#showproblems");
     await click(cell(d.solution[0] + 1), { shift: true });
     await obs("problems off");
+    await click("#fadedone");
+    await obs("fade done on");
     await click("#autocross");
     await click("#showproblems");
+    await click("#fadedone");
   },
 
   // Library: a hard puzzle without help (trace only once solved), a motif.

@@ -98,6 +98,20 @@ const Logic = (() => {
     return out;
   }
 
+  // Cells of the units (row, column, color) that have their one star, for the
+  // option "fadeDone". Empty once the board is solved: a fully faded board
+  // would only look washed out.
+  function doneCells(d, cells) {
+    const out = new Set();
+    if (solved(d, cells)) return out;
+    for (const u of units(d)) {
+      let stars = 0;
+      for (const i of u.cells) if (cells[i] === STAR) stars++;
+      if (stars === 1) for (const i of u.cells) out.add(i);
+    }
+    return out;
+  }
+
   // Star column per row (-1 for a row without a star), as the party server
   // takes a solution.
   function starColumns(d, cells) {
@@ -366,6 +380,7 @@ const Logic = (() => {
     autocross: { key: "starbattle.autocross", def: () => false },
     straight: { key: "starbattle.straight", def: () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches },
     showProblems: { key: "starbattle.showProblems", def: () => true },
+    fadeDone: { key: "starbattle.fadeDone", def: () => false },
   };
   function pref(name) {
     try {
@@ -544,7 +559,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;

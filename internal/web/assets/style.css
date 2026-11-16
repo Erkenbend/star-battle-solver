@@ -276,6 +276,14 @@ body:not(.watch) .board.hypothesis { outline: 2px dashed var(--hyp); outline-off
 :root[data-theme="dark"] .cell,
 :root[data-theme="dark"] .sw { background: hsl(var(--h) var(--ds) var(--dl)); }
 
+/* Units that have their star (option fadeDone): the same cells with less
+   color, so what is still open stands out on large boards. */
+.cell.done { background: hsl(var(--h) calc(var(--s) * 0.35) var(--l)); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cell.done { background: hsl(var(--h) calc(var(--ds) * 0.35) var(--dl)); }
+}
+:root[data-theme="dark"] .cell.done { background: hsl(var(--h) calc(var(--ds) * 0.35) var(--dl)); }
+
 /* Spotlight of one region while pointing at its swatch. */
 .board.spotting .cell:not(.spot)::after { background: var(--dim); }
 .board.spotting .cell.spot::after { box-shadow: inset 0 0 0 2px var(--fg); }

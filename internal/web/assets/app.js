@@ -134,6 +134,8 @@ function boot() {
     for (let i = 0; i < cellEls.length; i++) if (view.cells[i] === L.STAR && !cellEls[i].classList.contains("star")) fresh++;
     const play = drawnOnce && fresh <= 2;
     drawnOnce = true;
+    // Units with their star lose some color (option fadeDone).
+    const faded = prefs.fadeDone ? L.doneCells(d, view.cells) : new Set();
     for (let i = 0; i < cellEls.length; i++) {
       const e = cellEls[i], v = view.cells[i];
       const auto = view.auto && view.auto[i];
@@ -146,6 +148,7 @@ function boot() {
       e.classList.toggle("cross", v === L.CROSS && !auto);
       e.classList.toggle("auto", !!auto);
       for (const k of ["new", "hint", "bad", "refcell", "hyp", "hyproot"]) e.classList.toggle(k, !!(m[k] && m[k].has(i)));
+      e.classList.toggle("done", faded.has(i));
       // Cells outside the units named in the explanation are dimmed.
       e.classList.toggle("dim", !!(m.ref && m.ref.size && !m.ref.has(i)));
     }
@@ -275,10 +278,11 @@ function boot() {
   if (saved && Array.isArray(saved.marks) && saved.marks.length === n * n) marks = Uint8Array.from(saved.marks);
   // Options of this device (see L.pref), set on /einstellungen. A page saved
   // as a file cannot reach that page and shows them itself.
-  const prefs = { autocross: L.pref("autocross"), straight: L.pref("straight"), showProblems: L.pref("showProblems") };
-  if (tut) { // the steps cross by hand and rely on mistakes showing at once
+  const prefs = { autocross: L.pref("autocross"), straight: L.pref("straight"), showProblems: L.pref("showProblems"), fadeDone: L.pref("fadeDone") };
+  if (tut) { // the steps cross by hand, rely on mistakes showing at once and name colors
     prefs.autocross = false;
     prefs.showProblems = true;
+    prefs.fadeDone = false;
   }
 
   // Solving time and hints shown, saved with the marks. The clock runs only
@@ -689,12 +693,12 @@ function boot() {
   // column) from the start cell instead, redrawn as the finger moves, so a
   // slipping finger cannot hit neighbours. The setting is per device; it is
   // on by default for touch screens.
-  const OPTION_IDS = [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"]];
+  const OPTION_IDS = [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"], ["fadeDone", "fadedone"]];
   const onOff = (v) => (v ? "an" : "aus");
   function applyPrefs() {
     for (const [k, id] of OPTION_IDS) $(id).checked = prefs[k];
     $("options-state").textContent =
-      `Nachbarn kreuzen: ${onOff(prefs.autocross)} · Fat-Finger-Schutz: ${onOff(prefs.straight)} · Regelverstöße: ${onOff(prefs.showProblems)} · `;
+      `Nachbarn kreuzen: ${onOff(prefs.autocross)} · Fat-Finger-Schutz: ${onOff(prefs.straight)} · Regelverstöße: ${onOff(prefs.showProblems)} · Erledigtes blasser: ${onOff(prefs.fadeDone)} · `;
   }
   applyPrefs();
   if (!d.served) $("play-options").hidden = false;

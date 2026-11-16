@@ -70,7 +70,7 @@
   }
 
   // Play options (see L.pref): saved as soon as switched.
-  for (const [k, id] of [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"]]) {
+  for (const [k, id] of [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"], ["fadeDone", "fadedone"]]) {
     $(id).checked = L.pref(k);
     $(id).onchange = () => L.setPref(k, $(id).checked);
   }

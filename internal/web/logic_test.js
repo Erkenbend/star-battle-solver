@@ -126,6 +126,18 @@ for (const f of files) {
   assert.ok(L.problems(d, full).some((p) => p.msg === "Zeile 4 hat keinen Platz mehr für einen Stern"));
   assert.ok(L.problems(d, full).some((p) => p.msg === "Farbe E hat keinen Platz mehr für einen Stern") === false);
 
+  // Done units: a star on (0,0) finishes row 0, column 0 and region D; two
+  // stars in row 1 leave it unfinished (but their columns are done); a solved
+  // board fades nothing.
+  const done = L.doneCells(d, marks);
+  assert.deepEqual([...done].sort((a, b) => a - b), [at(0, 0), at(0, 1), at(0, 2), at(0, 3), at(0, 4), at(1, 0), at(1, 1), at(2, 0), at(2, 1), at(3, 0), at(3, 1), at(3, 2), at(4, 0)]);
+  const twice = new Uint8Array(25);
+  twice[at(1, 1)] = twice[at(1, 4)] = L.STAR;
+  assert.ok(!L.doneCells(d, twice).has(at(1, 2)) && L.doneCells(d, twice).has(at(0, 1)));
+  const sol = new Uint8Array(25);
+  d.solution.forEach((c, r) => (sol[at(r, c)] = L.STAR));
+  assert.equal(L.doneCells(d, sol).size, 0);
+
   // Mistakes against the solution (row 0 has its star in column 2).
   const wrong = new Uint8Array(25);
   wrong[at(0, 0)] = L.STAR;
