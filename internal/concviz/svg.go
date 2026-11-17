@@ -38,6 +38,7 @@ text{font:13px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fil
 .s-run{fill:var(--run)}.s-blk{fill:var(--blk)}.s-ext{fill:var(--ext)}.s-out{fill:var(--mut)}
 .ch{fill:var(--chbg);stroke:var(--ch);stroke-width:1.5}.sl{fill:none;stroke:var(--ch);stroke-dasharray:3 3;opacity:.6}.cv{fill:none;stroke:var(--ch);stroke-width:2}
 .cn{font-weight:700;font-size:12px;text-anchor:middle}.cm{fill:var(--mut);text-anchor:middle;font-size:10.5px}
+.cn,.cm{paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
 .cx{fill:var(--bg);stroke:var(--cls);stroke-width:2}.ct{fill:var(--cls);font-weight:700;text-anchor:middle}
 .bx{fill:var(--box);stroke:var(--ln);stroke-width:1.5}.bt{font-weight:600;font-size:12px}
 .k1{fill:var(--blkbg);stroke:var(--blk);stroke-width:1.5}.k0{fill:var(--runbg);stroke:var(--run);stroke-width:1.5}.kn{font-size:17px;font-weight:700;text-anchor:middle}
@@ -81,8 +82,9 @@ func (s *Story) Scene() []byte {
 	var out strings.Builder
 	w := func(format string, args ...any) { fmt.Fprintf(&out, format, args...) }
 
-	// Static: background, title, flows, frames of channels and boxes.
-	var static strings.Builder
+	// Static: background, title, flows, frames of channels and boxes. The
+	// channels' labels go above all flows (layer 0), with a halo.
+	var static, labels strings.Builder
 	sw := func(format string, args ...any) { fmt.Fprintf(&static, format, args...) }
 	sw(`<rect class="bg" width="%s" height="%s"/>`, num(s.W), num(s.H))
 	sw(`<text class="ti" x="20" y="30">%s</text>`, esc(s.Title))
@@ -134,8 +136,8 @@ func (s *Story) Scene() []byte {
 		case 'r':
 			nx, ny, mx, my, anchor = r.x+r.w+8, c.at.Y-3, r.x+r.w+8, c.at.Y+11, "start"
 		}
-		sw(`<text class="cn m" x="%s" y="%s" style="text-anchor:%s">%s</text>`, num(nx), num(ny), anchor, esc(c.name))
-		sw(`<text class="cm m" x="%s" y="%s" style="text-anchor:%s">%s</text>`, num(mx), num(my), anchor, esc(c.describe()))
+		fmt.Fprintf(&labels, `<text class="cn m" x="%s" y="%s" style="text-anchor:%s">%s</text>`, num(nx), num(ny), anchor, esc(c.name))
+		fmt.Fprintf(&labels, `<text class="cm m" x="%s" y="%s" style="text-anchor:%s">%s</text>`, num(mx), num(my), anchor, esc(c.describe()))
 	}
 	for _, b := range s.boxes {
 		r := b.r
@@ -217,6 +219,10 @@ func (s *Story) Scene() []byte {
 	for layer := range a.layers {
 		for _, v := range a.layers[layer] {
 			out.WriteString(v)
+			out.WriteString("\n")
+		}
+		if layer == 0 {
+			out.WriteString(labels.String())
 			out.WriteString("\n")
 		}
 	}

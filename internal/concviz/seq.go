@@ -29,7 +29,7 @@ text{font:11px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fil
 .lc{stroke:var(--ch);stroke-width:1.5}.lx{stroke:var(--cls);stroke-width:2}.lk{stroke:var(--ln);stroke-width:1.5;stroke-dasharray:2 3}
 .end{stroke:var(--fg);stroke-width:2.5}
 .av{stroke:var(--tok);stroke-width:1.8;fill:none}.ac{stroke:var(--cls);stroke-width:1.8;fill:none}.acd{stroke:var(--cls);stroke-width:1.5;fill:none;stroke-dasharray:4 3}.as{stroke:var(--mut);stroke-width:1.5;fill:none;stroke-dasharray:4 3}
-.buf{fill:var(--tok);opacity:.35}.dot{fill:var(--tok)}
+.buf{fill:var(--tok);opacity:.35}.held{fill:var(--mut);opacity:.35}.dot{fill:var(--tok)}
 .lab{text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3px}.tv{fill:var(--tok)}.tc{fill:var(--cls)}.ts{fill:var(--mut)}
 .bl{fill:var(--blk);paint-order:stroke;stroke:var(--bg);stroke-width:3px}.no{fill:var(--mut);font-style:italic;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
 .k1{fill:var(--blkbg);stroke:var(--blk);stroke-width:1.5}.k0{fill:var(--runbg);stroke:var(--run);stroke-width:1.5}.kn{font-weight:700;text-anchor:middle;font-size:12px}
@@ -44,8 +44,15 @@ func (s *Story) Sequence() []byte {
 	for _, g := range s.gs {
 		cols = append(cols, g)
 	}
+	// Channels no event touches are left out (they show in what a blocked
+	// goroutine waits on).
 	for _, c := range s.cs {
-		cols = append(cols, c)
+		if slices.ContainsFunc(s.rows, func(r row) bool {
+			e := r.ev
+			return e != nil && (e.from == node(c) || e.to == node(c) || e.via == node(c))
+		}) {
+			cols = append(cols, c)
+		}
 	}
 	for _, r := range s.rows {
 		if e := r.ev; e != nil {
@@ -87,8 +94,9 @@ func (s *Story) Sequence() []byte {
 	}
 	bands[len(bands)-1].bot = y
 	bottom := y + 6
-	w := sqGutter + sqCol*float64(len(cols)) + 12
-	h := bottom + sqFoot
+	w := max(sqGutter+sqCol*float64(len(cols))+12, 32+float64(len([]rune(s.Title)))*8.6)
+	legend, legendH := s.seqLegend(bottom+28, w)
+	h := bottom + sqFoot + legendH
 
 	var b strings.Builder
 	p := func(format string, a ...any) { fmt.Fprintf(&b, format, a...) }
@@ -180,29 +188,44 @@ func (s *Story) Sequence() []byte {
 		if r.x0 < sqGutter || r.x1 > w-4 {
 			return false
 		}
+		const gap = 6 // between labels side by side
 		for _, t := range taken {
-			if r.x0 < t.x1 && t.x0 < r.x1 && r.y0 < t.y1 && t.y0 < r.y1 {
+			if r.x0 < t.x1+gap && t.x0 < r.x1+gap && r.y0 < t.y1+3 && t.y0 < r.y1+3 {
 				return false
 			}
 		}
 		return true
 	}
 	var labels strings.Builder
+	// place puts a label of one or more lines (separated by \n).
 	place := func(cls string, cx, y float64, text string, charW float64) {
-		tw := float64(len([]rune(text))) * charW
+		lines := strings.Split(text, "\n")
+		tw := 0.0
+		for _, l := range lines {
+			tw = max(tw, float64(len([]rune(l)))*charW)
+		}
+		th := float64(len(lines)-1) * 12
 		x0, anchor, y0 := cx+6, "start", y
 		found := false
-		for k := 0; k < 4 && !found; k++ {
+		for k := 0; k < 6 && !found; k++ {
 			yy := y + float64(k)*12
-			if r := (area{cx + 6, yy - 9, cx + 6 + tw, yy + 3}); free(r) {
+			if r := (area{cx + 6, yy - 9, cx + 6 + tw, yy + 3 + th}); free(r) {
 				x0, anchor, y0, found = cx+6, "start", yy, true
 				taken = append(taken, r)
-			} else if r := (area{cx - 6 - tw, yy - 9, cx - 6, yy + 3}); free(r) {
+			} else if r := (area{cx - 6 - tw, yy - 9, cx - 6, yy + 3 + th}); free(r) {
 				x0, anchor, y0, found = cx-6, "end", yy, true
 				taken = append(taken, r)
 			}
 		}
-		fmt.Fprintf(&labels, `<text class="%s" x="%s" y="%s" style="text-anchor:%s">%s</text>`, cls, num(x0), num(y0), anchor, esc(text))
+		fmt.Fprintf(&labels, `<text class="%s" x="%s" y="%s" style="text-anchor:%s">`, cls, num(x0), num(y0), anchor)
+		for i, l := range lines {
+			if i == 0 {
+				fmt.Fprintf(&labels, `<tspan>%s</tspan>`, esc(l))
+			} else {
+				fmt.Fprintf(&labels, `<tspan x="%s" dy="12">%s</tspan>`, num(x0), esc(l))
+			}
+		}
+		labels.WriteString(`</text>`)
 	}
 
 	// Events, first: their labels take their places before the free ones.
@@ -275,7 +298,7 @@ func (s *Story) Sequence() []byte {
 			} else if e.to != nil {
 				arrow("as", "s", e.from, e.to, y, e.label, "ts")
 			}
-		case evWake:
+		case evWake, evLock, evUnlock:
 			arrow("as", "s", e.from, e.to, y, e.label, "ts")
 		}
 	}
@@ -355,19 +378,44 @@ func (s *Story) Sequence() []byte {
 		p(`<rect class="buf" x="%s" y="%s" width="10" height="%s" rx="5"/>`, num(cx-5), num(ys[i]-5), num(end-ys[i]+10))
 	}
 	b.WriteString(evs.String())
+	// A held mutex: a bar on its column from Lock (or Lock returns) to Unlock.
+	for i, r := range s.rows {
+		e := r.ev
+		var m node
+		switch {
+		case e == nil:
+		case e.kind == evLock:
+			m = e.to
+		case e.kind == evWake && e.label == "Lock returns":
+			m = e.from
+		}
+		if m == nil {
+			continue
+		}
+		end := bottom
+		for j := i + 1; j < len(s.rows); j++ {
+			if f := s.rows[j].ev; f != nil && f.kind == evUnlock && f.to == m {
+				end = ys[j]
+				break
+			}
+		}
+		cx := x(m)
+		p(`<rect class="held" x="%s" y="%s" width="10" height="%s" rx="2"/>`, num(cx-5), num(ys[i]), num(end-ys[i]))
+	}
 	b.WriteString(counters.String())
 	b.WriteString(labels.String())
 	p("\n")
-	p("%s", s.seqLegend(bottom+28))
+	p("%s", legend)
 	p("\n</svg>\n")
 	return []byte(b.String())
 }
 
-// waitsOn shortens a blocked status to what the goroutine waits on.
+// waitsOn shortens a blocked status to what the goroutine waits on; a long
+// select keeps its two lines.
 func waitsOn(status string) string {
 	st := strings.TrimPrefix(status, "blocked: ")
 	if rest, ok := strings.CutPrefix(st, "blocked in select:\n"); ok {
-		return "select " + rest
+		st = "select " + rest
 	}
 	return st
 }
@@ -389,31 +437,54 @@ func wrapHead(name string) []string {
 	return lines
 }
 
-func (s *Story) seqLegend(y float64) string {
+// seqLegend draws the legend from y on, in lines no wider than width, and
+// returns it with the height it adds beyond its first line.
+func (s *Story) seqLegend(y, width float64) (string, float64) {
 	var b strings.Builder
-	x := 16.0
-	item := func(shape string, w float64, label string) {
-		b.WriteString(shape)
-		fmt.Fprintf(&b, `<text class="mu" x="%s" y="%s">%s</text>`, num(x+w+6), num(y+4), label)
-		x += w + 6 + float64(len(label))*5.6 + 18
-	}
-	line := func(cls, mk string) string {
-		m := ""
-		if mk != "" {
-			m = ` marker-end="url(#a` + mk + `)"`
+	x, y0 := 16.0, y
+	item := func(label string, shape func() string) {
+		w := 30 + float64(len([]rune(label)))*5.6
+		if x > 16 && x+w > width-8 {
+			x, y = 16, y+20
 		}
-		return fmt.Sprintf(`<line class="%s" x1="%s" y1="%s" x2="%s" y2="%s"%s/>`, cls, num(x), num(y), num(x+24), num(y), m)
+		b.WriteString(shape())
+		fmt.Fprintf(&b, `<text class="mu" x="%s" y="%s">%s</text>`, num(x+30), num(y+4), label)
+		x += w + 18
 	}
-	item(line("lr", ""), 24, "running")
-	item(line("lb", ""), 24, "blocked, waiting on …")
-	item(fmt.Sprintf(`<line class="end" x1="%s" y1="%s" x2="%s" y2="%s"/>`, num(x+4), num(y), num(x+20), num(y)), 24, "returns")
-	item(line("av", "v"), 24, "value")
-	item(fmt.Sprintf(`<rect class="buf" x="%s" y="%s" width="24" height="10" rx="5"/>`, num(x), num(y-5)), 24, "in a buffer")
-	item(line("ac", "c"), 24, "close")
-	item(line("as", "s"), 24, "go, done, Wait returns")
+	line := func(cls, mk string) func() string {
+		return func() string {
+			m := ""
+			if mk != "" {
+				m = ` marker-end="url(#a` + mk + `)"`
+			}
+			return fmt.Sprintf(`<line class="%s" x1="%s" y1="%s" x2="%s" y2="%s"%s/>`, cls, num(x), num(y), num(x+24), num(y), m)
+		}
+	}
+	item("running", line("lr", ""))
+	item("blocked, waiting on …", line("lb", ""))
+	item("returns", func() string {
+		return fmt.Sprintf(`<line class="end" x1="%s" y1="%s" x2="%s" y2="%s"/>`, num(x+4), num(y), num(x+20), num(y))
+	})
+	item("value", line("av", "v"))
+	item("in a buffer", func() string {
+		return fmt.Sprintf(`<rect class="buf" x="%s" y="%s" width="24" height="10" rx="5"/>`, num(x), num(y-5))
+	})
+	item("close", line("ac", "c"))
+	if slices.ContainsFunc(s.rows, func(r row) bool { return r.ev != nil && r.ev.kind == evLock }) {
+		item("mutex held", func() string {
+			return fmt.Sprintf(`<rect class="held" x="%s" y="%s" width="24" height="10" rx="2"/>`, num(x), num(y-5))
+		})
+	}
+	arrows := "go, done, Wait returns"
+	if slices.ContainsFunc(s.rows, func(r row) bool { return r.ev != nil && r.ev.kind == evLock }) {
+		arrows = "go, done, Lock, Unlock, Lock returns"
+	}
+	item(arrows, line("as", "s"))
 	if slices.ContainsFunc(s.boxes, func(b *Box) bool { return b.wg }) {
-		item(fmt.Sprintf(`<rect class="k1" x="%s" y="%s" width="24" height="16" rx="8"/><text class="kn" x="%s" y="%s">1</text>`,
-			num(x), num(y-8), num(x+12), num(y+4)), 24, "WaitGroup counter")
+		item("WaitGroup counter", func() string {
+			return fmt.Sprintf(`<rect class="k1" x="%s" y="%s" width="24" height="16" rx="8"/><text class="kn" x="%s" y="%s">1</text>`,
+				num(x), num(y-8), num(x+12), num(y+4))
+		})
 	}
-	return b.String()
+	return b.String(), y - y0
 }

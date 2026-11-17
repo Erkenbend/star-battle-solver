@@ -24,6 +24,7 @@ const (
 	needSelect                 // a select with exactly these cases, and a default or not
 	needCall                   // a call of one of codes, e.g. "wg.Wait"
 	needGo                     // a go statement
+	needAssign                 // an assignment to one of codes, e.g. "hyps[i]"
 )
 
 // need is a claim of a story about the code: some function among fns
@@ -80,21 +81,25 @@ func (n need) String() string {
 		return fns + " calls " + on
 	case needGo:
 		return fns + " has a go statement"
+	case needAssign:
+		return fns + " assigns to " + on
 	}
 	return "?"
 }
 
 // Source is the parsed code of the module, by function: "pkg.Func" or
-// "pkg.Type.Method", pkg being the package name.
+// "pkg.Type.Method", pkg being the package name. A package-level variable
+// "pkg.name" counts as a function whose body is its declaration, so a
+// channel made there can be claimed like one made in a function.
 type Source struct {
-	funcs map[string]*ast.FuncDecl
+	funcs map[string]ast.Node
 	dup   map[string]bool
 }
 
 // LoadSource parses the Go files of fsys (the module root), without tests and
 // testdata.
 func LoadSource(fsys fs.FS) (*Source, error) {
-	src := &Source{funcs: map[string]*ast.FuncDecl{}, dup: map[string]bool{}}
+	src := &Source{funcs: map[string]ast.Node{}, dup: map[string]bool{}}
 	fset := token.NewFileSet()
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -118,7 +123,21 @@ func LoadSource(fsys fs.FS) (*Source, error) {
 		if err != nil {
 			return err
 		}
+		add := func(key string, n ast.Node) {
+			if _, ok := src.funcs[key]; ok {
+				src.dup[key] = true
+			}
+			src.funcs[key] = n
+		}
 		for _, decl := range f.Decls {
+			if gd, ok := decl.(*ast.GenDecl); ok && gd.Tok == token.VAR {
+				for _, sp := range gd.Specs {
+					for _, name := range sp.(*ast.ValueSpec).Names {
+						add(f.Name.Name+"."+name.Name, sp)
+					}
+				}
+				continue
+			}
 			fd, ok := decl.(*ast.FuncDecl)
 			if !ok || fd.Body == nil {
 				continue
@@ -127,10 +146,7 @@ func LoadSource(fsys fs.FS) (*Source, error) {
 			if fd.Recv != nil && len(fd.Recv.List) == 1 {
 				key = f.Name.Name + "." + recvName(fd.Recv.List[0].Type) + "." + fd.Name.Name
 			}
-			if _, ok := src.funcs[key]; ok {
-				src.dup[key] = true
-			}
-			src.funcs[key] = fd
+			add(key, fd.Body)
 		}
 		return nil
 	})
@@ -163,7 +179,7 @@ func (s *Story) Check(src *Source) []error {
 }
 
 func (src *Source) check(n need) error {
-	var bodies []*ast.FuncDecl
+	var bodies []ast.Node
 	for _, f := range n.fns {
 		fd, ok := src.funcs[f]
 		if !ok {
@@ -180,7 +196,7 @@ func (src *Source) check(n need) error {
 	var hint string // what was found instead, for make
 	for _, fd := range bodies {
 		found := false
-		ast.Inspect(fd.Body, func(x ast.Node) bool {
+		ast.Inspect(fd, func(x ast.Node) bool {
 			if found {
 				return false
 			}
@@ -270,6 +286,10 @@ func (n need) matches(x ast.Node) (bool, string) {
 	case needGo:
 		_, ok := x.(*ast.GoStmt)
 		return ok, ""
+	case needAssign:
+		if x, ok := x.(*ast.AssignStmt); ok {
+			return slices.ContainsFunc(x.Lhs, is), ""
+		}
 	case needSelect:
 		if x, ok := x.(*ast.SelectStmt); ok {
 			return n.selectMatches(x), ""

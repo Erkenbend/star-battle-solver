@@ -21,7 +21,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;padding:16p
 #clock{font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--mut);min-width:90px;text-align:right}
 .hint{color:var(--mut);font-size:12px;margin:4px 0}
 aside{display:flex;flex-direction:column;min-height:0;max-height:70vh}
-@media (min-width:1151px){aside{position:sticky;top:16px;align-self:start;max-height:calc(100vh - 90px)}}
+@media (min-width:1151px){aside{position:sticky;top:16px;align-self:start;max-height:calc(100vh - var(--head,55px) - 35px)}}
 aside h2{font-size:14px;margin:0 0 6px}
 ol{margin:0;padding-left:30px;overflow-y:auto;min-height:0}
 li{padding:5px 8px;border-radius:6px;cursor:pointer}
@@ -147,7 +147,7 @@ function load(id) {
   // Page styles do not reach into the shadow root: the scene gets its own.
   // As wide as the column, as high as the window allows with the controls
   // still in view; the drawing is centred in whatever remains.
-  root.innerHTML = "<style>svg{display:block;width:100%;height:auto;max-height:calc(100vh - 170px)}</style>" + story.svg;
+  root.innerHTML = "<style>svg{display:block;width:100%;height:auto;max-height:calc(100vh - var(--head,55px) - 115px)}</style>" + story.svg;
   anims = root.getAnimations();
   for (const a of anims) {
     a.pause();
@@ -198,6 +198,9 @@ addEventListener("keydown", (e) => {
   e.preventDefault();
 });
 addEventListener("hashchange", () => load(location.hash.slice(1)));
+// The header's height (the tabs may wrap) sets how high scene and list may be.
+new ResizeObserver(([e]) => document.documentElement.style.setProperty("--head", e.target.offsetHeight + "px"))
+  .observe(document.querySelector("header"));
 load(location.hash.slice(1));
 </script>
 </body>

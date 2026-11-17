@@ -129,6 +129,48 @@ func Run(n int) {
 	}
 }
 
+// TestCheckFindsDriftVarsAndWrites covers channels made in a package-level
+// var and results written by index.
+func TestCheckFindsDriftVarsAndWrites(t *testing.T) {
+	src, err := LoadSource(fstest.MapFS{"q/q.go": {Data: []byte(`package q
+
+var slots = make(chan struct{}, 4)
+
+func Run(res []int) {
+	slots <- struct{}{}
+	res[0] = 1
+	<-slots
+}
+`)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	story := func(capExpr, lhs string) *Story {
+		s := newStory("test.svg", "test", "q/q.go", 400, 300)
+		g := s.Main("g", Pt{50, 50}, "q.Run")
+		c := s.Chan("slots", "struct{}", 1, Pt{100, 100}, 1, "slots").Made("q.slots", capExpr)
+		b := s.Box("res", Pt{200, 200}, 100, 40)
+		s.Step("")
+		g.Send(c, "{}")
+		g.Write(b, lhs, "1")
+		g.Recv(c)
+		return s
+	}
+	for _, tc := range []struct {
+		name  string
+		story *Story
+		errs  int
+	}{
+		{"matches", story("4", "res[0]"), 0},
+		{"capacity", story("8", "res[0]"), 1},
+		{"write elsewhere", story("4", "res[1]"), 1},
+	} {
+		if errs := tc.story.Check(src); len(errs) != tc.errs {
+			t.Errorf("%s: %d errors, want %d: %v", tc.name, len(errs), tc.errs, errs)
+		}
+	}
+}
+
 // TestChannelModel checks the model's semantics on small scripts.
 func TestChannelModel(t *testing.T) {
 	scene := func() (*Story, *G, *G, *G) {
@@ -197,4 +239,19 @@ func TestChannelModel(t *testing.T) {
 	if b.st != running {
 		t.Errorf("wg.Wait after the last Exit: b %s", b.st)
 	}
+
+	s, a, b, c = scene()
+	mu := s.Mutex(Pt{100, 100}, "mu")
+	a.Lock(mu)
+	b.Lock(mu) // held by a: blocks
+	c.Lock(mu)
+	if b.st != blocked || c.st != blocked {
+		t.Errorf("Lock of a held mutex: b %s, c %s", b.st, c.st)
+	}
+	a.Unlock(mu) // the first waiter gets it
+	if b.st != running || c.st != blocked || mu.holder != b {
+		t.Errorf("Unlock: b %s, c %s, holder %v", b.st, c.st, mu.holder)
+	}
+	mustPanic("Unlock by another goroutine", func() { a.Unlock(mu) })
+	mustPanic("Lock twice", func() { b.Lock(mu) })
 }

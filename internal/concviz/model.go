@@ -109,7 +109,7 @@ func (s *Story) Step(caption string) {
 func (s *Story) end() *Story {
 	s.Step("")
 	for _, g := range s.gs {
-		if !g.outside && (g.st == running || g.st == blocked) {
+		if !g.outside && !g.background && (g.st == running || g.st == blocked) {
 			s.fail("%s is still %s at the end", g.name, g.st)
 		}
 	}
@@ -136,7 +136,9 @@ const (
 	evTake                  // to takes a value from box from
 	evNote                  // something happens at from, e.g. a default case
 	evExit                  // from returns; to is its WaitGroup, if any
-	evWake                  // the WaitGroup from lets to's Wait return
+	evWake                  // the WaitGroup or mutex from lets to's Wait or Lock return
+	evLock                  // from locks the mutex to
+	evUnlock                // from unlocks the mutex to
 )
 
 type event struct {
@@ -188,16 +190,17 @@ func (st state) String() string {
 
 // G is a goroutine.
 type G struct {
-	s       *Story
-	name    string
-	fns     []string // functions its code is in, as "pkg.Func" or "pkg.Type.Method"
-	at      Pt
-	outside bool // stands for something outside the code (a signal, a browser)
-	st      state
-	status  string
-	hand    []*Tok
-	w       *waiter // what it is blocked on
-	wg      *WG     // started by this WaitGroup's Go
+	s          *Story
+	name       string
+	fns        []string // functions its code is in, as "pkg.Func" or "pkg.Type.Method"
+	at         Pt
+	outside    bool // stands for something outside the code (a signal, a browser)
+	background bool // runs as long as the process: may be left running or blocked
+	st         state
+	status     string
+	hand       []*Tok
+	w          *waiter // what it is blocked on
+	wg         *WG     // started by this WaitGroup's Go
 }
 
 func (s *Story) addG(name string, at Pt, fns []string, st state, outside bool) *G {
@@ -223,6 +226,13 @@ func (s *Story) Main(name string, at Pt, fns ...string) *G {
 // Go is a goroutine started later (Spawn, WG.Go or Arrive).
 func (s *Story) Go(name string, at Pt, fns ...string) *G {
 	return s.addG(name, at, fns, hidden, false)
+}
+
+// Background marks g as running for the life of the process (e.g. a
+// queue's consumer): it may still run or wait when the story ends.
+func (g *G) Background() *G {
+	g.background = true
+	return g
 }
 
 // Outside is an actor outside the code shown, e.g. Ctrl-C or a browser.
@@ -536,6 +546,7 @@ type waiter struct {
 	toks  []*Tok // the value of each send case
 	rng   bool   // a range loop
 	wg    *WG
+	mu    *Mutex
 }
 
 func (s *Story) need(n need) {
@@ -685,7 +696,7 @@ func (g *G) sel(cases []Case, dflt, rng bool, op string) int {
 		for _, k := range cases {
 			ks = append(ks, k.String())
 		}
-		g.setStatus("blocked in select:\n" + strings.Join(ks, " | "))
+		g.setStatus(selectStatus(ks))
 	case rng:
 		g.setStatus("blocked: range " + cases[0].c.name)
 	default:
@@ -693,6 +704,26 @@ func (g *G) sel(cases []Case, dflt, rng bool, op string) int {
 	}
 	s.logf("%s: %s → blocks", g, op)
 	return -1
+}
+
+// selectStatus is the status of a goroutine blocked in a select with cases
+// ks: "blocked in select:" and the cases if they fit on one line, else the
+// cases alone, as "select …", over two lines.
+func selectStatus(ks []string) string {
+	if one := strings.Join(ks, " | "); len([]rune(one)) <= maxStatus {
+		return "blocked in select:\n" + one
+	}
+	lines := []string{"select " + ks[0]}
+	for _, k := range ks[1:] {
+		last := &lines[len(lines)-1]
+		if len([]rune(*last+" | "+k)) <= maxStatus {
+			*last += " | " + k
+		} else {
+			*last += " |"
+			lines = append(lines, k)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // fire runs case i of w, which is ready, for the running goroutine w.g, and
@@ -782,6 +813,9 @@ func (s *Story) wake(w *waiter, c *C, status string) {
 	if w.wg != nil {
 		w.wg.waiters = slices.DeleteFunc(w.wg.waiters, func(x *waiter) bool { return x == w })
 	}
+	if w.mu != nil {
+		w.mu.waiters = slices.DeleteFunc(w.mu.waiters, func(x *waiter) bool { return x == w })
+	}
 	for i, t := range w.toks {
 		if t != nil && t.holder == w.g && (c == nil || w.cases[i].c != c) {
 			t.vanish()
@@ -853,6 +887,17 @@ func (g *G) Store(b *Box, lines ...string) {
 	g.s.logf("%s: %s: %s", g, b.title, strings.Join(lines, ", "))
 }
 
+// Write puts a value labelled label from g into b by assigning to lhs (e.g.
+// "hyps[i]"), and sets b to lines.
+func (g *G) Write(b *Box, lhs, label string, lines ...string) {
+	g.live("write")
+	g.req(need{kind: needAssign, codes: []string{lhs}})
+	g.s.ev(event{kind: evGive, from: g, to: b, label: label})
+	g.s.bornInHand(g, label).vanish(b.r.center())
+	b.Set(lines...)
+	g.s.logf("%s: %s = %s → %s: %s", g, lhs, label, b.title, strings.Join(lines, ", "))
+}
+
 // Drop throws away what g holds.
 func (g *G) Drop(status string) {
 	g.live("drop")
@@ -915,6 +960,90 @@ func (g *G) Wait(wg *WG) {
 	g.w, g.st = w, blocked
 	g.setStatus("blocked: wg.Wait()")
 	g.s.logf("%s: %s.Wait() → blocks, counter %d", g, wg.codes[0], wg.n)
+}
+
+// Mutex is a sync.Mutex. Its box shows who holds it and who waits.
+type Mutex struct {
+	box     *Box
+	codes   []string
+	holder  *G
+	waiters []*waiter
+}
+
+// Mutex adds a sync.Mutex that the code calls codes (e.g. "pm.mu").
+func (s *Story) Mutex(at Pt, codes ...string) *Mutex {
+	m := &Mutex{box: s.Box(codes[0]+" (sync.Mutex)", at, 190, 56), codes: codes}
+	m.show()
+	return m
+}
+
+func (m *Mutex) show() {
+	if m.holder == nil {
+		m.box.Set("free")
+		return
+	}
+	l := []string{"held by " + m.holder.name}
+	if len(m.waiters) > 0 {
+		var ws []string
+		for _, w := range m.waiters {
+			ws = append(ws, w.g.name)
+		}
+		l = append(l, "waiting: "+strings.Join(ws, ", "))
+	}
+	m.box.Set(l...)
+}
+
+func (m *Mutex) calls(method string) need {
+	n := need{kind: needCall}
+	for _, c := range m.codes {
+		n.codes = append(n.codes, c+"."+method)
+	}
+	return n
+}
+
+// Lock is "mu.Lock()": it blocks while another goroutine holds m.
+func (g *G) Lock(m *Mutex) {
+	g.live("Lock")
+	g.req(m.calls("Lock"))
+	name := m.codes[0]
+	if m.holder == g {
+		g.s.fail("%s: Lock of %s, which it holds already", g.name, name)
+	}
+	if m.holder == nil {
+		g.s.ev(event{kind: evLock, from: g, to: m.box, label: "Lock"})
+		m.holder = g
+		m.show()
+		g.s.logf("%s: %s.Lock() → holds it", g, name)
+		return
+	}
+	w := &waiter{g: g, mu: m}
+	m.waiters = append(m.waiters, w)
+	g.w, g.st = w, blocked
+	g.setStatus("blocked: " + name + ".Lock()")
+	m.show()
+	g.s.logf("%s: %s.Lock() → blocks, %s holds it", g, name, m.holder)
+}
+
+// Unlock is "mu.Unlock()": the first waiter, if any, gets the lock.
+func (g *G) Unlock(m *Mutex) {
+	g.live("Unlock")
+	g.req(m.calls("Unlock"))
+	name := m.codes[0]
+	if m.holder != g {
+		g.s.fail("%s: Unlock of %s, which it does not hold", g.name, name)
+	}
+	g.s.ev(event{kind: evUnlock, from: g, to: m.box, label: "Unlock"})
+	m.holder = nil
+	if len(m.waiters) > 0 {
+		w := m.waiters[0]
+		g.s.ev(event{kind: evWake, from: m.box, to: w.g, label: "Lock returns"})
+		g.s.wake(w, nil, "holds "+name)
+		m.holder = w.g
+		g.s.logf("%s: %s.Unlock() → %s gets the lock and wakes up", g, name, w.g)
+	} else {
+		g.s.logf("%s: %s.Unlock()", g, name)
+	}
+	m.show()
 }
 
 // Once is a sync.Once.
@@ -995,6 +1124,9 @@ func (s *Story) capture() frame {
 		}
 		if g.w.wg != nil {
 			f.waits = append(f.waits, waitEdge{i, g.w.wg.box.r})
+		}
+		if g.w.mu != nil {
+			f.waits = append(f.waits, waitEdge{i, g.w.mu.box.r})
 		}
 		for _, k := range g.w.cases {
 			e := waitEdge{i, k.c.bounds()}
