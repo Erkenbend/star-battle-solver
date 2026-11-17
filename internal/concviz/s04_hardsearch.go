@@ -6,21 +6,21 @@ package concviz
 // caller's range.
 func hardsearchStory() *Story {
 	s := newStory("04-hardsearch-pipeline.svg", "4. Hard puzzle search: ordered pipeline, cancellation",
-		"internal/hardsearch/hardsearch.go", 1010, 600)
+		"internal/hardsearch/hardsearch.go", 1280, 600)
 
-	caller := s.Main("caller", Pt{885, 210}, "hardsearch.Search")
+	caller := s.Main("caller", Pt{1150, 210}, "hardsearch.Search")
 	prod := s.Go("producer", Pt{130, 210}, "hardsearch.Search")
-	w1 := s.Go("worker 1", Pt{510, 105}, "hardsearch.Search", "hardsearch.check")
-	w2 := s.Go("worker 2", Pt{510, 315}, "hardsearch.Search", "hardsearch.check")
-	closer := s.Go("closer", Pt{680, 440}, "hardsearch.Search")
+	w1 := s.Go("worker 1", Pt{643, 105}, "hardsearch.Search", "hardsearch.check")
+	w2 := s.Go("worker 2", Pt{643, 315}, "hardsearch.Search", "hardsearch.check")
+	closer := s.Go("closer", Pt{873, 440}, "hardsearch.Search")
 	sig := s.Outside("Ctrl-C", Pt{130, 440})
 
-	jobs := s.Chan("jobs", "uint64", 0, Pt{320, 210}, +1, "jobs").Made("hardsearch.Search", "")
-	results := s.Chan("results", "Found", 0, Pt{710, 210}, +1, "results").Made("hardsearch.Search", "")
-	done := s.Chan("ctx.Done()", "struct{}", 0, Pt{320, 440}, -1, "ctx.Done()").Labels('b').Outside("closed by cancel()")
-	wg := s.WaitGroup(Pt{465, 440}, "wg")
-	pending := s.Box("reorder buffer", Pt{900, 345}, 180, 50, "next 10, pending –")
-	emitted := s.Box("emit, in seed order", Pt{900, 440}, 180, 50, "–")
+	jobs := s.Chan("jobs", "uint64", 0, Pt{387, 210}, +1, "jobs").Made("hardsearch.Search", "")
+	results := s.Chan("results", "Found", 0, Pt{913, 210}, +1, "results").Made("hardsearch.Search", "")
+	done := s.Chan("ctx.Done()", "struct{}", 0, Pt{387, 440}, -1, "ctx.Done()").Labels('b').Outside("closed by cancel()")
+	wg := s.WaitGroup(Pt{582, 440}, "wg")
+	pending := s.Box("reorder buffer", Pt{1170, 345}, 180, 50, "next 10, pending –")
+	emitted := s.Box("emit, in seed order", Pt{1170, 440}, 180, 50, "–")
 
 	s.Flow(prod, jobs)
 	s.Flow(jobs, w1)

@@ -6,22 +6,22 @@ package concviz
 // its request's context.
 func libraryStory() *Story {
 	s := newStory("08-library-future.svg", "8. Lazy solving of library puzzles: a future from sync.Once and close",
-		"internal/web/library.go", 980, 720)
+		"internal/web/library.go", 1280, 720)
 
 	pageFns := []string{"web.libraryRoutes", "web.Library.data", "web.libEntry.done", "web.Library.start"}
 	weg := []string{"web.libraryRoutes", "web.Library.start"}
 	p1 := s.Go("page #1", Pt{130, 400}, pageFns...)
-	w1 := s.Go("/weg #1", Pt{370, 400}, weg...)
-	w2 := s.Go("/weg #2", Pt{610, 400}, weg...)
-	p3 := s.Go("page #3", Pt{850, 400}, pageFns...)
-	solver := s.Go("solver", Pt{490, 110}, "web.Library.start")
+	w1 := s.Go("/weg #1", Pt{470, 400}, weg...)
+	w2 := s.Go("/weg #2", Pt{810, 400}, weg...)
+	p3 := s.Go("page #3", Pt{1150, 400}, pageFns...)
+	solver := s.Go("solver", Pt{640, 110}, "web.Library.start")
 	tab := s.Outside("visitor 1", Pt{130, 545})
 
 	once := s.Once(Pt{150, 110}, "e.once")
-	fields := s.Box("e.sol, e.res, e.err", Pt{820, 110}, 190, 44, "not set")
-	ready := s.Chan("e.ready", "struct{}", 0, Pt{490, 255}, +1, "e.ready").Labels('r').Made("web.loadLibrary", "")
-	ctx1 := s.Chan("r.Context().Done()", "struct{}", 0, Pt{370, 545}, -1, "r.Context().Done()").Labels('b').Outside("request of visitor 1")
-	ctx2 := s.Chan("r.Context().Done()", "struct{}", 0, Pt{610, 545}, -1, "r.Context().Done()").Labels('b').Outside("request of visitor 2")
+	fields := s.Box("e.sol, e.res, e.err", Pt{1108, 110}, 190, 44, "not set")
+	ready := s.Chan("e.ready", "struct{}", 0, Pt{640, 255}, +1, "e.ready").Labels('r').Made("web.loadLibrary", "")
+	ctx1 := s.Chan("r.Context().Done()", "struct{}", 0, Pt{470, 545}, -1, "r.Context().Done()").Labels('b').Outside("request of visitor 1")
+	ctx2 := s.Chan("r.Context().Done()", "struct{}", 0, Pt{810, 545}, -1, "r.Context().Done()").Labels('b').Outside("request of visitor 2")
 
 	s.Flow(solver, fields)
 	s.Flow(solver, ready)

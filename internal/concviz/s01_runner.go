@@ -6,19 +6,19 @@ package concviz
 // close(quit) and wg.Wait.
 func runnerStory() *Story {
 	s := newStory("01-concurrent-runner.svg", "1. Concurrent rule runner: actors, mailboxes, quiescence",
-		"internal/solver/concurrent.go", 960, 640)
+		"internal/solver/concurrent.go", 1280, 640)
 
 	runner := s.Main("runner", Pt{140, 300}, "solver.RunConcurrent", "solver.mailbox.put")
-	a := s.Go("observer A (level 1)", Pt{830, 125}, "solver.runObserver", "solver.mailbox.take")
-	b := s.Go("observer B (level 3)", Pt{830, 475}, "solver.runObserver", "solver.mailbox.take")
+	a := s.Go("observer A (level 1)", Pt{1141, 125}, "solver.runObserver", "solver.mailbox.take")
+	b := s.Go("observer B (level 3)", Pt{1141, 475}, "solver.runObserver", "solver.mailbox.take")
 
 	state := s.Box("runner state", Pt{140, 125}, 226, 82, "version 0", "pending: –", "idle: –")
-	out := s.Chan("out", "msg", 2, Pt{470, 300}, -1, "out").Made("solver.RunConcurrent", "len(observers)")
-	quit := s.Chan("quit", "struct{}", 0, Pt{850, 300}, +1, "quit").Labels('l').Made("solver.RunConcurrent", "")
-	mbA := s.Box("mailbox A (mutex + slice)", Pt{395, 125}, 190, 50, "queue: –")
-	mbB := s.Box("mailbox B (mutex + slice)", Pt{395, 475}, 190, 50, "queue: –")
-	notA := s.Chan("notify", "struct{}", 1, Pt{595, 125}, +1, "b.notify", "box.notify").Made("solver.newMailbox", "1")
-	notB := s.Chan("notify", "struct{}", 1, Pt{595, 475}, +1, "b.notify", "box.notify").Made("solver.newMailbox", "1")
+	out := s.Chan("out", "msg", 2, Pt{619, 300}, -1, "out").Made("solver.RunConcurrent", "len(observers)")
+	quit := s.Chan("quit", "struct{}", 0, Pt{1170, 300}, +1, "quit").Labels('l').Made("solver.RunConcurrent", "")
+	mbA := s.Box("mailbox A (mutex + slice)", Pt{510, 125}, 190, 50, "queue: –")
+	mbB := s.Box("mailbox B (mutex + slice)", Pt{510, 475}, 190, 50, "queue: –")
+	notA := s.Chan("notify", "struct{}", 1, Pt{800, 125}, +1, "b.notify", "box.notify").Made("solver.newMailbox", "1")
+	notB := s.Chan("notify", "struct{}", 1, Pt{800, 475}, +1, "b.notify", "box.notify").Made("solver.newMailbox", "1")
 	wg := s.WaitGroup(Pt{140, 475}, "wg")
 
 	s.Flow(a, out)
