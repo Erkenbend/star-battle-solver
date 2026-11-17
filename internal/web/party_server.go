@@ -164,7 +164,7 @@ func partyRoutes(mux *http.ServeMux, pm *party.Manager) {
 			Puzzle int      `json:"puzzle"` // against the clock: which one, from 1
 			Cells  []int    `json:"cells"`  // progress against the clock: cells with a star
 		}
-		// A coop reset of a 14×14 board is ~200 operations.
+		// A coop reset of a 15×15 board is ~200 operations.
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384)).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Ungültige Anfrage."})
 			return

@@ -15,7 +15,7 @@ Wer zum ersten Mal ein Solo- oder Bibliotheks-Puzzle öffnet, landet einmal dort
 | ![Selbst lösen](screenshots/spielen.png) | ![Lösungsweg](screenshots/loesungsweg.png) |
 | **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Lösungsweg:** jeder Schritt mit Regel und Begründung, die betroffenen Felder sind hervorgehoben. |
 
-„Neues Puzzle“ erzeugt eines der Größe 4 bis 14. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.
+„Neues Puzzle“ erzeugt eines der Größe 4 bis 15. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.
 
 **Annahme-Modus:** Wer festhängt, drückt „Annahme“ und setzt probehalber einen Stern, dazu Kreuze und weitere Sterne, bis sich ein Widerspruch zeigt. Die Markierungen der Annahme sind lila hinterlegt, ihr erster Stern hat einen Ring. „Widerspruch“ kehrt zum Stand vor der Annahme zurück und kreuzt das Feld dieses Sterns; „Annahme verwerfen“ kehrt nur zurück. Zurück und Vor bleiben innerhalb der Annahme, Hinweise und Prüfen gibt es während der Annahme nicht. Wer in der Annahme fertig löst, hat ganz normal gelöst. In Partys bleibt eine Annahme privat: Gegeneinander und gegen die Uhr zählen ihre Sterne nicht für den Stand, miteinander sehen die anderen sie nicht.
 

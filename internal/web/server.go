@@ -19,7 +19,7 @@ import (
 // Size limits for generated and pasted puzzles.
 const (
 	MinN     = 4
-	MaxN     = 14
+	MaxN     = 15
 	DefaultN = 8
 )
 
@@ -144,6 +144,9 @@ func write(w http.ResponseWriter, title string, p *puzzle.Puzzle, sol []int, res
 }
 
 func writePage(w http.ResponseWriter, d Data) {
+	if d.Served {
+		d.MinN, d.MaxN = MinN, MaxN
+	}
 	writeHTML(w, http.StatusOK, func(b io.Writer) error { return Write(b, d) })
 }
 

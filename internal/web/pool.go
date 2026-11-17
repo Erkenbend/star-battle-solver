@@ -10,8 +10,9 @@ import (
 )
 
 // Pool keeps one generated and solved puzzle ready per size, so that "new
-// puzzle" does not wait for the generator (seconds for 14×14, more on a
-// Raspberry Pi). A single background goroutine fills the sizes one at a time,
+// puzzle" does not wait for the generator and the solver (usually a fraction
+// of a second on a desktop, more on a Raspberry Pi or for a puzzle that needs
+// lookahead). A single background goroutine fills the sizes one at a time,
 // smallest first, and refills a size as soon as its puzzle is handed out.
 //
 // A pooled puzzle is exactly the one its seed generates, so its URL stays

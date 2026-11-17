@@ -919,7 +919,7 @@ function boot() {
   }
   if (d.served && !party && !tut) {
     const sizes = $("newgame-n");
-    for (let k = 4; k <= 14; k++) {
+    for (let k = d.minN; k <= d.maxN; k++) {
       const o = el("option", null, `${k}×${k}`);
       o.value = k;
       o.selected = k === n;

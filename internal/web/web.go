@@ -91,6 +91,8 @@ type Data struct {
 	// Set by the server (starbattle serve): the page shows forms for new puzzles.
 	Served bool   `json:"served,omitempty"`
 	Text   string `json:"text,omitempty"` // the puzzle in the text format
+	MinN   int    `json:"minN,omitempty"` // sizes offered for a new puzzle
+	MaxN   int    `json:"maxN,omitempty"`
 
 	// Set for a round of a party (see party_server.go).
 	Party *PartyInfo `json:"party,omitempty"`
