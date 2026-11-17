@@ -44,14 +44,12 @@ text{font:13px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fil
 .sep{stroke:var(--ln)}.cp{font-size:14px}.cn2{fill:var(--mut);font-size:12px}
 `
 
-// SVG draws the story as an animated SVG.
-func (s *Story) SVG() []byte {
-	if len(s.frames) < 2 {
-		s.fail("no steps")
-	}
+// timeline returns when each step starts (t0) and when its movement ends and
+// the states change (t1), for steps 1 to n; t0[n+1] = t1[n+1] = total.
+func (s *Story) timeline() (t0, t1 []float64, total float64) {
 	n := len(s.frames) - 1
-	t0 := make([]float64, n+2) // start of step i
-	t1 := make([]float64, n+2) // end of its movement: states change
+	t0 = make([]float64, n+2)
+	t1 = make([]float64, n+2)
 	t := 0.0
 	for i := 1; i <= n; i++ {
 		f := s.frames[i]
@@ -66,9 +64,17 @@ func (s *Story) SVG() []byte {
 		t0[i], t1[i] = t, t+m
 		t += m + hold
 	}
-	total := t
-	t0[n+1], t1[n+1] = total, total
-	t1[0] = 0
+	t0[n+1], t1[n+1] = t, t
+	return t0, t1, t
+}
+
+// Scene draws the story as an animated SVG: the scene the player shows.
+func (s *Story) Scene() []byte {
+	if len(s.frames) < 2 {
+		s.fail("no steps")
+	}
+	n := len(s.frames) - 1
+	t0, t1, total := s.timeline()
 
 	a := &anim{total: total}
 	var out strings.Builder

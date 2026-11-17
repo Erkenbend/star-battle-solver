@@ -5,31 +5,49 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"testing/fstest"
 )
 
-var update = flag.Bool("update", false, "rewrite the animations in architecture/concurrency/")
+var update = flag.Bool("update", false, "rewrite the sequence diagrams, player.html and the blocks of concurrency.md")
 
 const root = "../.."
 
-// TestAnimationsUpToDate checks that the SVGs in architecture/concurrency/
-// are what the stories draw. With -update it rewrites them.
-func TestAnimationsUpToDate(t *testing.T) {
-	for _, s := range Stories() {
-		file := filepath.Join(root, "architecture", "concurrency", s.File)
-		svg := s.SVG()
-		if *update {
-			if err := os.WriteFile(file, svg, 0o644); err != nil {
-				t.Fatal(err)
-			}
-		} else if old, err := os.ReadFile(file); err != nil {
-			t.Error(err)
-		} else if !bytes.Equal(old, svg) {
-			t.Errorf("%s is not what the story draws; rewrite it: go test ./internal/concviz -update", s.File)
+// golden compares got with the file, or with -update writes it.
+func golden(t *testing.T, file string, got []byte) {
+	t.Helper()
+	if *update {
+		if err := os.WriteFile(file, got, 0o644); err != nil {
+			t.Fatal(err)
 		}
+	} else if old, err := os.ReadFile(file); err != nil {
+		t.Error(err)
+	} else if !bytes.Equal(old, got) {
+		t.Errorf("%s is not what the stories draw; rewrite it: go test ./internal/concviz -update", file)
 	}
+}
+
+// TestOutputsUpToDate checks the files generated from the stories: a
+// sequence diagram per story, the player, and the blocks in
+// concurrency.md. With -update it rewrites them.
+func TestOutputsUpToDate(t *testing.T) {
+	dir := filepath.Join(root, "architecture", "concurrency")
+	stories := Stories()
+	for _, s := range stories {
+		golden(t, filepath.Join(dir, s.File), s.Sequence())
+	}
+	golden(t, filepath.Join(dir, "player.html"), Player(stories))
+
+	mdFile := filepath.Join(root, "architecture", "concurrency.md")
+	md, err := os.ReadFile(mdFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := UpdateDoc(string(md), stories)
+	if err != nil {
+		t.Fatal(err)
+	}
+	golden(t, mdFile, []byte(got))
 }
 
 // TestStoriesMatchCode checks every claim the stories make about the code:
@@ -45,19 +63,6 @@ func TestStoriesMatchCode(t *testing.T) {
 		}
 		for _, err := range s.Check(src) {
 			t.Error(err)
-		}
-	}
-}
-
-// TestDocShowsAnimations checks that concurrency.md shows every animation.
-func TestDocShowsAnimations(t *testing.T) {
-	md, err := os.ReadFile(filepath.Join(root, "architecture", "concurrency.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, s := range Stories() {
-		if !strings.Contains(string(md), "](concurrency/"+s.File+")") {
-			t.Errorf("concurrency.md does not show concurrency/%s", s.File)
 		}
 	}
 }

@@ -10,12 +10,12 @@ func libraryStory() *Story {
 
 	pageFns := []string{"web.libraryRoutes", "web.Library.data", "web.libEntry.done", "web.Library.start"}
 	weg := []string{"web.libraryRoutes", "web.Library.start"}
-	p1 := s.Go("page, visitor 1", Pt{130, 400}, pageFns...)
-	w1 := s.Go("/weg, visitor 1", Pt{370, 400}, weg...)
-	w2 := s.Go("/weg, visitor 2", Pt{610, 400}, weg...)
-	p3 := s.Go("page, visitor 3", Pt{850, 400}, pageFns...)
+	p1 := s.Go("page #1", Pt{130, 400}, pageFns...)
+	w1 := s.Go("/weg #1", Pt{370, 400}, weg...)
+	w2 := s.Go("/weg #2", Pt{610, 400}, weg...)
+	p3 := s.Go("page #3", Pt{850, 400}, pageFns...)
 	solver := s.Go("solver", Pt{490, 110}, "web.Library.start")
-	tab := s.Outside("visitor 1 leaves", Pt{130, 545})
+	tab := s.Outside("visitor 1", Pt{130, 545})
 
 	once := s.Once(Pt{150, 110}, "e.once")
 	fields := s.Box("e.sol, e.res, e.err", Pt{820, 110}, 190, 44, "not set")
@@ -33,7 +33,7 @@ func libraryStory() *Story {
 	s.Flow(ctx1, w1)
 	s.Flow(ctx2, w2)
 
-	s.Step("Visitor 1 opens a library puzzle. Building the page, done() peeks at e.ready with a select with default: it never blocks.")
+	s.Step("Visitor 1 opens a library puzzle (page #1). Building the page, done() peeks at e.ready with a select with default: it never blocks.")
 	p1.Arrive("net/http: new request")
 	p1.Calls("lib.data")
 	p1.Poll(ready)
@@ -45,13 +45,13 @@ func libraryStory() *Story {
 	solver.Busy("bruteforce, then solve")
 	p1.Exit("page sent, no trace yet")
 
-	s.Step("Later the page asks /bibliothek/weg for the trace. once.Do does nothing now; the handler waits on e.ready or its request.")
+	s.Step("Later the page asks /bibliothek/weg for the trace (/weg #1). once.Do does nothing now; the handler waits on e.ready or its request.")
 	w1.Arrive("net/http: new request")
 	w1.Calls("lib.start")
 	w1.Do(once, func() { w1.Spawn(solver) })
 	w1.Select(RecvCase(ready), RecvCase(ctx1))
 
-	s.Step("A second visitor asks too. Any number of goroutines can wait on the same channel.")
+	s.Step("A second visitor asks too (/weg #2). Any number of goroutines can wait on the same channel.")
 	w2.Arrive("net/http: new request")
 	w2.Do(once, func() { w2.Spawn(solver) })
 	w2.Select(RecvCase(ready), RecvCase(ctx2))
@@ -69,7 +69,7 @@ func libraryStory() *Story {
 	w2.Busy("reads e.res, sends JSON")
 	w2.Exit("returned")
 
-	s.Step("A closed channel stays ready forever: for visitor 3, done() is true at once and the page carries the trace.")
+	s.Step("A closed channel stays ready forever: for visitor 3 (page #3), done() is true at once and the page carries the trace.")
 	p3.Arrive("net/http: new request")
 	p3.Poll(ready)
 	p3.Do(once, func() { p3.Spawn(solver) })

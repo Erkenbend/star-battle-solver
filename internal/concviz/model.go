@@ -45,7 +45,11 @@ func (r rect) border(p Pt) Pt {
 	return Pt{c.X + dx*t, c.Y + dy*t}
 }
 
-type node interface{ bounds() rect }
+// node is something in the scene: a goroutine, a channel or a box.
+type node interface {
+	bounds() rect
+	label() string
+}
 
 // Story is one animation: a scene and the steps played on it.
 type Story struct {
@@ -60,9 +64,12 @@ type Story struct {
 	toks   []*Tok
 	flows  [][2]node
 	frames []frame // frames[0]: before the first step; frames[i]: after step i
+	rows   []row   // the events, for the sequence diagram
 	needs  []need
 	seen   map[string]bool
-	cap    string // caption of the step being scripted
+	cap    string   // caption of the step being scripted
+	ops    []string // what happened in it, in words
+	inDo   bool     // inside the function of a first once.Do
 }
 
 func newStory(file, title, source string, w, h float64) *Story {
@@ -76,13 +83,22 @@ func (s *Story) fail(format string, a ...any) {
 // Flow draws a fixed arrow for the way values take.
 func (s *Story) Flow(from, to node) { s.flows = append(s.flows, [2]node{from, to}) }
 
+func (s *Story) logf(format string, a ...any) { s.ops = append(s.ops, fmt.Sprintf(format, a...)) }
+
 // Step ends the step scripted so far and starts the next one with caption.
 // The first call ends the setup of the scene.
 func (s *Story) Step(caption string) {
+	ended := len(s.frames) // 0: the setup
+	if ended > 0 {
+		if k := len(s.rows); k == 0 || s.rows[k-1].step != ended {
+			s.rows = append(s.rows, row{step: ended}) // a step without events still gets a row
+		}
+		s.rows[len(s.rows)-1].after = s.states()
+	}
 	f := s.capture()
-	f.caption = s.cap
+	f.caption, f.ops = s.cap, s.ops
 	s.frames = append(s.frames, f)
-	s.cap = caption
+	s.cap, s.ops = caption, nil
 	for _, t := range s.toks {
 		t.start, t.alive0, t.born, t.via = t.pos(), !t.gone, false, nil
 	}
@@ -102,6 +118,54 @@ func (s *Story) end() *Story {
 		}
 	}
 	return s
+}
+
+// --- events, for the sequence diagram ---
+
+type evKind uint8
+
+const (
+	evSpawn   evKind = iota // from starts to (from nil: started from outside)
+	evSend                  // from puts a value into the buffer of channel to
+	evHandoff               // from hands a value through channel via to the waiting to
+	evRecv                  // to takes a value from the buffer of channel from
+	evClose                 // from closes channel to
+	evClosed                // to receives from the closed channel from
+	evGive                  // from puts a value into box to
+	evTake                  // to takes a value from box from
+	evNote                  // something happens at from, e.g. a default case
+	evExit                  // from returns; to is its WaitGroup, if any
+	evWake                  // the WaitGroup from lets to's Wait return
+)
+
+type event struct {
+	kind          evKind
+	from, via, to node
+	label         string
+	tok           *Tok // a value entering or leaving a buffer
+}
+
+// row is one event, or an empty row for a step without events, with the
+// states of the goroutines after it.
+type row struct {
+	step  int
+	ev    *event
+	after []gFrame
+}
+
+func (s *Story) ev(e event) {
+	if k := len(s.rows); k > 0 && s.rows[k-1].after == nil {
+		s.rows[k-1].after = s.states()
+	}
+	s.rows = append(s.rows, row{step: len(s.frames), ev: &e})
+}
+
+func (s *Story) states() []gFrame {
+	var out []gFrame
+	for _, g := range s.gs {
+		out = append(out, gFrame{g.st, g.status})
+	}
+	return out
 }
 
 // --- goroutines ---
@@ -163,7 +227,9 @@ func (s *Story) Outside(name string, at Pt) *G {
 	return s.addG(name, at, nil, running, true)
 }
 
-func (g *G) bounds() rect { return around(g.at, gW, gH) }
+func (g *G) bounds() rect   { return around(g.at, gW, gH) }
+func (g *G) label() string  { return g.name }
+func (g *G) String() string { return g.name }
 
 func (g *G) handPos(i, n int) Pt {
 	return Pt{g.at.X + (float64(i)-float64(n-1)/2)*(slotW+4), g.at.Y - gH/2 - tokH/2 - 4}
@@ -191,10 +257,15 @@ func (g *G) req(n need) {
 	}
 }
 
-func (g *G) start() {
+func (g *G) start(by *G, how string) {
 	if g.st != hidden {
 		g.s.fail("%s started twice", g.name)
 	}
+	e := event{kind: evSpawn, to: g, label: how}
+	if by != nil {
+		e.from = by
+	}
+	g.s.ev(e)
 	g.st = running
 	g.setStatus("started")
 }
@@ -203,19 +274,26 @@ func (g *G) start() {
 func (g *G) Spawn(child *G) {
 	g.live("go")
 	g.req(need{kind: needGo})
-	child.start()
+	how := "go"
+	if g.s.inDo {
+		how = "once.Do: go"
+	}
+	child.start(g, how)
+	g.s.logf("%s: %s → %s starts", g, how, child)
 }
 
 // Arrive starts g from outside the code shown, e.g. net/http for a request.
 func (g *G) Arrive(status string) {
-	g.start()
+	g.start(nil, "")
 	g.setStatus(status)
+	g.s.logf("%s starts (%s)", g, status)
 }
 
 // Busy says what g is doing.
 func (g *G) Busy(status string) {
 	g.live("busy")
 	g.setStatus(status)
+	g.s.logf("%s: %s", g, strings.ReplaceAll(status, "\n", " "))
 }
 
 // Calls claims that g's code calls each of texts, e.g. "lib.start".
@@ -230,14 +308,24 @@ func (g *G) Calls(texts ...string) {
 func (g *G) Exit(status string) {
 	g.live("exit")
 	g.dropHand()
+	e := event{kind: evExit, from: g, label: "returns"}
+	if g.wg != nil {
+		e.to, e.label = g.wg.box, "done"
+	}
+	g.s.ev(e)
 	g.st = exited
 	g.setStatus(status)
+	g.s.logf("%s returns (%s)", g, status)
 	if wg := g.wg; wg != nil {
 		wg.n--
 		wg.show()
+		g.s.logf("  %s counter %d", wg.codes[0], wg.n)
 		if wg.n == 0 {
 			for len(wg.waiters) > 0 {
-				g.s.wake(wg.waiters[0], nil, "wg.Wait returned")
+				w := wg.waiters[0]
+				g.s.ev(event{kind: evWake, from: wg.box, to: w.g, label: "Wait returns"})
+				g.s.logf("  %s: %s.Wait() returns", w.g, wg.codes[0])
+				g.s.wake(w, nil, "wg.Wait returned")
 			}
 		}
 	}
@@ -403,7 +491,8 @@ func (c *C) width() float64 {
 	return float64(c.slots)*slotW + chPad
 }
 
-func (c *C) bounds() rect { return around(c.at, c.width(), chH) }
+func (c *C) bounds() rect  { return around(c.at, c.width(), chH) }
+func (c *C) label() string { return c.name }
 
 // slotPos is the centre of buffer slot i, slot 0 being the next to leave.
 func (c *C) slotPos(i int) Pt {
@@ -458,14 +547,14 @@ func (s *Story) need(n need) {
 func (g *G) Send(c *C, label string) {
 	g.live("send")
 	g.req(need{kind: needSend, codes: c.codes})
-	g.sel([]Case{SendCase(c, label)}, false, false)
+	g.sel([]Case{SendCase(c, label)}, false, false, c.name+" <- "+label)
 }
 
 // Recv is "<-c".
 func (g *G) Recv(c *C) {
 	g.live("receive")
 	g.req(need{kind: needRecv, codes: c.codes})
-	g.sel([]Case{RecvCase(c)}, false, false)
+	g.sel([]Case{RecvCase(c)}, false, false, "<-"+c.name)
 }
 
 // Range is one iteration of "for x := range c"; once c is closed and empty,
@@ -473,7 +562,7 @@ func (g *G) Recv(c *C) {
 func (g *G) Range(c *C) {
 	g.live("range")
 	g.req(need{kind: needRange, codes: c.codes})
-	g.sel([]Case{RecvCase(c)}, false, true)
+	g.sel([]Case{RecvCase(c)}, false, true, "range "+c.name)
 }
 
 // TrySend is "select { case c <- label: default: }" and reports whether the
@@ -481,14 +570,14 @@ func (g *G) Range(c *C) {
 func (g *G) TrySend(c *C, label string) bool {
 	g.live("try send")
 	g.req(need{kind: needSelect, cases: []caseNeed{{send: true, codes: c.codes}}, dflt: true})
-	return g.sel([]Case{SendCase(c, label)}, true, false) >= 0
+	return g.sel([]Case{SendCase(c, label)}, true, false, "select { "+c.name+" <- "+label+" | default }") >= 0
 }
 
 // Poll is "select { case <-c: default: }" and reports whether it received.
 func (g *G) Poll(c *C) bool {
 	g.live("poll")
 	g.req(need{kind: needSelect, cases: []caseNeed{{codes: c.codes}}, dflt: true})
-	return g.sel([]Case{RecvCase(c)}, true, false) >= 0
+	return g.sel([]Case{RecvCase(c)}, true, false, "select { <-"+c.name+" | default }") >= 0
 }
 
 // Select is a select without default. Of several ready cases it takes the
@@ -496,11 +585,13 @@ func (g *G) Poll(c *C) bool {
 func (g *G) Select(cases ...Case) {
 	g.live("select")
 	n := need{kind: needSelect}
+	var ks []string
 	for _, k := range cases {
 		n.cases = append(n.cases, caseNeed{send: k.send, codes: k.c.codes})
+		ks = append(ks, k.String())
 	}
 	g.req(n)
-	g.sel(cases, false, false)
+	g.sel(cases, false, false, "select { "+strings.Join(ks, " | ")+" }")
 }
 
 // Close is "close(c)": every goroutine waiting to receive wakes up.
@@ -513,7 +604,9 @@ func (g *G) Close(c *C) {
 	if len(c.sendq) > 0 {
 		g.s.fail("%s: close of %s while %s is blocked sending on it", g.name, c.name, c.sendq[0].g.name)
 	}
+	g.s.ev(event{kind: evClose, from: g, to: c, label: "close"})
 	c.closed = true
+	var woken []string
 	for len(c.recvq) > 0 {
 		w := c.recvq[0]
 		g.s.zap(c, w.g)
@@ -521,7 +614,13 @@ func (g *G) Close(c *C) {
 		if w.rng {
 			st = "range " + c.name + " ends"
 		}
+		woken = append(woken, w.g.name)
 		g.s.wake(w, c, st)
+	}
+	if woken == nil {
+		g.s.logf("%s: close(%s), nobody waits on it", g, c.name)
+	} else {
+		g.s.logf("%s: close(%s) → wakes %s", g, c.name, strings.Join(woken, ", "))
 	}
 }
 
@@ -535,8 +634,9 @@ func (c *C) sendReady() bool {
 func (c *C) recvReady() bool { return len(c.buf) > 0 || len(c.sendq) > 0 || c.closed }
 
 // sel runs a select of cases for g (one case: a plain channel operation) and
-// returns the case that ran, or -1 if g blocked or took the default.
-func (g *G) sel(cases []Case, dflt, rng bool) int {
+// returns the case that ran, or -1 if g blocked or took the default. op is
+// the operation in words, for the log.
+func (g *G) sel(cases []Case, dflt, rng bool, op string) int {
 	s := g.s
 	g.dropHand() // what it held is dealt with
 	w := &waiter{g: g, cases: cases, rng: rng, toks: make([]*Tok, len(cases))}
@@ -547,7 +647,7 @@ func (g *G) sel(cases []Case, dflt, rng bool) int {
 	}
 	for i, k := range cases {
 		if k.send && k.c.sendReady() || !k.send && k.c.recvReady() {
-			s.fire(w, i)
+			s.logf("%s: %s → %s", g, op, s.fire(w, i))
 			return i
 		}
 	}
@@ -559,8 +659,12 @@ func (g *G) sel(cases []Case, dflt, rng bool) int {
 		}
 		if cases[0].send {
 			g.setStatus("default: " + cases[0].c.name + " full,\nvalue dropped")
+			s.ev(event{kind: evNote, from: g, label: "default: dropped"})
+			s.logf("%s: %s → default: %s is full, the value is dropped", g, op, cases[0].c.name)
 		} else {
 			g.setStatus("default: " + cases[0].c.name + " not ready")
+			s.ev(event{kind: evNote, from: g, label: "default: not ready"})
+			s.logf("%s: %s → default: not ready", g, op)
 		}
 		return -1
 	}
@@ -584,53 +688,68 @@ func (g *G) sel(cases []Case, dflt, rng bool) int {
 	default:
 		g.setStatus("blocked: " + cases[0].String())
 	}
+	s.logf("%s: %s → blocks", g, op)
 	return -1
 }
 
-// fire runs case i of w, which is ready, for the running goroutine w.g.
-func (s *Story) fire(w *waiter, i int) {
+// fire runs case i of w, which is ready, for the running goroutine w.g, and
+// says what happened.
+func (s *Story) fire(w *waiter, i int) string {
 	g, k := w.g, w.cases[i]
 	c := k.c
+	var what string
 	if k.send {
 		t := w.toks[i]
 		if len(c.recvq) > 0 {
 			r := c.recvq[0]
+			s.ev(event{kind: evHandoff, from: g, via: c, to: r.g, label: t.label})
 			t.move(c.at)
 			s.wake(r, c, "got "+t.label)
 			give(r.g, t)
+			what = "hands " + t.label + " to " + r.g.name + ", who wakes up"
 		} else {
+			s.ev(event{kind: evSend, from: g, to: c, label: t.label, tok: t})
 			t.move()
 			t.ch = c
 			c.buf = append(c.buf, t)
+			what = t.label + " waits in the buffer of " + c.name
 		}
 		g.setStatus("sent " + t.label)
 	} else {
 		switch {
 		case len(c.buf) > 0:
 			t := c.buf[0]
+			s.ev(event{kind: evRecv, from: c, to: g, label: t.label, tok: t})
 			give(g, t)
+			what = "takes " + t.label + " from the buffer"
 			if len(c.sendq) > 0 {
 				sw := c.sendq[0]
 				st := sw.tokOn(c)
+				s.ev(event{kind: evSend, from: sw.g, to: c, label: st.label, tok: st})
 				st.move()
 				st.ch = c
 				c.buf = append(c.buf, st)
 				s.wake(sw, c, "sent "+st.label)
+				what += "; " + sw.g.name + "'s " + st.label + " moves in, and it wakes up"
 			}
 			g.setStatus("got " + t.label)
 		case len(c.sendq) > 0:
 			sw := c.sendq[0]
 			t := sw.tokOn(c)
+			s.ev(event{kind: evHandoff, from: sw.g, via: c, to: g, label: t.label})
 			t.move(c.at)
 			s.wake(sw, c, "sent "+t.label)
 			give(g, t)
 			g.setStatus("got " + t.label)
+			what = "takes " + t.label + " from " + sw.g.name + ", who wakes up"
 		default: // closed
 			s.zap(c, g)
 			if w.rng {
 				g.setStatus("range " + c.name + " ends")
+				what = c.name + " is closed: the loop ends"
 			} else {
 				g.setStatus(c.name + " closed")
+				what = c.name + " is closed: ready at once"
 			}
 		}
 	}
@@ -639,6 +758,7 @@ func (s *Story) fire(w *waiter, i int) {
 			t.vanish()
 		}
 	}
+	return what
 }
 
 func (w *waiter) tokOn(c *C) *Tok {
@@ -670,6 +790,7 @@ func (s *Story) wake(w *waiter, c *C, status string) {
 
 // zap shows a receive from the closed channel c reaching g.
 func (s *Story) zap(c *C, g *G) {
+	s.ev(event{kind: evClosed, from: c, to: g, label: "closed"})
 	t := s.newTok("closed", c.at)
 	t.vanish(g.handPos(0, 1))
 }
@@ -690,7 +811,8 @@ func (s *Story) Box(title string, at Pt, w, h float64, lines ...string) *Box {
 	return b
 }
 
-func (b *Box) bounds() rect { return b.r }
+func (b *Box) bounds() rect  { return b.r }
+func (b *Box) label() string { return b.title }
 
 // Set changes what the box shows.
 func (b *Box) Set(lines ...string) { b.lines = lines }
@@ -700,8 +822,10 @@ func (b *Box) Set(lines ...string) { b.lines = lines }
 func (g *G) Give(b *Box, call, label string, lines ...string) {
 	g.live("give")
 	g.req(need{kind: needCall, codes: []string{call}})
+	g.s.ev(event{kind: evGive, from: g, to: b, label: label})
 	g.s.bornInHand(g, label).vanish(b.r.center())
 	b.Set(lines...)
+	g.s.logf("%s: %s(%s) → %s: %s", g, call, label, b.title, strings.Join(lines, ", "))
 }
 
 // Take moves a value labelled label from b into g's hand by calling call,
@@ -709,8 +833,10 @@ func (g *G) Give(b *Box, call, label string, lines ...string) {
 func (g *G) Take(b *Box, call, label string, lines ...string) {
 	g.live("take")
 	g.req(need{kind: needCall, codes: []string{call}})
+	g.s.ev(event{kind: evTake, from: b, to: g, label: label})
 	give(g, g.s.newTok(label, b.r.center()))
 	b.Set(lines...)
+	g.s.logf("%s: %s() → %s", g, call, label)
 }
 
 // Store puts what g holds into b and sets b to lines.
@@ -720,6 +846,7 @@ func (g *G) Store(b *Box, lines ...string) {
 		g.hand[0].vanish(b.r.center())
 	}
 	b.Set(lines...)
+	g.s.logf("%s: %s: %s", g, b.title, strings.Join(lines, ", "))
 }
 
 // Drop throws away what g holds.
@@ -727,6 +854,8 @@ func (g *G) Drop(status string) {
 	g.live("drop")
 	g.dropHand()
 	g.setStatus(status)
+	g.s.ev(event{kind: evNote, from: g, label: status})
+	g.s.logf("%s: %s", g, status)
 }
 
 // WG is a sync.WaitGroup.
@@ -761,7 +890,8 @@ func (wg *WG) Go(parent, child *G) {
 	child.wg = wg
 	wg.n++
 	wg.show()
-	child.start()
+	child.start(parent, wg.codes[0]+".Go")
+	parent.s.logf("%s: %s.Go → %s starts, counter %d", parent, wg.codes[0], child, wg.n)
 }
 
 // Wait is "wg.Wait()".
@@ -770,12 +900,14 @@ func (g *G) Wait(wg *WG) {
 	g.req(wg.calls("Wait"))
 	if wg.n == 0 {
 		g.setStatus("wg.Wait returned")
+		g.s.logf("%s: %s.Wait() → returns at once, counter 0", g, wg.codes[0])
 		return
 	}
 	w := &waiter{g: g, wg: wg}
 	wg.waiters = append(wg.waiters, w)
 	g.w, g.st = w, blocked
 	g.setStatus("blocked: wg.Wait()")
+	g.s.logf("%s: %s.Wait() → blocks, counter %d", g, wg.codes[0], wg.n)
 }
 
 // Once is a sync.Once.
@@ -800,17 +932,22 @@ func (g *G) Do(o *Once, f func()) {
 	g.req(n)
 	if o.done {
 		g.setStatus("once.Do: already done")
+		g.s.logf("%s: %s.Do → already done, does nothing", g, o.codes[0])
 		return
 	}
 	o.done = true
 	o.box.Set("done")
+	g.s.logf("%s: %s.Do → first call, runs the function", g, o.codes[0])
+	g.s.inDo = true
 	f()
+	g.s.inDo = false
 }
 
 // --- frames ---
 
 type frame struct {
 	caption string
+	ops     []string
 	gs      []gFrame
 	closed  []bool
 	boxes   [][]string
@@ -844,8 +981,8 @@ func (f frame) moves() bool {
 
 func (s *Story) capture() frame {
 	var f frame
+	f.gs = s.states()
 	for i, g := range s.gs {
-		f.gs = append(f.gs, gFrame{g.st, g.status})
 		if g.w == nil {
 			continue
 		}

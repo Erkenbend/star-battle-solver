@@ -1,8 +1,9 @@
-// Package concviz draws the animations of architecture/concurrency.md: one
-// animated SVG per pattern, showing goroutines, channels, and who waits on
-// what.
+// Package concviz draws the diagrams of architecture/concurrency.md: for
+// each pattern, one run as a sequence diagram (inline in the Markdown) and as
+// an animated scene in architecture/concurrency/player.html, which plays it
+// step by step.
 //
-// Each animation is a story: a scene (goroutines, channels, boxes for other
+// Each run is a story: a scene (goroutines, channels, boxes for other
 // state) and a script of steps. The script runs on a small model of Go's
 // synchronisation semantics (channel buffers and handoffs, select with and
 // without default, close as a broadcast, sync.WaitGroup, sync.Once), so who
@@ -17,13 +18,14 @@
 // source with go/ast, so renaming a channel, changing a capacity or dropping
 // a select case breaks the test until the story follows.
 //
-// The SVGs are checked in under architecture/concurrency/. After changing a
+// The diagrams, the player and each story's block in concurrency.md (between
+// <!-- concviz … --> lines) are generated and checked in. After changing a
 // story or the drawing, rewrite them with
 //
 //	go test ./internal/concviz -update
 package concviz
 
-// Stories builds all animations, in the order of architecture/concurrency.md.
+// Stories builds all stories, in the order of architecture/concurrency.md.
 func Stories() []*Story {
 	return []*Story{runnerStory(), hardsearchStory(), libraryStory()}
 }
