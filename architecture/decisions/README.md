@@ -32,6 +32,7 @@ and open ideas.
 | [20](20-difficulty-rating.md) | Difficulty of the hard puzzles | done |
 | [21](21-library-175.md) | Library with 175 puzzles | done |
 | [22](22-ci-sample-only.md) | CI runs only the sample of hard puzzles | done |
+| [23](23-size-15.md) | Size 15 in the game and the library | done |
 
 ## Adding a decision
 

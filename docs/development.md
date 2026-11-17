@@ -9,13 +9,13 @@ Voraussetzung ist Go (Version siehe `go.mod`). Es gibt keine weiteren Abhängigk
 ```sh
 go build -o starbattle ./cmd/starbattle
 go test ./...            # dauert etwa zwei Minuten
-go test -short ./...     # überspringt einige langsame Tests
+go test -short ./...     # überspringt einige langsame Tests, etwa 25 Sekunden
 go test -race ./...
 STARBATTLE_ALL_HARD=1 go test ./...   # alle schweren Puzzles statt der Stichprobe
 go test -short -coverpkg=./... -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1   # Testabdeckung
 ```
 
-Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`, 27 Puzzles), die alle Größen, Regeln und Schwierigkeitsstufen abdeckt; die CI auf GitHub Actions ebenso. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert etwa zehn Minuten, in der CI über eine halbe Stunde). Das lohnt sich nach Änderungen an Regeln, Suche oder Bewertung.
+Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`, 29 Puzzles), die alle Größen, Regeln und Schwierigkeitsstufen abdeckt; die CI auf GitHub Actions ebenso. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert geschätzt etwa zwölf Minuten, in der CI eine Dreiviertelstunde). Das lohnt sich nach Änderungen an Regeln, Suche oder Bewertung.
 
 Go kann für jede Plattform von jeder Plattform aus bauen, z. B. für einen Mac mit Intel-Chip:
 
@@ -80,7 +80,7 @@ Mit „Streng: Farben nicht erweitern“ bleibt jede gezeichnete Farbe genau so,
 
 Zu jedem Vorschlag steht, wie weit die Regeln allein kommen. Den passenden auswählen, optional benennen und speichern: Er landet als `nNN_name.txt` (ohne Namen `nNN_d001.txt` usw.) im Verzeichnis, mit Seed und Muster als Kommentar, und wird unten an `bibliothek.idx` angehängt. Damit ist er nach dem nächsten Bauen ein Motiv der Bibliothek. Den Namen dort (`# name: Sad Smiley`, erste Zeile) bildet der Designer aus dem Dateinamen; ändern lässt er sich direkt in der Datei. Bestehende Dateien werden nie überschrieben, und derselbe Name in einer anderen Größe oder dasselbe Puzzle unter anderem Namen wird abgelehnt, weil die Bibliothek beides nicht laden würde. „Ausprobieren“ öffnet den Vorschlag als normale Spielseite.
 
-Bis 12×12 dauert ein Vorschlag meist unter einer Sekunde, 14×14 kann mehrere Minuten brauchen, besonders mit großen rechteckigen Blöcken. Sehr dichte oder verwinkelte Muster schafft der Generator nicht immer; dann hilft es, weniger zu zeichnen.
+Bis 14×14 dauert ein Vorschlag meist unter einer Sekunde, selten bis zwei Sekunden; 15×15 im Mittel gut eine Sekunde, manchmal über zehn. Sehr dichte oder verwinkelte Muster schafft der Generator nicht immer; dann hilft es, weniger zu zeichnen.
 
 | Option | Bedeutung |
 |---|---|
@@ -106,7 +106,7 @@ n=10 seed=453 base=stuck all=stuck lookahead=4 guesses=0 rating=2 t=161ms  HIT �
 
 Mit `-o` landet jeder Treffer als `nNN_sSEED.txt` im Verzeichnis, mit Befehl, Commit und Grund als Kommentar und darunter der Schwierigkeit (`# rating: 2 (4 lookahead steps, longest 5)`, siehe unten); bestehende Dateien werden nie überschrieben. Am Ende stehen die Zahlen der Suche, der Seed, bei dem die nächste Suche weitermacht (die bisherigen Bereiche stehen in [PLAN.md](../PLAN.md) und [Entscheidung 17](../architecture/decisions/17-library-over-100-sample-tests.md)), und die neuen Dateien. In die Bibliothek kommen sie erst, wenn man sie unten an `testdata/hard/bibliothek.idx` anhängt. Ctrl-C bricht nach den laufenden Seeds ab und nennt trotzdem, wo es weitergeht.
 
-Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 etwa jedes 140. Puzzle, bei 13×13 jedes 55., bei 14×14 jedes 50., unter 10×10 praktisch keins. Mindestens 4 Lookahead-Schritte sind bei 10×10 noch seltener (zuletzt keins in 2000 Seeds). Ein 14×14-Seed dauert allein bis zu einigen Sekunden; weil die Suche alle Kerne gleichzeitig nutzt, zeigt sie Zeiten bis knapp eine Minute.
+Treffer sind selten: Lookahead mit allen Regeln braucht bei 10×10 bis 12×12 etwa jedes 140. Puzzle, bei 13×13 jedes 55., bei 14×14 jedes 50., bei 15×15 jedes 40., unter 10×10 praktisch keins. Mindestens 4 Lookahead-Schritte hat bei 15×15 etwa jedes 65. Puzzle, bei 10×10 noch seltener (zuletzt keins in 2000 Seeds). Ein Seed dauert allein bis gut zehn Sekunden; weil die Suche alle Kerne gleichzeitig nutzt, zeigt sie Zeiten bis gut eine Minute. 2500 Seeds 15×15 brauchen auf 16 Kernen etwa drei Minuten.
 
 | Option | Bedeutung |
 |---|---|

@@ -1,11 +1,11 @@
 # Sample for the tests (locally and in CI): a plain `go test ./...` checks
 # only these puzzles, `STARBATTLE_ALL_HARD=1 go test ./...` all of
 # bibliothek.idx.
-# It covers sizes 5 to 14, every rule (Pigeonhole and DeadCells too, with and
+# It covers sizes 5 to 15, every rule (Pigeonhole and DeadCells too, with and
 # without lookahead) and every rating, up to the deepest thought experiment of
-# the library (n13_s4661). Solving it takes about a tenth of the whole library
-# (20 of 200 s, one puzzle at a time); left out are the most expensive ones
-# (n14_s1262, n13_s1787, 8 to 13 s each).
+# the library (n13_s4661). Solving it takes about a twelfth of the whole library
+# (21 of 254 s, one puzzle at a time); left out are the most expensive ones
+# (n14_s1262, n15_s1068, n13_s1787, 8 to 13 s each).
 # The cheap ones come first: with -short some tests take only the first few.
 #
 # 1 star, solved by all rules without lookahead:
@@ -29,6 +29,7 @@ n12_s1954.txt
 n13_s4124.txt  # chain of 6
 n13_s783.txt   # 9 steps
 n14_s1525.txt  # 9 steps, chain of 6
+n15_s485.txt   # N = 15, the cheapest of that size
 #
 # 3 stars:
 n11_s095.txt   # Pigeonhole, 11 lookahead steps
@@ -39,4 +40,5 @@ n13_s3567.txt  # chain of 6
 n14_s1717.txt  # chain of 7
 n14_s155.txt   # 25 steps
 n14_s2876.txt  # 25 steps, chain of 8
+n15_s130.txt   # N = 15, 14 steps
 n13_s4661.txt  # 41 steps, chain of 9 (the deepest), 6 s

@@ -276,9 +276,10 @@ designer appends for you). The workflows are in `docs/development.md`.
   same state; no step fires while a simpler rule would have applied.
 - **Hard corpus:** the puzzles in `testdata/hard` stay unsolvable for the
   basic rules and solvable with search; their stored ratings match today's
-  rating. Locally and in CI only `sample.idx` runs (27 puzzles, every size, rule
+  rating. Locally and in CI only `sample.idx` runs (29 puzzles, every size, rule
   and rating); `STARBATTLE_ALL_HARD=1` runs all of them, which takes minutes
-  locally and over half an hour in CI ([decision 22](decisions/22-ci-sample-only.md)).
+  locally and most of an hour in CI ([decision 22](decisions/22-ci-sample-only.md),
+  [23](decisions/23-size-15.md)).
 - **Rules in isolation:** table tests on hand-written board states.
 - **Web:** party state machines with a fake clock, HTTP and SSE end to end,
   page data and escaping; the JS `Logic` module under node (skipped if node is
