@@ -3,13 +3,14 @@
 [![Bibliothek](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FErkenbend%2Fstar-battle-solver%2Fbadges%2Flibrary.json)](testdata/hard/bibliothek.idx)
 [![Vibe-coded mit Claude](https://img.shields.io/badge/vibe--coded-Claude%20Opus%205.5-D97757)](grober_plan.md)
 [![Lizenz: MIT](https://img.shields.io/github/license/Erkenbend/star-battle-solver?label=Lizenz)](LICENSE)
+[![Goroutines und Channels: Schritt für Schritt](https://img.shields.io/badge/Goroutines%20%26%20Channels-Schritt%20f%C3%BCr%20Schritt-00ADD8?logo=go&logoColor=white)](https://erkenbend.github.io/star-battle-solver/)
 
 [![CI](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml?query=branch%3Amain)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FErkenbend%2Fstar-battle-solver%2Fbadges%2Fcoverage.json)](https://github.com/Erkenbend/star-battle-solver/actions/workflows/ci.yml?query=branch%3Amain)
 [![Go](https://img.shields.io/github/go-mod/go-version/Erkenbend/star-battle-solver)](go.mod)
 [![Abhängigkeiten: keine](https://img.shields.io/badge/Abh%C3%A4ngigkeiten-keine-brightgreen)](go.mod)
 
-Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) und erklärt jeden Lösungsschritt auf Deutsch.
+Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) und erklärt jeden Lösungsschritt auf Deutsch. Zugleich ist es ein Anschauungsbeispiel für **Goroutines und Channels in Go**: Zehn echte Stellen lassen sich [Schritt für Schritt durchklicken](#goroutines-und-channels-zum-durchklicken).
 
 ![Lösungsweg im Browser: jeder Schritt mit Regel und Begründung](docs/screenshots/loesungsweg.png)
 
@@ -27,7 +28,7 @@ Erzeugt und löst Star-Battle-Puzzles (auch „Meowdoku“ oder „Queens“) un
 - **Eine Bibliothek der härtesten Fälle,** im Browser ohne jede Hilfe zu lösen. Den Lösungsweg des Solvers gibt es zum Vergleich erst danach. Daneben Motive: Puzzles, deren Regionen ein Bild ergeben, mit Hinweisen wie beim Solo-Spiel.
 - **Brute Force nur als Schiedsrichter:** Sie prüft, dass jedes erzeugte Puzzle genau eine Lösung hat und dass die Regeln nichts Falsches folgern.
 
-Nebenbei ist es ein Go-Experiment: Die Regeln laufen als nebenläufige Observer, eine Goroutine pro Regel, die ihre Folgerungen über Channels austauschen. Regeln und Messungen stehen in [PLAN.md](PLAN.md), die Entscheidungen in [architecture/decisions](architecture/decisions/README.md) (englisch).
+Regeln und Messungen stehen in [PLAN.md](PLAN.md), die Entscheidungen in [architecture/decisions](architecture/decisions/README.md) (englisch).
 
 | ![Gedankenexperiment](docs/screenshots/annahme.png) | ![Selbst lösen](docs/screenshots/spielen.png) |
 |---|---|
@@ -51,6 +52,14 @@ $ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
 8. In Zeile 7 ist nur noch das Feld (7,4) frei → Stern
 …
 ```
+
+## Goroutines und Channels zum Durchklicken
+
+Das Projekt ist auch ein Go-Experiment: Die Regeln laufen als nebenläufige Observer, eine Goroutine pro Regel, die ihre Folgerungen über Channels austauschen. An neun weiteren Stellen arbeiten Goroutines zusammen, vom Worker-Pool bis zum geordneten Herunterfahren des Servers. [architecture/concurrency.md](architecture/concurrency.md) (englisch) erklärt alle zehn Muster und warum sie so gebaut sind. Zu jedem gibt es ein Sequenzdiagramm und einen Ablauf im **[Abspieler](https://erkenbend.github.io/star-battle-solver/)**, Schritt für Schritt vor und zurück: wer blockiert, wer wen weckt, wie Abbruch und Ende funktionieren.
+
+[![Abspieler: die geordnete Pipeline der Suche nach schweren Puzzles, Schritt 8 von 13](docs/screenshots/nebenlaeufigkeit.png)](https://erkenbend.github.io/star-battle-solver/#04-hardsearch-pipeline)
+
+Darunter sind ein Worker-Pool mit Ergebnissen nach Index, gepufferte Channels als Semaphore, eine geordnete Pipeline mit Abbruch über `context`, ein Future aus `sync.Once` und `close`, zusammengefasste Signale für Server-Sent Events und, zum Vergleich, eine Stelle ganz ohne Channel. Die Abläufe sind in Go geschrieben und laufen auf einem kleinen Modell der Semantik von Channels, `select` und `sync`. Ein Test prüft ihre Angaben gegen den Quelltext, damit Diagramme und Code nicht auseinanderlaufen.
 
 ## Herunterladen
 
@@ -97,6 +106,7 @@ Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.d
 | [PLAN.md](PLAN.md) | Regeln, Messungen, Stand und offene Ideen |
 | [architecture/decisions](architecture/decisions/README.md) | Entscheidungen und verworfene Ideen mit Messungen (englisch) |
 | [Architektur](architecture/README.md) | Aufbau und Zweck der Teile, für Entwickelnde (englisch) |
+| [Goroutines und Channels](architecture/concurrency.md) | alle zehn nebenläufigen Stellen mit Sequenzdiagrammen und [Abspieler](https://erkenbend.github.io/star-battle-solver/) (englisch) |
 
 ## Lizenz
 

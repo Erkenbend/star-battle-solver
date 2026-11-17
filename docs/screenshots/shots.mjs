@@ -194,6 +194,18 @@ const shots = {
     await go("/bibliothek?id=" + encodeURIComponent(e.id));
     await shot("bibliothek-geloest");
   },
+  // The step-through player of architecture/concurrency.md (a local file, no
+  // server needed): the pipeline of section 4 at step 8, where back-pressure
+  // holds worker 2 and the producer waits in its select.
+  async nebenlaeufigkeit() {
+    const loaded = once("Page.loadEventFired");
+    await send("Page.navigate", { url: `file://${OUT}/../../architecture/concurrency/player.html#04-hardsearch-pipeline` });
+    await loaded;
+    await sleep(300);
+    await js(`playStep(7)`);
+    await waitFor(`!playing`);
+    await shot("nebenlaeufigkeit");
+  },
 };
 
 for (const [name, f] of Object.entries(shots)) {
