@@ -1,0 +1,285 @@
+# Goroutines and channels
+
+One premise of the project ([`grober_plan.md`](../grober_plan.md)) was to try
+Go's concurrency on a real problem: rules as concurrent observers, parallel
+work on puzzles, puzzles prepared before anyone asks for them. This file is a
+guided tour of every place that starts goroutines or uses channels, meant for
+developers who want to study the patterns. It explains the shape of each one
+and why it has that shape. The code and its comments have the details; names
+are given as `package.Function` so they can be found with grep.
+
+Principle 1 of [README.md](README.md#2-principles-that-shape-the-code)
+(the board is monotone) is what makes most of this safe: a cell only goes from
+free to star or cross, so marks can arrive in any order and be duplicated, and
+every goroutine can work on its own copy of the board without locks.
+
+## Overview
+
+| # | Where | Pattern | Channels used for |
+|---|---|---|---|
+| 1 | `solver.RunConcurrent` | actors with mailboxes, fan-in, quiescence detection | messages, wake-ups, shutdown broadcast |
+| 2 | `solver.lookahead` | worker pool, results by index | job distribution |
+| 3 | `generator.run` | bounded speculative parallelism, deterministic winner | semaphores (local and process-wide), cancellation |
+| 4 | `hardsearch.Search` | ordered pipeline with reorder buffer, resumable | jobs, results, cancellation via `context` |
+| 5 | `designer.completeDesign` | fan-out, stream results as they come | results channel closed by a waiter goroutine |
+| 6 | `web.Pool` | pre-queueing: a deduplicating work queue | buffered channel as queue |
+| 7 | `party.Manager.startPrep` | prefetching in a goroutine, cancelled by generation number | none (a mutex instead, for contrast) |
+| 8 | `web.Library.start` | lazy future: `sync.Once` + closed channel | readiness signal |
+| 9 | `party.Manager.Subscribe` + `/party/{code}/events` | coalescing pub-sub feeding server-sent events | 1-slot notify channels, ticker heartbeat |
+| 10 | `cmd/starbattle` (`serve`, `design`, `hardsearch`) | process lifecycle, graceful shutdown | signals, server errors, stop channel |
+
+Recurring idioms are collected at the end ([Idioms](#idioms)), and so is how
+the concurrency is tested ([Testing](#testing)).
+
+## 1. Concurrent rule runner (`internal/solver/concurrent.go`)
+
+The showpiece and the original experiment. Every observer (rule) runs in its
+own goroutine; a single runner goroutine owns the authoritative board.
+
+```
+observer goroutines --(msg: marks / idle / done)--> runner --(delta batches)--> mailboxes
+```
+
+- **Fan-in.** All observers send on one channel `out chan msg`. The runner is
+  the only reader and never stops reading while it runs, so observers cannot
+  get stuck on a send.
+- **Unbounded mailboxes, not channels, for the way back.** The runner must
+  broadcast each delta to every observer without ever blocking (if it blocked
+  on an observer that is itself blocked sending to the runner, both would
+  wait forever). A buffered channel cannot guarantee that for any fixed size,
+  so `mailbox` is a mutex-protected slice plus a `notify chan struct{}` with
+  capacity 1. `put` appends and tries a non-blocking send on `notify`; if a
+  wake-up is already pending, the new one is dropped because `take` returns
+  everything queued anyway. This "slice + 1-slot notify channel" is a
+  common way to build an unbounded queue in Go.
+- **Private state per actor.** Each observer keeps its own clone of the board
+  and applies the deltas from its mailbox in order. The board is monotone, so
+  after applying all batches up to version *v* the copy equals the runner's
+  board at *v*. No locks around the board.
+- **Shutdown by `close(quit)`.** Closing a channel wakes every receiver at
+  once, so it serves as a broadcast. Both blocking points of an observer (the
+  send on `out` and the wait on `notify`) `select` on `quit` too. The runner
+  `defer`s `close(quit)` followed by `wg.Wait()`, so no goroutine outlives the
+  call, whichever way it returns (solved, stuck, contradiction).
+- **Termination without a central clock.** Detecting that "nobody can deduce
+  anything any more" is the hard part of any actor system. The runner gives
+  each published state a version number; an observer that finds nothing
+  reports `Idle` with the version it has seen. Messages from one goroutine on
+  one channel arrive in order, so once every active observer is idle at the
+  current version, nothing is left in flight: the fixpoint is reached.
+- **Priorities on top of parallelism.** Marks found on the current version
+  wait in a pending set; the runner applies the one of the lowest level only
+  once every simpler observer is idle at that version
+  ([decision 6](decisions/06-priority-levels.md)). The goroutines keep
+  computing in parallel; only the order of application is serialised. Marks
+  computed on an older version are dropped, because their senders will see
+  the newer broadcast and deduce again.
+- **Rules know nothing of this.** `runObserver` wraps the pure
+  `Observer.Deduce`; concurrency lives in the runner only (principle 2).
+
+`starbattle solve` uses this runner by default. The explanations people see
+come from the deterministic `RunSync` instead, because the concurrent step
+order, and so the length of a chain, varies between runs
+([decision 2](decisions/02-sync-runner-for-trial-runs.md)).
+[refactorings.md](refactorings.md) explains why the runner stays.
+
+## 2. Parallel lookahead (`solver.lookahead`, `internal/solver/search.go`)
+
+When the rules are stuck, the solver tries a star on every free cell and keeps
+the refutation that is easiest to follow.
+
+- A classic **worker pool**: `GOMAXPROCS` workers range over an unbuffered
+  `jobs chan int`; the producer sends the indices and closes the channel,
+  which ends every worker's `range` loop; `wg.Wait()` waits for the rest.
+- **No results channel.** Each worker writes to `hyps[i]`, its own slot of a
+  pre-sized slice. Distinct indices need no lock, and `wg.Wait()` establishes
+  the happens-before edge for reading them afterwards.
+- **Determinism despite scheduling.** The best hypothesis is picked after
+  all are done, by a strict comparison in index order, so ties keep the
+  earlier candidate. Which worker finished first never matters. Inside a
+  trial the deterministic `RunSync` is used, for the same reason.
+
+## 3. Parallel generator attempts (`generator.run`, `internal/generator/generator.go`)
+
+Generating a uniquely solvable puzzle is a series of random attempts, many of
+which fail. Running several at once helps, but the result must depend only on
+the seed (principle 5). See [decision 13](decisions/13-parallel-generator-attempts.md)
+for the measurements.
+
+- **Buffered channels as counting semaphores.** `slots := make(chan
+  struct{}, workers)` limits this call; the package-level `cpuSlots` (size
+  GOMAXPROCS − 1) limits all calls of the process together, so the server's
+  background pool and a request never take every core. Acquire is a send,
+  release a receive, in reverse order, in a `defer`.
+- **Deterministic winner.** Attempt *i* draws its own random generator from
+  the seed in order, before it starts. The successful attempt with the lowest
+  index wins, tracked in an `atomic.Int64` updated with a compare-and-swap
+  loop ("atomic minimum"). Attempts above the current best are not started,
+  and running ones give up at their next check (`stop`). So more workers only
+  make the result arrive sooner, never different (`TestWorkersSameResult`).
+- **Cancellation by a `Done <-chan struct{}`** in `Options`, polled with a
+  non-blocking `select` (`cancelled`). The generator takes a bare channel, not
+  a `context.Context`: it only needs the "stop" signal, and callers pass
+  `ctx.Done()` or `r.Context().Done()`.
+
+The lookahead of section 2 is not covered by `cpuSlots`.
+
+## 4. Hard puzzle search (`hardsearch.Search`, `internal/hardsearch/hardsearch.go`)
+
+`starbattle hardsearch` checks a range of seeds for puzzles that defeat the
+rules, on all cores, and must print and write them in seed order so a run can
+be continued where it stopped.
+
+- **A three-stage pipeline.** A producer goroutine sends seeds on `jobs`
+  (`select` with `ctx.Done()`, `defer close(jobs)`); `workers` goroutines
+  turn seeds into results on `results`; a third goroutine waits for the
+  workers and closes `results`. The caller's goroutine ranges over `results`.
+  "Close the results channel from a goroutine that waits on the WaitGroup" is
+  the standard way to let a consumer use `range` over a fan-in.
+- **Reorder buffer.** Results arrive out of order; a map holds them until the
+  next seed in sequence is there, so `emit` is called in seed order and from
+  one goroutine only (the caller needs no locks).
+- **Resumable cancellation.** Ctrl-C cancels the context
+  (`signal.NotifyContext`); the producer stops, running seeds abort through
+  the generator's `Done` channel, and their errors are discarded. `Search`
+  returns the first seed it did not emit: the gap left by an aborted seed
+  ends the run, so `-from` with that seed continues without holes.
+- **Back-pressure for free.** Both channels are unbuffered, so a slow `emit`
+  (writing files) slows the workers instead of piling up results.
+
+## 5. Design completions streamed to the page (`designer.completeDesign`)
+
+The developer tool `starbattle design` completes a drawn pattern *k* times
+with different seeds, and the page shows each candidate as soon as it exists.
+
+- **Fan-out, stream back.** One goroutine per candidate (each runs the
+  generator with `Workers: 1`, the candidates are the parallelism, and all
+  share `cpuSlots`). Results go into `out`, which the function returns as a
+  receive-only `<-chan *foundCandidate`. The HTTP handler ranges over it and
+  writes one NDJSON line per candidate, flushing after each.
+- **A buffer of exactly *k*.** Each goroutine sends exactly once, so with
+  capacity *k* no send can block, even if the reader is gone. A waiter
+  goroutine closes `out` after `wg.Wait()`, which ends the handler's loop.
+- **Cancellation from the browser.** The request's `r.Context().Done()` is
+  passed to the generator, so closing the page stops the work.
+- A small mutex guards the set of seen layouts that marks duplicates; the
+  channel carries the results, the mutex protects shared state. Both have
+  their place.
+
+## 6. Pre-queueing puzzles (`web.Pool`, `internal/web/pool.go`)
+
+`serve` keeps one generated and solved puzzle per size ready, so "new puzzle"
+answers at once.
+
+- **A buffered channel as a work queue.** `queue chan int` holds the sizes to
+  (re)fill; a single background goroutine ranges over it, filling the sizes
+  one at a time, smallest first (they are queued in that order at start).
+- **Deduplication by invariant.** The capacity is the number of sizes, and a
+  size is queued only when its puzzle is handed out, i.e. when it is neither
+  ready nor queued. So a size is in the queue at most once, the queue never
+  has more entries than its capacity, and `takePuzzle` may send on it while
+  holding the mutex without risk of blocking (the comment says so at the
+  send).
+- One goroutine for all sizes, on purpose: the generator is already parallel
+  inside (section 3), and the pool should not compete with requests.
+
+## 7. Preparing the next party puzzles (`party.Manager.startPrep`)
+
+A party prepares the puzzle of its next round (in the clock mode several
+ahead) in the background while players play. It is included here as a
+deliberate contrast: there is **no channel**. The party's state already lives
+behind the manager's mutex ([README.md](README.md#4-where-state-lives)), so
+the goroutine takes the lock to read what is needed, releases it around the
+slow `prepare`, and takes it again to store the result.
+
+Cancellation is a **generation number**: `prepGen` is incremented when a
+preparation must be dropped (e.g. the party expired); the goroutine compares
+its own copy each time it holds the lock and quietly ends on a mismatch. It
+cannot interrupt a running `prepare`, but its result is never used. When the
+state is behind a mutex anyway, this is simpler than a cancel channel.
+
+Timers go through an injectable `after` (default `time.AfterFunc`) and the
+expiry loop `Manager.Run` through a ticker, so tests drive the party with a
+fake clock instead of sleeping.
+
+## 8. Lazy solving of library puzzles (`web.Library.start`, `internal/web/library.go`)
+
+The library holds about 200 puzzles; solving all at start would take minutes
+on a Raspberry Pi. Each entry is solved in the background on the first visit
+of its page.
+
+- **A future built from `sync.Once` and a channel.** `start` runs the solver
+  in a goroutine exactly once (`once.Do`) and `defer close(e.ready)`.
+  Closing is the signal: every present and future receiver sees it, any
+  number of times. The fields written before the close are safe to read
+  after receiving from `ready`.
+- **Peeking**: `done()` is a non-blocking `select` with `default`.
+- **Waiting with a way out**: the handlers that need the result `select` on
+  `e.ready` and `r.Context().Done()`. If the visitor leaves, the handler
+  returns, but the solve goes on and its result waits for the next visitor.
+
+## 9. Live party updates (`party.Manager.Subscribe`, `web` `/party/{code}/events`)
+
+Every player's browser holds a server-sent events stream; every change of a
+party must reach all of them.
+
+- **Coalescing notifications.** `Subscribe` creates a `chan struct{}` with
+  capacity 1 per stream; `signal` does a non-blocking send. Many changes in a
+  burst collapse into one pending signal. Nothing is lost because the signal
+  carries no data: the stream reads the *current* state (`Snapshot`) when it
+  wakes. "Signal that something changed, then read the state" avoids slow
+  subscribers blocking the publisher, and needs no buffer sizing.
+- **Signalling under the lock.** `broadcast` runs while the manager's mutex
+  is held; that is fine only because `signal` never blocks.
+- **Unsubscribe** is the returned `cancel` func, deferred by the handler.
+- **The stream loop** `select`s on three channels: the request context (the
+  browser left, or the server shuts down), the change signal, and a 20 s
+  `time.Ticker` for a keep-alive comment that stops proxies from closing an
+  idle connection. A party that expires signals its subscribers once more;
+  their `Snapshot` fails and they send a final `gone` event.
+
+## 10. Process lifecycle (`cmd/starbattle/main.go`)
+
+- `signal.NotifyContext` turns Ctrl-C and SIGTERM (systemd stop) into a
+  cancelled context, used by `serve`, `design` and `hardsearch`.
+- `http.Server.BaseContext` makes every request context a child of it, so
+  long-lived requests (event streams, design completions) end on shutdown and
+  `Shutdown` does not wait for them until its timeout.
+- `ListenAndServe` runs in a goroutine that sends its error on `errc`, a
+  channel with **capacity 1**: after a shutdown nobody reads it any more, and
+  the buffer lets the goroutine finish instead of leaking. The main goroutine
+  `select`s between that error and the context.
+- `Manager.Run(interval, ctx.Done())` shows the plain "ticker + stop channel"
+  loop.
+
+## Idioms
+
+| Idiom | Used in |
+|---|---|
+| `close(ch)` as a broadcast to any number of receivers | `quit` (1), `jobs` (2, 4), `out`/`results` (4, 5), `ready` (8) |
+| capacity-1 channel + non-blocking send = coalescing wake-up | `mailbox.notify` (1), `signal` (9) |
+| mutex-protected slice + notify channel = unbounded queue | `mailbox` (1) |
+| buffered channel as counting semaphore | `slots`, `cpuSlots` (3) |
+| buffered channel sized so sends can never block | `out` in (5), `queue` (6), `errc` (10) |
+| `select` with `default` to poll | `cancelled` (3), `done()` (8), `signal` (9) |
+| `<-chan struct{}` for cancellation in lower packages, `context` at the edges | generator, hardsearch, designer |
+| waiter goroutine `wg.Wait(); close(out)` so the consumer can `range` | (4), (5) |
+| results written by index instead of sent | `hyps` (2), `results` (3) |
+| `sync.WaitGroup.Go` (Go 1.25) instead of `Add`/`Done` | (1), (2), (3), (4), (5) |
+| no channel at all: mutex + generation number | (7) |
+
+## Testing
+
+- CI runs `go test -race -short ./...` on every push.
+- `TestRunnersAgree` (`internal/solver/observers`) checks that both runners
+  reach the same state on 70 generated puzzles, each concurrent run repeated
+  five times; `TestRunConcurrentPriority`
+  (`internal/solver`) makes a simple rule slow and a demanding one fast and
+  checks that the simple one is still applied first, 20 times in both orders.
+- `TestWorkersSameResult` (`internal/generator`) checks that the number of
+  workers does not change the puzzle; `TestCompleteCancel` checks the `Done`
+  channel.
+- `TestSearch` (`internal/hardsearch`) checks seed-ordered emission with
+  three workers and the return value of a cancelled search.
+- `TestPool`, `TestPartySubscribe`, `TestPartyEvents` (end to end over HTTP)
+  and the party tests with a fake clock cover sections 6, 7 and 9.

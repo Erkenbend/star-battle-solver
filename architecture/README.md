@@ -11,6 +11,7 @@ written in German. Code, comments, scripts and this directory are in English.
 | File | Content |
 |---|---|
 | this file | what the system is, how it is cut into parts, where state lives, how it is tested and shipped |
+| [concurrency.md](concurrency.md) | a tour of every goroutine and channel, the patterns behind them and why each has its shape |
 | [refactorings.md](refactorings.md) | a review of the architecture with suggested (not yet done) refactorings |
 | [decisions/](decisions/README.md) | one file per decision, including rejected ideas, with the reasons and measurements |
 
@@ -39,7 +40,8 @@ to people.
 
 It is also a Go experiment: the rules can run as concurrent observers, one
 goroutine per rule, exchanging marks over channels (the premise of
-`grober_plan.md`).
+`grober_plan.md`). [concurrency.md](concurrency.md) walks through this and
+every other use of goroutines and channels.
 
 ## 2. Principles that shape the code
 
@@ -327,3 +329,4 @@ browser code. The full suite with every hard puzzle is CI's job.
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/`; animated ones in `internal/sprite` | see `symbols/README.md`; rewrite the sheets with `go test ./internal/sprite -update` |
 | a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |
+| goroutines or channels anywhere | the section of the place in `architecture/concurrency.md` | update that file; run `go test -race` on the package |
