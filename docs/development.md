@@ -25,6 +25,8 @@ GOOS=darwin GOARCH=amd64 go build ./cmd/starbattle
 
 Die Screenshots in [docs/screenshots](screenshots) nimmt `docs/screenshots/take.sh` neu auf (braucht Go, node ≥ 22 und Chromium).
 
+Die Animationen in [architecture/concurrency.md](../architecture/concurrency.md) zeichnet `internal/concviz` aus kleinen Drehbüchern, deren Angaben über den Code (Funktionen, Kanäle, `select`, `close`, …) ein Test gegen den Quelltext prüft. Nach einer Änderung an Goroutinen oder Kanälen sagt `go test ./internal/concviz`, welche Angabe nicht mehr stimmt; nach dem Anpassen schreibt `go test ./internal/concviz -update` die SVG-Dateien neu.
+
 ### UI-Prüfung
 
 ```sh
@@ -52,6 +54,7 @@ Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit 
 | `internal/party` | Party-Modus: Partys, Runden, gegeneinander, miteinander, gegen die Uhr (ohne HTTP) |
 | `internal/web` | HTML-Seite, Server, Bibliothek, Einstellungen, HTTP des Party-Modus |
 | `internal/designer` | das Werkzeug `starbattle design` (Seite und Speichern) |
+| `internal/concviz` | die Animationen in `architecture/concurrency` (Entwicklung) |
 | `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder, siehe [symbols/README.md](../symbols/README.md)) |
 | `deploy` | Installation als systemd-Dienst auf dem Raspberry Pi (siehe [deploy/README.md](../deploy/README.md)) |
 | `designs` | mit `starbattle design` entworfene Puzzles; zugleich die Motive der Bibliothek (Reihenfolge in `bibliothek.idx`, Name in der Zeile `# name:` jeder Datei) |

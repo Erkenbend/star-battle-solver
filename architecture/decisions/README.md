@@ -33,6 +33,7 @@ and open ideas.
 | [21](21-library-175.md) | Library with 175 puzzles | done |
 | [22](22-ci-sample-only.md) | CI runs only the sample of hard puzzles | done |
 | [23](23-size-15.md) | Size 15 in the game and the library | done |
+| [24](24-concurrency-animations.md) | Animations for `concurrency.md`, checked against the code | partly done (3 of 10 sections) |
 
 ## Adding a decision
 

@@ -11,7 +11,7 @@ written in German. Code, comments, scripts and this directory are in English.
 | File | Content |
 |---|---|
 | this file | what the system is, how it is cut into parts, where state lives, how it is tested and shipped |
-| [concurrency.md](concurrency.md) | a tour of every goroutine and channel, the patterns behind them and why each has its shape |
+| [concurrency.md](concurrency.md) | a tour of every goroutine and channel, the patterns behind them and why each has its shape, with animations |
 | [refactorings.md](refactorings.md) | a review of the architecture with suggested (not yet done) refactorings |
 | [decisions/](decisions/README.md) | one file per decision, including rejected ideas, with the reasons and measurements |
 
@@ -96,6 +96,7 @@ something far away.
               root package `starbattle` (embed.go): embeds testdata/hard,
               designs/, symbols/
               internal/sprite (dev): draws the animated sheets in symbols/
+              internal/concviz (dev): draws the animations of concurrency.md
 
  reasoning    internal/solver ◄──── internal/solver/observers
               (runners, search,     (the rules + German text)
@@ -296,6 +297,9 @@ designer appends for you). The workflows are in `docs/development.md`.
   `expected.jsonl`; after an intended UI change, `run.sh -update` rewrites
   it and its diff is part of the review. Not part of `go test`: run it with
   `internal/web/uicheck/run.sh` (about a minute); CI runs it as its own job.
+- **Animations:** the stories behind the animations of
+  [concurrency.md](concurrency.md) are checked against the source with
+  `go/ast`, and the checked-in SVGs against what the stories draw.
 - **CLI:** smoke tests call the commands directly.
 
 Day to day, run `go test -short ./...`, and the UI check after changing the
@@ -329,4 +333,4 @@ browser code. The full suite with every hard puzzle is CI's job.
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/`; animated ones in `internal/sprite` | see `symbols/README.md`; rewrite the sheets with `go test ./internal/sprite -update` |
 | a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |
-| goroutines or channels anywhere | the section of the place in `architecture/concurrency.md` | update that file; run `go test -race` on the package |
+| goroutines or channels anywhere | the section of the place in `architecture/concurrency.md` | update that file; run `go test -race` on the package; if the section has an animation, `go test ./internal/concviz` names the claims of its story that no longer hold: fix the story in `internal/concviz`, then `go test ./internal/concviz -update` |

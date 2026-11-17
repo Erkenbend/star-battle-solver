@@ -13,6 +13,18 @@ Principle 1 of [README.md](README.md#2-principles-that-shape-the-code)
 free to star or cross, so marks can arrive in any order and be duplicated, and
 every goroutine can work on its own copy of the board without locks.
 
+Sections 1, 4 and 8 have an animation of one run (the others are to follow).
+Each is a *story* in `internal/concviz`: a script of steps played on a small
+model of Go's semantics (buffers and handoffs, `select` with and without
+`default`, `close` as a broadcast, `sync.WaitGroup`, `sync.Once`), so who
+blocks and who wakes up follows from the operations instead of being drawn by
+hand. Every operation also names the code it stands for, and a test checks
+these names against the source with `go/ast`: renaming a channel, changing a
+capacity or dropping a `select` case fails it until the story follows
+([decision 24](decisions/24-concurrency-animations.md)). An animation shows
+one possible interleaving; the scheduler may choose others, which is why the
+code does not depend on any of them.
+
 ## Overview
 
 | # | Where | Pattern | Channels used for |
@@ -39,6 +51,8 @@ own goroutine; a single runner goroutine owns the authoritative board.
 ```
 observer goroutines --(msg: marks / idle / done)--> runner --(delta batches)--> mailboxes
 ```
+
+![Animation: the runner and two observers of levels 1 and 3 exchanging marks over out and the mailboxes, until quiescence and close(quit)](concurrency/01-concurrent-runner.svg)
 
 - **Fan-in.** All observers send on one channel `out chan msg`. The runner is
   the only reader and never stops reading while it runs, so observers cannot
@@ -130,6 +144,8 @@ The lookahead of section 2 is not covered by `cpuSlots`.
 rules, on all cores, and must print and write them in seed order so a run can
 be continued where it stopped.
 
+![Animation: producer, two workers, closer and caller around the unbuffered channels jobs and results, then Ctrl-C](concurrency/04-hardsearch-pipeline.svg)
+
 - **A three-stage pipeline.** A producer goroutine sends seeds on `jobs`
   (`select` with `ctx.Done()`, `defer close(jobs)`); `workers` goroutines
   turn seeds into results on `results`; a third goroutine waits for the
@@ -208,6 +224,8 @@ The library holds about 200 puzzles; solving all at start would take minutes
 on a Raspberry Pi. Each entry is solved in the background on the first visit
 of its page.
 
+![Animation: page and /weg handlers of three visitors around sync.Once, the solver goroutine and close(e.ready)](concurrency/08-library-future.svg)
+
 - **A future built from `sync.Once` and a channel.** `start` runs the solver
   in a goroutine exactly once (`once.Do`) and `defer close(e.ready)`.
   Closing is the signal: every present and future receiver sees it, any
@@ -283,3 +301,7 @@ party must reach all of them.
   three workers and the return value of a cancelled search.
 - `TestPool`, `TestPartySubscribe`, `TestPartyEvents` (end to end over HTTP)
   and the party tests with a fake clock cover sections 6, 7 and 9.
+- `internal/concviz` keeps the animations in step with the code:
+  `TestStoriesMatchCode` checks every claim of the stories against the
+  source, `TestAnimationsUpToDate` the SVGs in `concurrency/` against what the
+  stories draw (rewrite them with `go test ./internal/concviz -update`).
