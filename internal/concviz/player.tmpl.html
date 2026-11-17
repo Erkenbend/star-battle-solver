@@ -21,8 +21,10 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;padding:16p
 #scrub{flex:1;min-width:160px}
 #clock{font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--mut);min-width:90px;text-align:right}
 .hint{color:var(--mut);font-size:12px;margin:4px 0}
+aside{display:flex;flex-direction:column;min-height:0;max-height:70vh}
+@media (min-width:1151px){aside{position:sticky;top:16px;align-self:start;max-height:calc(100vh - 90px)}}
 aside h2{font-size:14px;margin:0 0 6px}
-ol{margin:0;padding-left:30px}
+ol{margin:0;padding-left:30px;overflow-y:auto;min-height:0}
 li{padding:5px 8px;border-radius:6px;cursor:pointer}
 li.cur{background:var(--cur)}
 li .ops{display:none;margin:6px 0 2px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--mut);white-space:pre-wrap}
@@ -60,10 +62,11 @@ const stepAt = (t) => {
   while (i + 1 < story.steps.length && story.steps[i + 1].t0 <= t + 1e-6) i++;
   return i;
 };
-// The moment step i has played out: values arrived, states changed.
+// The moment step i has played out: values arrived, states changed. The
+// last step plays out at the end of the timeline.
 const settled = (i) => {
-  const next = i + 1 < story.steps.length ? story.steps[i + 1].t0 : story.total;
-  return Math.min(story.steps[i].t1 + 0.4, next - 0.01);
+  if (i + 1 >= story.steps.length) return story.total;
+  return Math.min(story.steps[i].t1 + 0.4, story.steps[i + 1].t0 - 0.01);
 };
 
 function seek(t) {
@@ -115,18 +118,25 @@ function prev() {
   seek(settled(Math.max(0, now() > settled(i) + 0.05 ? i : i - 1)));
 }
 
+// reveal scrolls the step list, and only the list, so that li is in view.
+function reveal(li) {
+  const ol = $("steps"), b = ol.getBoundingClientRect(), r = li.getBoundingClientRect();
+  if (r.top < b.top) ol.scrollTop -= b.top - r.top;
+  else if (r.bottom > b.bottom) ol.scrollTop += Math.min(r.bottom - b.bottom, r.top - b.top);
+}
+
 let shown = -1;
 function show() {
   const t = now();
   $("scrub").value = Math.round((t / story.total) * 1000);
-  $("clock").textContent = `${t.toFixed(1)} / ${story.total.toFixed(0)} s`;
+  $("clock").textContent = `${t.toFixed(1)} / ${story.total.toFixed(1)} s`;
   $("play").textContent = playing ? "❚❚ Pause" : "▶ Play";
   const i = stepAt(t);
   if (i !== shown) {
     shown = i;
     [...$("steps").children].forEach((li, k) => {
       li.classList.toggle("cur", k === i);
-      if (k === i && t > 0) li.scrollIntoView({ block: "nearest" });
+      if (k === i) reveal(li);
     });
     $("where").textContent = `Step ${i + 1} of ${story.steps.length}`;
   }

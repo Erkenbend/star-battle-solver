@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 644" width="880" height="644" role="img" aria-label="8. Lazy solving of library puzzles: a future from sync.Once and close">
 <title>8. Lazy solving of library puzzles: a future from sync.Once and close</title>
 <style>
-svg{--bg:#ffffff;--fg:#1f2328;--mut:#59636e;--ln:#c4ccd5;--band:#f6f8fa;--run:#1a7f37;--runbg:#dafbe1;--blk:#bc4c00;--ch:#0969da;--chbg:#ddf4ff;--tok:#8250df;--cls:#cf222e;--box:#f6f8fa}
-@media (prefers-color-scheme:dark){svg{--bg:#0d1117;--fg:#e6edf3;--mut:#9198a1;--ln:#3d444d;--band:#151b23;--run:#3fb950;--runbg:#12261e;--blk:#f0883e;--ch:#4493f8;--chbg:#0c2d6b;--tok:#a371f7;--cls:#f85149;--box:#151b23}}
+svg{--bg:#ffffff;--fg:#1f2328;--mut:#59636e;--ln:#c4ccd5;--band:#f6f8fa;--run:#1a7f37;--runbg:#dafbe1;--blk:#bc4c00;--blkbg:#fff1e5;--ch:#0969da;--chbg:#ddf4ff;--tok:#8250df;--cls:#cf222e;--box:#f6f8fa}
+@media (prefers-color-scheme:dark){svg{--bg:#0d1117;--fg:#e6edf3;--mut:#9198a1;--ln:#3d444d;--band:#151b23;--run:#3fb950;--runbg:#12261e;--blk:#f0883e;--blkbg:#2d1b0e;--ch:#4493f8;--chbg:#0c2d6b;--tok:#a371f7;--cls:#f85149;--box:#151b23}}
 text{font:11px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:var(--fg)}
 .m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px}
 .bg{fill:var(--bg)}.ti{font-size:15px;font-weight:600}.mu{fill:var(--mut)}.band{fill:var(--band)}.sn{fill:var(--mut);text-anchor:middle;font-size:12px}
@@ -14,6 +14,7 @@ text{font:11px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fil
 .buf{fill:var(--tok);opacity:.35}.dot{fill:var(--tok)}
 .lab{text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3px}.tv{fill:var(--tok)}.tc{fill:var(--cls)}.ts{fill:var(--mut)}
 .bl{fill:var(--blk);paint-order:stroke;stroke:var(--bg);stroke-width:3px}.no{fill:var(--mut);font-style:italic;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.k1{fill:var(--blkbg);stroke:var(--blk);stroke-width:1.5}.k0{fill:var(--runbg);stroke:var(--run);stroke-width:1.5}.kn{font-weight:700;text-anchor:middle;font-size:12px}
 .mv{fill:var(--tok)}.mc{fill:var(--cls)}.ms{fill:var(--mut)}
 </style>
 <marker id="av" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="mv" d="M0 0L10 5L0 10z"/></marker><marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="mc" d="M0 0L10 5L0 10z"/></marker><marker id="as" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ms" d="M0 0L10 5L0 10z"/></marker>

@@ -12,14 +12,16 @@ one run of its pattern, in two forms drawn from the same story:
   shared state, time downwards, one band per numbered step. A running
   goroutine is a solid line, a blocked one a dashed orange line labelled with
   what it waits on; values are arrows, a value waiting in a buffer is a bar
-  on the channel, a closed channel turns red. The numbered steps follow as a
-  list in the Markdown;
+  on the channel, a closed channel turns red, a WaitGroup's counter shows
+  where it changes (orange while `Wait` would block, green at 0). The
+  numbered steps follow as a list in the Markdown;
 - in [`concurrency/player.html`](../concurrency/player.html), opened locally
   in a browser, the **animated scene**: goroutines as boxes coloured by state,
   channels with their buffer slots, values moving between them, dashed
   arrows from a blocked goroutine to what it waits on. It plays, pauses,
   steps forward and back (buttons or arrow keys), scrubs, and lists the steps
-  with what each goroutine did in them.
+  with what each goroutine did in them. The list scrolls on its own, so
+  stepping never moves the page; the last step ends with the timeline.
 
 How it is built (`internal/concviz`, standard library only):
 
@@ -55,9 +57,9 @@ How it is built (`internal/concviz`, standard library only):
   Animations API (`getAnimations`, `currentTime`, `pause`), so seeking and
   stepping need no second renderer in JavaScript.
 
-Numbers: the runner story has 16 steps (scene 89 s at normal speed), the
-pipeline 13 steps (75 s), the library future 8 steps (44 s). The diagrams are
-8 to 15 KB and 900 to 980 px wide, the player 152 KB. All tests of the
+Numbers: the runner story has 16 steps (scene 81 s at normal speed), the
+pipeline 13 steps (68 s), the library future 8 steps (38 s). The diagrams are
+8 to 16 KB and 900 to 980 px wide, the player 154 KB. All tests of the
 package take 0.02 s.
 
 Tried first and replaced (same day): the looping animated SVGs alone, inline

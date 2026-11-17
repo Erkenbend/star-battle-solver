@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -143,6 +144,8 @@ type event struct {
 	from, via, to node
 	label         string
 	tok           *Tok // a value entering or leaving a buffer
+	wg            *WG  // a WaitGroup whose counter the event changes, to n
+	n             int
 }
 
 // row is one event, or an empty row for a step without events, with the
@@ -310,7 +313,7 @@ func (g *G) Exit(status string) {
 	g.dropHand()
 	e := event{kind: evExit, from: g, label: "returns"}
 	if g.wg != nil {
-		e.to, e.label = g.wg.box, "done"
+		e.to, e.label, e.wg, e.n = g.wg.box, "done", g.wg, g.wg.n-1
 	}
 	g.s.ev(e)
 	g.st = exited
@@ -802,6 +805,7 @@ type Box struct {
 	title string
 	r     rect
 	lines []string
+	wg    bool // a WaitGroup: lines[0] is its counter
 }
 
 // Box adds a box of w×h around at.
@@ -868,12 +872,13 @@ type WG struct {
 
 // WaitGroup adds a WaitGroup that the code calls codes (e.g. "wg").
 func (s *Story) WaitGroup(at Pt, codes ...string) *WG {
-	wg := &WG{box: s.Box(codes[0]+" (sync.WaitGroup)", at, 170, 44), codes: codes}
+	wg := &WG{box: s.Box(codes[0]+" (sync.WaitGroup)", at, 190, 56), codes: codes}
+	wg.box.wg = true
 	wg.show()
 	return wg
 }
 
-func (wg *WG) show() { wg.box.Set(fmt.Sprintf("counter %d", wg.n)) }
+func (wg *WG) show() { wg.box.Set(strconv.Itoa(wg.n)) }
 
 func (wg *WG) calls(method string) need {
 	n := need{kind: needCall}
@@ -891,6 +896,8 @@ func (wg *WG) Go(parent, child *G) {
 	wg.n++
 	wg.show()
 	child.start(parent, wg.codes[0]+".Go")
+	e := parent.s.rows[len(parent.s.rows)-1].ev
+	e.wg, e.n = wg, wg.n
 	parent.s.logf("%s: %s.Go → %s starts, counter %d", parent, wg.codes[0], child, wg.n)
 }
 

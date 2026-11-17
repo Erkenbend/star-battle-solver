@@ -14,7 +14,7 @@ const (
 	stillTime = 0.35 // a step in which only states change
 	readBase  = 1.3  // reading time of every caption …
 	readChar  = 0.03 // … plus this per character
-	lastHold  = 3.0  // extra time on the last step before the loop restarts
+	settle    = 0.4  // after the last step: the player stops there, its caption stays
 	fade      = 0.25
 )
 
@@ -40,6 +40,7 @@ text{font:13px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fil
 .cn{font-weight:700;font-size:12px;text-anchor:middle}.cm{fill:var(--mut);text-anchor:middle;font-size:10.5px}
 .cx{fill:var(--bg);stroke:var(--cls);stroke-width:2}.ct{fill:var(--cls);font-weight:700;text-anchor:middle}
 .bx{fill:var(--box);stroke:var(--ln);stroke-width:1.5}.bt{font-weight:600;font-size:12px}
+.k1{fill:var(--blkbg);stroke:var(--blk);stroke-width:1.5}.k0{fill:var(--runbg);stroke:var(--run);stroke-width:1.5}.kn{font-size:17px;font-weight:700;text-anchor:middle}
 .tk{fill:var(--tok)}.tl{fill:var(--tokfg);text-anchor:middle}
 .sep{stroke:var(--ln)}.cp{font-size:14px}.cn2{fill:var(--mut);font-size:12px}
 `
@@ -59,7 +60,7 @@ func (s *Story) timeline() (t0, t1 []float64, total float64) {
 		}
 		hold := readBase + readChar*float64(len(f.caption))
 		if i == n {
-			hold += lastHold
+			hold = settle
 		}
 		t0[i], t1[i] = t, t+m
 		t += m + hold
@@ -171,6 +172,10 @@ func (s *Story) Scene() []byte {
 		for j, lines := range f.boxes {
 			r := s.boxes[j].r
 			var b strings.Builder
+			if s.boxes[j].wg {
+				b.WriteString(wgCounter(r, lines[0]))
+				lines = nil
+			}
 			for k, l := range lines {
 				fmt.Fprintf(&b, `<text class="m" x="%s" y="%s">%s</text>`, num(r.x+8), num(r.y+33+float64(k)*15), esc(l))
 			}
@@ -241,6 +246,19 @@ func (g *G) draw(f gFrame) string {
 		}
 	}
 	return b.String()
+}
+
+// wgCounter draws a WaitGroup's counter n in its box r: orange while Wait
+// would block, green at 0.
+func wgCounter(r rect, n string) string {
+	cls, hint := "k1", "Wait blocks"
+	if n == "0" {
+		cls, hint = "k0", "Wait returns"
+	}
+	return fmt.Sprintf(`<text class="mu" x="%s" y="%s">counter</text>`, num(r.x+8), num(r.y+41)) +
+		fmt.Sprintf(`<rect class="%s" x="%s" y="%s" width="34" height="26" rx="13"/>`, cls, num(r.x+64), num(r.y+23)) +
+		fmt.Sprintf(`<text class="kn" x="%s" y="%s">%s</text>`, num(r.x+81), num(r.y+42), esc(n)) +
+		fmt.Sprintf(`<text class="mu" x="%s" y="%s">%s</text>`, num(r.x+106), num(r.y+41), hint)
 }
 
 func (c *C) drawClosed() string {

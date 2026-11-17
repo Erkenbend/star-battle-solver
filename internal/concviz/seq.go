@@ -19,8 +19,8 @@ const (
 	sqWrap   = 14   // characters per line of a column head
 )
 
-const seqStyle = `svg{--bg:#ffffff;--fg:#1f2328;--mut:#59636e;--ln:#c4ccd5;--band:#f6f8fa;--run:#1a7f37;--runbg:#dafbe1;--blk:#bc4c00;--ch:#0969da;--chbg:#ddf4ff;--tok:#8250df;--cls:#cf222e;--box:#f6f8fa}
-@media (prefers-color-scheme:dark){svg{--bg:#0d1117;--fg:#e6edf3;--mut:#9198a1;--ln:#3d444d;--band:#151b23;--run:#3fb950;--runbg:#12261e;--blk:#f0883e;--ch:#4493f8;--chbg:#0c2d6b;--tok:#a371f7;--cls:#f85149;--box:#151b23}}
+const seqStyle = `svg{--bg:#ffffff;--fg:#1f2328;--mut:#59636e;--ln:#c4ccd5;--band:#f6f8fa;--run:#1a7f37;--runbg:#dafbe1;--blk:#bc4c00;--blkbg:#fff1e5;--ch:#0969da;--chbg:#ddf4ff;--tok:#8250df;--cls:#cf222e;--box:#f6f8fa}
+@media (prefers-color-scheme:dark){svg{--bg:#0d1117;--fg:#e6edf3;--mut:#9198a1;--ln:#3d444d;--band:#151b23;--run:#3fb950;--runbg:#12261e;--blk:#f0883e;--blkbg:#2d1b0e;--ch:#4493f8;--chbg:#0c2d6b;--tok:#a371f7;--cls:#f85149;--box:#151b23}}
 text{font:11px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:var(--fg)}
 .m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px}
 .bg{fill:var(--bg)}.ti{font-size:15px;font-weight:600}.mu{fill:var(--mut)}.band{fill:var(--band)}.sn{fill:var(--mut);text-anchor:middle;font-size:12px}
@@ -32,6 +32,7 @@ text{font:11px system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fil
 .buf{fill:var(--tok);opacity:.35}.dot{fill:var(--tok)}
 .lab{text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3px}.tv{fill:var(--tok)}.tc{fill:var(--cls)}.ts{fill:var(--mut)}
 .bl{fill:var(--blk);paint-order:stroke;stroke:var(--bg);stroke-width:3px}.no{fill:var(--mut);font-style:italic;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.k1{fill:var(--blkbg);stroke:var(--blk);stroke-width:1.5}.k0{fill:var(--runbg);stroke:var(--run);stroke-width:1.5}.kn{font-weight:700;text-anchor:middle;font-size:12px}
 .mv{fill:var(--tok)}.mc{fill:var(--cls)}.ms{fill:var(--mut)}
 `
 
@@ -263,11 +264,32 @@ func (s *Story) Sequence() []byte {
 			cx, text := x(e.from), e.label
 			notes = append(notes, func() { place("no", cx, y+4, text, 5.8) })
 		case evExit:
-			if e.to != nil {
+			if e.wg != nil { // ends at the counter, not under it
+				x1, x2 := x(e.from), x(e.to)
+				d := 1.0
+				if x2 < x1 {
+					d = -1
+				}
+				q(`<line class="as" x1="%s" y1="%s" x2="%s" y2="%s" marker-end="url(#as)"/>`, num(x1+3*d), num(y), num(x2-17*d), num(y))
+				label("ts", (x1+x2)/2, y-4, e.label)
+			} else if e.to != nil {
 				arrow("as", "s", e.from, e.to, y, e.label, "ts")
 			}
 		case evWake:
 			arrow("as", "s", e.from, e.to, y, e.label, "ts")
+		}
+	}
+	// WaitGroup counters, where they change: orange while Wait would block.
+	var counters strings.Builder
+	for i, r := range s.rows {
+		if e := r.ev; e != nil && e.wg != nil {
+			cx, y, cls := x(e.wg.box), ys[i], "k1"
+			if e.n == 0 {
+				cls = "k0"
+			}
+			taken = append(taken, area{cx - 13, y - 9, cx + 13, y + 9})
+			fmt.Fprintf(&counters, `<rect class="%s" x="%s" y="%s" width="26" height="18" rx="9"/><text class="kn" x="%s" y="%s">%d</text>`,
+				cls, num(cx-13), num(y-9), num(cx), num(y+4.5), e.n)
 		}
 	}
 	for _, f := range notes {
@@ -333,6 +355,7 @@ func (s *Story) Sequence() []byte {
 		p(`<rect class="buf" x="%s" y="%s" width="10" height="%s" rx="5"/>`, num(cx-5), num(ys[i]-5), num(end-ys[i]+10))
 	}
 	b.WriteString(evs.String())
+	b.WriteString(counters.String())
 	b.WriteString(labels.String())
 	p("\n")
 	p("%s", s.seqLegend(bottom+28))
@@ -388,5 +411,9 @@ func (s *Story) seqLegend(y float64) string {
 	item(fmt.Sprintf(`<rect class="buf" x="%s" y="%s" width="24" height="10" rx="5"/>`, num(x), num(y-5)), 24, "in a buffer")
 	item(line("ac", "c"), 24, "close")
 	item(line("as", "s"), 24, "go, done, Wait returns")
+	if slices.ContainsFunc(s.boxes, func(b *Box) bool { return b.wg }) {
+		item(fmt.Sprintf(`<rect class="k1" x="%s" y="%s" width="24" height="16" rx="8"/><text class="kn" x="%s" y="%s">1</text>`,
+			num(x), num(y-8), num(x+12), num(y+4)), 24, "WaitGroup counter")
+	}
 	return b.String()
 }
