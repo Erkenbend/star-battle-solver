@@ -2,9 +2,11 @@ package concviz
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -48,6 +50,36 @@ func TestOutputsUpToDate(t *testing.T) {
 		t.Fatal(err)
 	}
 	golden(t, mdFile, []byte(got))
+}
+
+// TestPlayerData checks what the player's script relies on: every story
+// has steps, and every step a list of operations (possibly empty, not null).
+func TestPlayerData(t *testing.T) {
+	html := string(Player(Stories()))
+	i := strings.Index(html, `<script id="data" type="application/json">`)
+	j := strings.Index(html[i:], "</script>")
+	var data []struct {
+		ID    string `json:"id"`
+		Steps []struct {
+			Ops *[]string `json:"ops"`
+		} `json:"steps"`
+	}
+	if err := json.Unmarshal([]byte(html[i+len(`<script id="data" type="application/json">`):i+j]), &data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data) != len(Stories()) {
+		t.Fatalf("%d stories in the player, want %d", len(data), len(Stories()))
+	}
+	for _, s := range data {
+		if len(s.Steps) == 0 {
+			t.Errorf("%s: no steps", s.ID)
+		}
+		for k, st := range s.Steps {
+			if st.Ops == nil {
+				t.Errorf("%s: step %d: ops is null", s.ID, k+1)
+			}
+		}
+	}
 }
 
 // TestStoriesMatchCode checks every claim the stories make about the code:

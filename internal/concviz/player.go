@@ -33,7 +33,11 @@ func Player(stories []*Story) []byte {
 		t0, t1, total := s.timeline()
 		ps := playerStory{ID: s.ID(), Title: s.Title, Source: s.Source, Total: round3(total), SVG: string(s.Scene())}
 		for i := 1; i < len(s.frames); i++ {
-			ps.Steps = append(ps.Steps, playerStep{T0: round3(t0[i]), T1: round3(t1[i]), Caption: s.frames[i].caption, Ops: s.frames[i].ops})
+			ops := s.frames[i].ops
+			if ops == nil {
+				ops = []string{} // a step in which nothing happens: [], not null
+			}
+			ps.Steps = append(ps.Steps, playerStep{T0: round3(t0[i]), T1: round3(t1[i]), Caption: s.frames[i].caption, Ops: ops})
 		}
 		data = append(data, ps)
 	}

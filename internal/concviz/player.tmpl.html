@@ -160,7 +160,7 @@ function load(id) {
     li.textContent = st.caption;
     const ops = document.createElement("div");
     ops.className = "ops";
-    ops.textContent = st.ops.join("\n");
+    ops.textContent = (st.ops || []).join("\n");
     li.append(ops);
     li.onclick = () => playStep(k);
     ol.append(li);
