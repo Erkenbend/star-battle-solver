@@ -17,8 +17,11 @@ Every section shows one run of its pattern as a sequence diagram: a column
 per goroutine, channel and other shared state, time downwards, one band per
 numbered step. A solid line is a running goroutine, a dashed orange one a
 blocked goroutine, labelled with what it waits on; a bar on a channel is a
-value in its buffer, a grey bar on a mutex the time it is held. The same run can be stepped through as an animated scene in
-[`concurrency/player.html`](concurrency/player.html), opened in a browser.
+value in its buffer, a grey bar on a mutex the time it is held. The same
+run can be stepped through as an animated scene in the
+[player](https://erkenbend.github.io/star-battle-solver/), published from
+[`concurrency/player.html`](concurrency/player.html) (which also works
+opened from a clone).
 
 Both are drawn from a *story* in `internal/concviz`: a script of steps played
 on a small model of Go's semantics (buffers and handoffs, `select` with and
@@ -63,7 +66,7 @@ observer goroutines --(msg: marks / idle / done)--> runner --(delta batches)--> 
 
 ![Sequence diagram: 1. Concurrent rule runner: actors, mailboxes, quiescence](concurrency/01-concurrent-runner.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#01-concurrent-runner) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#01-concurrent-runner) (or open [`concurrency/player.html`](concurrency/player.html#01-concurrent-runner) from a clone).
 
 1. RunConcurrent starts one goroutine per observer with wg.Go. Each works on its own copy of the board, at version 0.
 2. The runner is the only reader of out. It blocks until a message arrives.
@@ -136,7 +139,7 @@ the refutation that is easiest to follow.
 
 ![Sequence diagram: 2. Parallel lookahead: a worker pool, results by index](concurrency/02-lookahead-pool.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#02-lookahead-pool) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#02-lookahead-pool) (or open [`concurrency/player.html`](concurrency/player.html#02-lookahead-pool) from a clone).
 
 1. The rules are stuck; four free cells c0 to c3 are candidates. lookahead makes hyps with one slot each and an unbuffered jobs channel, and starts GOMAXPROCS workers (two here).
 2. It sends the indices one by one. Each send is a handoff: index 0 to worker 1, index 1 to worker 2. Each tries a star on its cell, on its own copy of the board.
@@ -172,7 +175,7 @@ for the measurements.
 
 ![Sequence diagram: 3. Parallel generator attempts: semaphores, a deterministic winner](concurrency/03-generator-attempts.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#03-generator-attempts) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#03-generator-attempts) (or open [`concurrency/player.html`](concurrency/player.html#03-generator-attempts) from a clone).
 
 1. run with 2 workers: slots (capacity 2) limits this call, cpuSlots (GOMAXPROCS−1, 3 here) every call in the process together. Another call, the server's pool, holds one already.
 2. Attempt 0: acquire is a send into each buffer. Then the loop checks best and Done (a select with default), and starts the attempt with its own random generator.
@@ -214,7 +217,7 @@ be continued where it stopped.
 
 ![Sequence diagram: 4. Hard puzzle search: ordered pipeline, cancellation](concurrency/04-hardsearch-pipeline.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#04-hardsearch-pipeline) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#04-hardsearch-pipeline) (or open [`concurrency/player.html`](concurrency/player.html#04-hardsearch-pipeline) from a clone).
 
 1. Search makes two unbuffered channels and starts two workers with wg.Go. Each ranges over jobs and blocks: nothing is sent yet.
 2. It starts a producer and a closer, which waits for the workers. The caller itself ranges over results.
@@ -258,7 +261,7 @@ with different seeds, and the page shows each candidate as soon as it exists.
 
 ![Sequence diagram: 5. Design completions streamed to the page: fan-out, a buffer of k, a waiter](concurrency/05-designer-stream.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#05-designer-stream) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#05-designer-stream) (or open [`concurrency/player.html`](concurrency/player.html#05-designer-stream) from a clone).
 
 1. The page asks for 3 completions. completeDesign makes out with a buffer of exactly k = 3 and starts one goroutine per candidate.
 2. It also starts a waiter that will close out after wg.Wait, and returns out at once. The handler ranges over it, still in the same request.
@@ -296,7 +299,7 @@ answers at once.
 
 ![Sequence diagram: 6. Pre-queueing puzzles: a buffered channel as a deduplicating queue](concurrency/06-pool-queue.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#06-pool-queue) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#06-pool-queue) (or open [`concurrency/player.html`](concurrency/player.html#06-pool-queue) from a clone).
 
 1. serve calls NewPool for every size (three here: 5, 6 and 7). It queues them smallest first: the capacity is the number of sizes, so these sends never block.
 2. It starts one fill goroutine for all sizes and returns; serve goes on. fill ranges over the queue and takes 5.
@@ -334,7 +337,7 @@ slow `prepare`, and takes it again to store the result.
 
 ![Sequence diagram: 7. Preparing the next party puzzles: a mutex and a generation number, no channel](concurrency/07-party-prep.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#07-party-prep) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#07-party-prep) (or open [`concurrency/player.html`](concurrency/player.html#07-party-prep) from a clone).
 
 1. A player creates a party against the clock, which keeps 3 puzzles ready. Create holds pm.mu; startPrep bumps prepGen to 1 and starts a preparer that keeps its own copy, gen = 1.
 2. The preparer needs the lock to read the party. Create still holds it, so Lock blocks until Create returns.
@@ -366,7 +369,7 @@ of its page.
 
 ![Sequence diagram: 8. Lazy solving of library puzzles: a future from sync.Once and close](concurrency/08-library-future.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#08-library-future) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#08-library-future) (or open [`concurrency/player.html`](concurrency/player.html#08-library-future) from a clone).
 
 1. Visitor 1 opens a library puzzle (page #1). Building the page, done() peeks at e.ready with a select with default: it never blocks.
 2. Then lib.start calls once.Do. The first call starts the solver goroutine, whose defer close(e.ready) is the promise.
@@ -398,7 +401,7 @@ party must reach all of them.
 
 ![Sequence diagram: 9. Live party updates: coalescing signals feeding server-sent events](concurrency/09-party-events.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#09-party-events) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#09-party-events) (or open [`concurrency/player.html`](concurrency/player.html#09-party-events) from a clone).
 
 1. Two players have the party open; each browser holds an event stream. Subscribe makes a channel with a buffer of 1 per stream, and the handler sends the current state.
 2. Both wait in a select on three channels: their request's context, the change signal, and a heartbeat ticker.
@@ -436,7 +439,7 @@ the run below follows `serve`.
 
 ![Sequence diagram: 10. Process lifecycle: signal context, ticker loop, graceful shutdown](concurrency/10-process-lifecycle.svg)
 
-To step through the scene, open [`concurrency/player.html`](concurrency/player.html#10-process-lifecycle) in a browser.
+Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#10-process-lifecycle) (or open [`concurrency/player.html`](concurrency/player.html#10-process-lifecycle) from a clone).
 
 1. serve: signal.NotifyContext turns Ctrl-C and SIGTERM into a cancelled ctx. The party manager's loop runs as Run(5 s, ctx.Done()): a select on a ticker and a stop channel.
 2. ListenAndServe blocks for the server's whole life, so it runs in a goroutine of its own and will send its error on errc, a channel with capacity 1.

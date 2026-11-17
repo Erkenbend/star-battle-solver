@@ -25,7 +25,7 @@ GOOS=darwin GOARCH=amd64 go build ./cmd/starbattle
 
 Die Screenshots in [docs/screenshots](screenshots) nimmt `docs/screenshots/take.sh` neu auf (braucht Go, node ≥ 22 und Chromium).
 
-Die Sequenzdiagramme in [architecture/concurrency.md](../architecture/concurrency.md) und den Abspieler `architecture/concurrency/player.html` (im Browser öffnen, Schritt für Schritt vor und zurück) zeichnet `internal/concviz` aus kleinen Drehbüchern, deren Angaben über den Code (Funktionen, Kanäle, `select`, `close`, …) ein Test gegen den Quelltext prüft. Nach einer Änderung an Goroutinen oder Kanälen sagt `go test ./internal/concviz`, welche Angabe nicht mehr stimmt; nach dem Anpassen schreibt `go test ./internal/concviz -update` Diagramme, Abspieler und die Schrittlisten in `concurrency.md` neu.
+Die Sequenzdiagramme in [architecture/concurrency.md](../architecture/concurrency.md) und den Abspieler `architecture/concurrency/player.html` (im Browser öffnen, Schritt für Schritt vor und zurück; der Workflow `pages.yml` veröffentlicht ihn unter <https://erkenbend.github.io/star-battle-solver/>) zeichnet `internal/concviz` aus kleinen Drehbüchern, deren Angaben über den Code (Funktionen, Kanäle, `select`, `close`, …) ein Test gegen den Quelltext prüft. Nach einer Änderung an Goroutinen oder Kanälen sagt `go test ./internal/concviz`, welche Angabe nicht mehr stimmt; nach dem Anpassen schreibt `go test ./internal/concviz -update` Diagramme, Abspieler und die Schrittlisten in `concurrency.md` neu.
 
 ### UI-Prüfung
 
@@ -61,7 +61,7 @@ Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit 
 | `testdata/hard` | Puzzles, an denen die einfachen Regeln scheitern (Nachschub mit `starbattle hardsearch`); zugleich die Bibliothek im Browser (Reihenfolge in `bibliothek.idx`, Stichprobe für die Tests in `sample.idx`) |
 | `docs` | diese Dokumentation und die Screenshots |
 | `architecture` | Architektur für Entwickelnde (englisch), mit Vorschlägen zum Umbau |
-| `.github/workflows` | Tests und Builds auf GitHub Actions |
+| `.github/workflows` | Tests und Builds auf GitHub Actions (`ci.yml`), Abspieler auf GitHub Pages (`pages.yml`) |
 
 ## `design`: Puzzles entwerfen
 

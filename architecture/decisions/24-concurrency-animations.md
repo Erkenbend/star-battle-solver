@@ -16,8 +16,10 @@ one run of its pattern, in two forms drawn from the same story:
   where it changes (orange while `Wait` would block, green at 0), a grey bar
   on a mutex shows while it is held. The numbered steps follow as a list in
   the Markdown;
-- in [`concurrency/player.html`](../concurrency/player.html), opened locally
-  in a browser, the **animated scene**: goroutines as boxes coloured by state,
+- in the [player](https://erkenbend.github.io/star-battle-solver/)
+  ([`concurrency/player.html`](../concurrency/player.html), published on
+  GitHub Pages by `.github/workflows/pages.yml`, or opened from a clone),
+  the **animated scene**: goroutines as boxes coloured by state,
   channels with their buffer slots, values moving between them, dashed
   arrows from a blocked goroutine to what it waits on. It plays, pauses,
   steps forward and back (buttons or arrow keys), scrubs, and lists the steps
@@ -98,7 +100,8 @@ Alternatives considered:
   has no font rendering, the files would be larger, and they could not
   follow the dark theme.
 
-Open:
-
-- Publishing the player (GitHub Pages) so that the link in `concurrency.md`
-  opens it on GitHub too; for now it is opened from a clone.
+Publishing: GitHub shows an HTML file in the repository as source, so the
+workflow `pages.yml` puts the player on GitHub Pages (as `index.html` and
+`player.html`, nothing else of the repository) whenever it changes on
+`main`; each block in `concurrency.md` links there, with the local file as
+a second link.

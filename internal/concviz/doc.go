@@ -12,13 +12,17 @@ const (
 	docEnd   = "<!-- /concviz -->"
 )
 
+// PlayerURL is where .github/workflows/pages.yml publishes the player.
+const PlayerURL = "https://erkenbend.github.io/star-battle-solver/"
+
+
 // DocBlock is the Markdown that shows s in concurrency.md: the sequence
 // diagram, a pointer to the player, and the steps.
 func (s *Story) DocBlock() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, docBegin+"\n\n", s.ID())
 	fmt.Fprintf(&b, "![Sequence diagram: %s](concurrency/%s)\n\n", s.Title, s.File)
-	fmt.Fprintf(&b, "To step through the scene, open [`concurrency/player.html`](concurrency/player.html#%s) in a browser.\n\n", s.ID())
+	fmt.Fprintf(&b, "Step through the scene in the [player](%s#%s) (or open [`concurrency/player.html`](concurrency/player.html#%s) from a clone).\n\n", PlayerURL, s.ID(), s.ID())
 	for i := 1; i < len(s.frames); i++ {
 		fmt.Fprintf(&b, "%d. %s\n", i, s.frames[i].caption)
 	}

@@ -315,6 +315,9 @@ browser code. The full suite with every hard puzzle is CI's job.
   `main` the badge data (coverage, library size) pushed to the orphan branch
   `badges`, which the README badges read. There are no releases; the latest
   successful CI run is the download.
+- **Pages** (`.github/workflows/pages.yml`): when the concurrency player
+  changes on `main`, it is published on GitHub Pages
+  (<https://erkenbend.github.io/star-battle-solver/>), the only thing there.
 - **Deployment** (`deploy/`): a script cross-compiles for a Raspberry Pi,
   copies the binary and installs it as a systemd service. TLS and access
   control (the public instance uses basic auth) belong to a reverse proxy in
