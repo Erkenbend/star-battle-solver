@@ -34,3 +34,7 @@
 
 * Update the docs a change affects in the same commit: the table in [architecture/README.md](architecture/README.md) section 8 says which
 * Refactoring proposals go into [architecture/refactorings.md](architecture/refactorings.md), following the conventions at its top
+
+## Miscellaneous
+
+* Do not run `find /`, because in WSL it walks the whole filesystem including the Windows drives.
