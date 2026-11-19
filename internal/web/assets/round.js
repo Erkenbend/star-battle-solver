@@ -9,13 +9,13 @@
 // mode against each other ("versus"); coop.js and race.js add the others.
 //
 // Against each other a party may have lives (d.party.lives, per puzzle): a
-// change of the board that brings a rule violation not there before costs
-// one; those of a hypothesis don't count, as its marks are not ours yet.
-// The rule violations are always shown then. Losing the last life gives up,
-// but the board stays as it was, with the violation in red, until the player
-// asks for the solution ("Lösung zeigen"): it would hide what went wrong.
-// The server keeps the count too (like hints, it never decreases) and gives
-// up for us if the page doesn't.
+// star set where the solution has none costs one, once per cell; crosses
+// don't count, nor do the stars of a hypothesis, as its marks are not ours
+// yet. Such a star is shown in red as long as it stays. Losing the last life
+// gives up, but the board stays as it was, with the wrong star in red, until
+// the player asks for the solution ("Lösung zeigen"): it would hide what went
+// wrong. The server keeps the count too (like hints, it never decreases) and
+// gives up for us if the page doesn't.
 //
 // PartyRound(P) is created by boot() in app.js; P is the page (see there).
 function PartyRound(P) {
@@ -27,7 +27,8 @@ function PartyRound(P) {
     errors: num(saved && saved.errors), revealed: !!(saved && saved.revealed), sentStars: -1, sentHints: -1, sentErrors: -1,
   };
   const lives = d.party.mode === "versus" ? num(d.party.lives) : 0; // 0: unlimited
-  let breaches = null; // the rule violations on our board as last seen (their texts)
+  // The cells of wrong stars that cost a life, kept with the progress.
+  const charged = new Set(saved && Array.isArray(saved.wrong) ? saved.wrong.filter((i) => Number.isInteger(i) && i >= 0 && i < n * n) : []);
   let partyView = null;
 
   // What coop.js and race.js use of the round.
@@ -77,7 +78,8 @@ function PartyRound(P) {
         party.revealed = true;
         P.renderPlay();
       };
-      return ["Alle Leben verloren: Die Runde ist für dich vorbei. Rot markiert ist, was gegen die Regeln verstößt.", "what-if", b];
+      const what = wrongStars().size > 1 ? "sind die Sterne, die nicht zur Lösung passen" : "ist der Stern, der nicht zur Lösung passt";
+      return [`Alle Leben verloren: Die Runde ist für dich vorbei. Rot markiert ${what}.`, "what-if", b];
     }
     if (party.gaveUp) return [coop ? "Gemeinsam aufgegeben. Die Lösung ist eingeblendet." : "Aufgegeben. Die Lösung ist eingeblendet.", "what-if"];
     if (!s) return ["Verbinde mit der Party …", ""];
@@ -89,32 +91,46 @@ function PartyRound(P) {
       const k = s.coop.votes.length, m = s.ranking.filter((e) => e.status === "playing").length;
       return [`${k} von ${m} wollen aufgeben. Die Runde endet, wenn alle dafür sind.`, ""];
     }
-    if (lives && breaches && breaches.size && !P.hyp.active) {
+    const w = lives && !P.hyp.active ? wrongStars().size : 0;
+    if (w) {
       const k = livesLeft();
-      return [`Regelverstoß! Das hat ein Leben gekostet, ${k === 1 ? "das letzte bleibt" : `noch ${k} übrig`}.`, "what-if"];
+      const what = w === 1 ? "Dieser Stern passt nicht zur Lösung (rot), das hat ein Leben gekostet" : `Diese ${w} Sterne passen nicht zur Lösung (rot), das hat ${w} Leben gekostet`;
+      return [`${what}, ${k === 1 ? "das letzte bleibt" : `noch ${k} übrig`}.`, "what-if"];
     }
     return null;
   }
 
   // ---------- lives (against each other) ----------
   const livesLeft = () => (lives ? Math.max(0, lives - party.errors) : Infinity);
-  // Counts a rule violation that a change of our board brought; called by
-  // renderPlay before it draws. A drag counts once it ends.
-  function partyBreaches() {
-    if (!lives || P.drag) return;
-    const eff = L.effective(d, P.hyp.committed(), P.prefs.autocross);
-    const now = new Set(L.problems(d, eff.cells).map((p) => p.msg));
-    const fresh = breaches !== null && [...now].some((m) => !breaches.has(m));
-    breaches = now;
-    if (!fresh || party.gaveUp || !partyLive()) return;
-    party.errors++;
-    if (livesLeft() === 0) giveUp();
+  const wrongCell = (i) => d.solution[Math.floor(i / n)] !== i % n;
+  // Charges the wrong stars on our board not charged before; called by
+  // renderPlay before it draws.
+  function partyMistakes() {
+    if (!lives || !d.solution || party.gaveUp || !partyLive()) return;
+    const marks = P.hyp.committed();
+    let fresh = 0;
+    marks.forEach((v, i) => {
+      if (v === L.STAR && wrongCell(i) && !charged.has(i)) {
+        charged.add(i);
+        fresh++;
+      }
+    });
+    party.errors += fresh;
+    if (fresh && livesLeft() === 0) giveUp();
+  }
+  // The wrong stars on our board that cost a life: shown in red.
+  function wrongStars() {
+    const out = new Set();
+    if (!lives) return out;
+    const marks = P.hyp.committed();
+    for (const i of charged) if (marks[i] === L.STAR) out.add(i);
+    return out;
   }
   // Hearts for the clock line: those left, then those lost.
   function livesText() {
     if (!lives) return "";
     const k = livesLeft();
-    $("clock").title = `Noch ${k} von ${lives} Leben: Jeder Regelverstoß kostet eins`;
+    $("clock").title = `Noch ${k} von ${lives} Leben: Jeder Stern, der nicht zur Lösung passt, kostet eins`;
     return " · " + "♥".repeat(k) + "♡".repeat(lives - k);
   }
 
@@ -256,12 +272,16 @@ function PartyRound(P) {
     live: partyLive,
     solutionView,
     banner: partyBanner,
-    breaches: partyBreaches,
+    mistakes: partyMistakes,
+    wrongStars,
     livesText,
     // Adds the round's part to the progress to store.
     save(v) {
       v.gaveUp = party.gaveUp;
-      if (lives) v.errors = party.errors;
+      if (lives) {
+        v.errors = party.errors;
+        v.wrong = [...charged];
+      }
       if (party.revealed) v.revealed = true;
     },
     tabs: partyTabs,

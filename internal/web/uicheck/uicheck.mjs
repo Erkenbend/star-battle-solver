@@ -572,29 +572,39 @@ const scenarios = {
     await server(q, "gave up", (me) => me.status === "gaveup");
   },
 
-  // Against each other with 2 lives: a rule violation costs one, one in a
-  // hypothesis none, the second one ends the round for Alice.
+  // Against each other with 2 lives: a star where the solution has none
+  // costs one, once per cell, even if it breaks no rule; a cross on a star of
+  // the solution and a star in a hypothesis cost none; the second wrong star
+  // ends the round for Alice.
   async lives() {
     party = true;
     const p = await partyStart("versus", { lives: "2" });
     await obs("started");
-    const c0 = p.sol[0], c1 = c0 === 0 ? 1 : c0 - 1; // a neighbour in row 0
-    await click(cell(c0), { shift: true });
-    await click(cell(c1), { shift: true });
-    await obs("touching stars");
+    const c0 = p.sol[0];
+    const wrongIn = (r) => r * p.n + [...Array(p.n).keys()].find((c) => c !== p.sol[r] && c !== c0);
+    await click(cell(c0), { shift: true }); // right
+    await click(cell(wrongIn(2)), { shift: true }); // two rows further: no rule against it
+    await obs("wrong star");
     await server(p, "one error", (me) => me.errors === 1);
     await click("#undo");
     await obs("undone");
-    await click("#hyp");
-    await click(cell(c1), { shift: true });
+    await click("#redo");
     await sleep(1200); // what must not count: time for a report to come
-    await obs("violation in hyp");
-    await server(p, "hyp not counted");
+    await obs("redone");
+    await server(p, "redo not counted");
+    await click("#undo");
+    await click(cell(p.n + p.sol[1])); // a cross on a star of the solution
+    await tapDone();
+    await click("#hyp");
+    await click(cell(wrongIn(3)), { shift: true });
+    await sleep(1200);
+    await obs("wrong star in hyp");
+    await server(p, "cross and hyp not counted");
     await click("#hyp-drop");
-    await click(cell(p.n + c0), { shift: true }); // right below the star
+    await click(cell(wrongIn(3)), { shift: true });
     await settle(bannerHas("Alle Leben verloren"));
     await obs("out of lives");
-    record({ label: "out of lives: violation in red", bad: await js(`document.querySelectorAll("#board .cell.bad").length > 0`) });
+    record({ label: "out of lives: wrong star in red", bad: await js(`document.querySelectorAll("#board .cell.bad").length === 1`) });
     await server(p, "out", (me) => me.status === "out");
     await reload();
     await obs("reloaded when out");

@@ -6,9 +6,9 @@
 //   - versus (default): everybody solves on their own board. The round ends
 //     when every present participant has solved or given up and ranks by
 //     fewest errors, then fewest hints, then shortest time (server wall
-//     clock from the common start). Errors count only with lives: each rule
-//     breach (reported by the player's page) costs one, and whoever loses
-//     all gives up.
+//     clock from the common start). Errors count only with lives: each star
+//     set where the solution has none (counted by the player's page) costs
+//     one, and whoever loses all gives up.
 //   - coop: everybody marks the same board, kept on the server (coop.go),
 //     without hints. The round ends when the board is solved or all present
 //     participants vote to give up.
@@ -141,7 +141,7 @@ type Options struct {
 	Mode  string     // ModeVersus if unknown
 	Clock ClockRules // for ModeClock
 	// Lives per puzzle for ModeVersus: 0 is unlimited, otherwise a player's
-	// Lives-th rule breach ends the round for them (so Lives-1 errors are
+	// Lives-th error (a wrong star) ends the round for them (so Lives-1 errors are
 	// allowed). At most MaxLives.
 	Lives int
 }
@@ -182,7 +182,7 @@ type Player struct {
 	present  bool // as of the last check, to notice changes
 	Stars    int  // progress in the current round
 	Hints    int  // hints in the current round, never decreases
-	Errors   int  // rule breaches in the current round, never decreases
+	Errors   int  // wrong stars in the current round, never decreases
 }
 
 // Round is one puzzle played by the party.

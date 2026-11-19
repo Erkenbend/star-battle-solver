@@ -218,7 +218,7 @@ const Party = (() => {
       const head = el("tr");
       // The columns in the order they rank by.
       for (const h of ["#", "Name", "", ...(lives ? ["Fehler"] : []), "Hinweise", "Zeit"]) head.append(el("th", "", h));
-      if (lives) head.cells[3].title = "Regelverstöße in diesem Puzzle";
+      if (lives) head.cells[3].title = "Sterne in diesem Puzzle, die nicht zur Lösung passen";
       t.append(el("thead"), el("tbody"));
       t.tHead.append(head);
       for (const e of snap.ranking) {
@@ -297,7 +297,7 @@ const Party = (() => {
           : snap.clock
             ? `Gegen die Uhr (${clockRules(snap.clock)}): so viele Puzzles wie möglich, ohne Hinweise. Wertung nach gelösten Puzzles, dann richtigen minus falschen Sternen im letzten.`
             : snap.lives > 0
-              ? `Gegeneinander: Wertung nach wenigsten Fehlern, dann Hinweisen, dann schnellster Zeit. ${snap.lives} Leben pro Puzzle, also ${livesRule(snap.lives)}: Jeder Regelverstoß kostet eins, wer keins mehr hat, ist KO.`
+              ? `Gegeneinander: Wertung nach wenigsten Fehlern, dann Hinweisen, dann schnellster Zeit. ${snap.lives} Leben pro Puzzle, also ${livesRule(snap.lives)}: Jeder Stern, der nicht zur Lösung passt, kostet eins, wer keins mehr hat, ist KO.`
               : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit."));
         nodes.push(statusLine());
         if (snap.prepErr) nodes.push(el("p", "party-error", snap.prepErr));

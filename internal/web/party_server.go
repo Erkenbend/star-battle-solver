@@ -161,7 +161,7 @@ func partyRoutes(mux *http.ServeMux, pm *party.Manager) {
 			Stars  []int    `json:"stars"` // solve: star column per row
 			Count  int      `json:"count"` // progress: stars set
 			Hints  int      `json:"hints"`
-			Errors int      `json:"errors"` // rule breaches (versus)
+			Errors int      `json:"errors"` // wrong stars (versus with lives)
 			Ops    [][4]int `json:"ops"`    // mark: [num, cell, from, to] each
 			GiveUp bool     `json:"giveUp"` // vote
 			Puzzle int      `json:"puzzle"` // against the clock: which one, from 1
