@@ -249,7 +249,7 @@ func TestPartyGiveUp(t *testing.T) {
 
 func TestPartyLives(t *testing.T) {
 	pm, clk := newTestParties(t)
-	code, toks := startRoundWith(t, pm, clk, Options{Sizes: []int{5}, Lives: 2}, "A", "B", "C", "D")
+	code, toks := startRoundWith(t, pm, clk, Options{Sizes: []int{5}, Lives: 2}, "A", "B", "C", "D", "E")
 	if s := snap(t, pm, code, ""); s.Lives != 2 {
 		t.Fatalf("lives %d, want 2", s.Lives)
 	}
@@ -293,12 +293,17 @@ func TestPartyLives(t *testing.T) {
 		t.Fatalf("D: %+v", res)
 	}
 
+	// E solves later and with hints, but without errors: ahead of D.
+	clk.add(time.Second)
+	_, err = pm.Solve(code, toks[4], 1, sol, 2, 0)
+	must(t, err)
+
 	s := snap(t, pm, code, "")
 	if s.Phase != PhaseResults {
 		t.Fatal("round did not end")
 	}
 	r := s.Ranking
-	if r[0].Name != "D" || r[0].Rank != 1 || r[0].Errors != 1 || r[1].Status != "out" || r[1].Rank != 2 || r[3].Status != "out" || r[3].Rank != 4 {
+	if r[0].Name != "E" || r[0].Rank != 1 || r[1].Name != "D" || r[1].Rank != 2 || r[1].Errors != 1 || r[2].Status != "out" || r[2].Rank != 3 || r[4].Status != "out" || r[4].Rank != 5 {
 		t.Fatalf("ranking %+v", r)
 	}
 

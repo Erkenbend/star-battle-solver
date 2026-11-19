@@ -71,7 +71,7 @@ const Party = (() => {
     return ok;
   }
 
-  const STATUS = { solved: "gelöst", gaveup: "aufgegeben", out: "alle Leben verloren", playing: "spielt noch", absent: "abwesend", left: "gegangen", done: "fertig" };
+  const STATUS = { solved: "gelöst", gaveup: "aufgegeben", out: "KO", playing: "spielt noch", absent: "abwesend", left: "gegangen", done: "fertig" };
 
   // The page of the running round for the viewer: against the clock, that of
   // the puzzle they are at (or the last one prepared).
@@ -295,9 +295,9 @@ const Party = (() => {
           ? "Miteinander: alle auf demselben Brett, ohne Hinweise."
           : snap.clock
             ? `Gegen die Uhr (${clockRules(snap.clock)}): so viele Puzzles wie möglich, ohne Hinweise. Wertung nach gelösten Puzzles, dann richtigen minus falschen Sternen im letzten.`
-            : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit." + (snap.lives > 0
-              ? ` ${snap.lives} Leben pro Puzzle, also ${livesRule(snap.lives)}: Jeder Regelverstoß kostet eins, wer keins mehr hat, gibt auf.`
-              : "")));
+            : snap.lives > 0
+              ? `Gegeneinander: Wertung nach wenigsten Fehlern, dann Hinweisen, dann schnellster Zeit. ${snap.lives} Leben pro Puzzle, also ${livesRule(snap.lives)}: Jeder Regelverstoß kostet eins, wer keins mehr hat, ist KO.`
+              : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit."));
         nodes.push(statusLine());
         if (snap.prepErr) nodes.push(el("p", "party-error", snap.prepErr));
         if (snap.round) nodes.push(rankingTable());

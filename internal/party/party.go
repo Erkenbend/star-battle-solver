@@ -5,9 +5,10 @@
 // The party's creator picks one of three modes for all its rounds:
 //   - versus (default): everybody solves on their own board. The round ends
 //     when every present participant has solved or given up and ranks by
-//     fewest hints, then shortest time (server wall clock from the common
-//     start). Optionally with lives: each rule breach (reported by the
-//     player's page) costs one, and whoever loses all gives up.
+//     fewest errors, then fewest hints, then shortest time (server wall
+//     clock from the common start). Errors count only with lives: each rule
+//     breach (reported by the player's page) costs one, and whoever loses
+//     all gives up.
 //   - coop: everybody marks the same board, kept on the server (coop.go),
 //     without hints. The round ends when the board is solved or all present
 //     participants vote to give up.
@@ -946,8 +947,8 @@ func (pm *Manager) Snapshot(code, token string) (Snapshot, error) {
 	return s, nil
 }
 
-// ranking orders the participants of the current round: solved by hints,
-// then time; then those who gave up; then those still playing by progress;
+// ranking orders the participants of the current round: solved by errors,
+// then hints, then time; then those who gave up; then those still playing by progress;
 // then absent and departed ones.
 func (p *Party) ranking() []RankEntry {
 	r := p.Round
@@ -989,7 +990,7 @@ func (p *Party) ranking() []RankEntry {
 		}
 		switch a.Status {
 		case "solved":
-			return cmp.Or(cmp.Compare(a.Hints, b.Hints), cmp.Compare(a.TimeMs, b.TimeMs))
+			return cmp.Or(cmp.Compare(a.Errors, b.Errors), cmp.Compare(a.Hints, b.Hints), cmp.Compare(a.TimeMs, b.TimeMs))
 		case "playing":
 			return cmp.Compare(b.Stars, a.Stars)
 		}
@@ -998,10 +999,11 @@ func (p *Party) ranking() []RankEntry {
 	if r.coop != nil {
 		return out // one result for all, no ranks
 	}
+	tie := func(a, b RankEntry) bool { return a.Errors == b.Errors && a.Hints == b.Hints && a.TimeMs == b.TimeMs }
 	for i := range out {
 		if s := out[i].Status; s == "solved" || s == "gaveup" || s == "out" {
 			out[i].Rank = i + 1
-			if i > 0 && out[i-1].Status == "solved" && s == "solved" && out[i-1].Hints == out[i].Hints && out[i-1].TimeMs == out[i].TimeMs {
+			if i > 0 && s == "solved" && out[i-1].Status == "solved" && tie(out[i-1], out[i]) {
 				out[i].Rank = out[i-1].Rank
 			}
 		}
