@@ -56,6 +56,20 @@ func TestServer(t *testing.T) {
 		t.Fatalf("default size: %q", loc)
 	}
 
+	// Several sizes: each redirect picks one of them, in time every one.
+	seen := map[string]bool{}
+	for range 60 {
+		loc := get(h, "/?n=4&n=5&n=5").Header().Get("Location")
+		m := regexp.MustCompile(`^/\?n=(\d+)&seed=\d+$`).FindStringSubmatch(loc)
+		if m == nil || (m[1] != "4" && m[1] != "5") {
+			t.Fatalf("size from a pool: %q", loc)
+		}
+		seen[m[1]] = true
+	}
+	if len(seen) != 2 {
+		t.Fatalf("sizes picked from 4 and 5: %v", seen)
+	}
+
 	// A seed always gives the same puzzle, solved and marked as served.
 	rec = get(h, "/?n=7&seed=42")
 	if rec.Code != http.StatusOK {
@@ -84,7 +98,7 @@ func TestServer(t *testing.T) {
 	}
 
 	for _, bad := range []string{
-		"/?n=3", "/?n=99", "/?n=x", "/?n=6&seed=-1",
+		"/?n=3", "/?n=99", "/?n=x", "/?n=6&seed=-1", "/?n=6&n=3", "/?n=6&n=7&seed=42",
 		"/play?p=" + url.QueryEscape("AB/AB"),               // too small
 		"/play?p=" + url.QueryEscape("AAB/ABB/ABB"),         // too small
 		"/play?p=" + url.QueryEscape("AAAA/BBBB/CCCC"),      // not square

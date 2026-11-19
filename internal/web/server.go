@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,7 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 //
 //	/?n=8&seed=42   generated puzzle (same seeding as `starbattle generate`)
 //	/?n=8           new seed, redirects to the URL above
+//	/?n=6&n=8&n=10  a random one of these sizes, then as /?n=8
 //	/play?p=AAB...  puzzle in the text format, e.g. from the designer (rows
 //	                separated by newlines, '/' or ',')
 //
@@ -55,15 +57,21 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 	tutorialRoutes(mux, solve)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		n := DefaultN
-		if s := q.Get("n"); s != "" {
+		sizes := []int{}
+		for _, s := range q["n"] {
 			v, err := strconv.Atoi(s)
 			if err != nil || v < MinN || v > MaxN {
 				writeError(w, http.StatusBadRequest, fmt.Sprintf("Die Größe muss zwischen %d und %d liegen.", MinN, MaxN))
 				return
 			}
-			n = v
+			if !slices.Contains(sizes, v) {
+				sizes = append(sizes, v)
+			}
 		}
+		if len(sizes) == 0 {
+			sizes = append(sizes, DefaultN)
+		}
+		n := sizes[rand.IntN(len(sizes))]
 		seedStr := q.Get("seed")
 		if seedStr == "" {
 			seed, ok := pool.Take(n)
@@ -71,6 +79,10 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 				seed = newSeed()
 			}
 			http.Redirect(w, r, fmt.Sprintf("/?n=%d&seed=%d", n, seed), http.StatusFound)
+			return
+		}
+		if len(sizes) > 1 {
+			writeError(w, http.StatusBadRequest, "Zu einer Puzzle-Nummer gehört genau eine Größe.")
 			return
 		}
 		seed, err := strconv.ParseUint(seedStr, 10, 64)

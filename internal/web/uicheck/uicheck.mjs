@@ -397,6 +397,48 @@ const scenarios = {
     await obs("opened with #weg");
   },
 
+  // "Neues Puzzle": one size, or a random one of several ("Mehrere Größen"),
+  // remembered on this device. New puzzles have random seeds, so only their
+  // size is recorded.
+  async sizes() {
+    await fresh();
+    await go("/?n=8&seed=42");
+    const look = async (label, { random = false, anyN = false } = {}) => record({ label, ...(await js(`(() => {
+      const s = document.getElementById("newgame-n"), p = document.getElementById("newgame-pool");
+      return {
+        path: location.pathname + location.search${random ? `.replace(/seed=\\d+/, "seed=RANDOM")` : ""}${anyN ? `.replace(/n=\\d+/, "n=N")` : ""},
+        select: s.value,
+        pool: (p.hidden ? "[hidden] " : "") + [...p.querySelectorAll("input:checked")].map((b) => b.value).join(","),
+        sent: new URLSearchParams(new FormData(document.getElementById("newgame"))).toString(),
+      };
+    })()`)) });
+    const choose = (v) => js(`(() => { const s = document.getElementById("newgame-n"); s.value = ${JSON.stringify(v)}; s.dispatchEvent(new Event("change")); })()`);
+    const box = (k) => `#newgame-pool input[value="${k}"]`;
+    const submit = async () => {
+      const loaded = once("Page.loadEventFired");
+      await click("#newgame button");
+      await loaded;
+      await sleep(250);
+    };
+    await look("one size");
+    await choose("10");
+    await submit();
+    await look("new 10×10", { random: true });
+    await choose("mix");
+    await look("several sizes", { random: true });
+    for (const k of [6, 7, 9]) await click(box(k));
+    await click(box(8)); // the last size stays
+    await click(box(5));
+    await look("pool 5 and 8", { random: true });
+    await submit();
+    const n = await js(`new URLSearchParams(location.search).get("n")`);
+    record({ label: "new from the pool", fromPool: n === "5" || n === "8" });
+    await look("pool remembered", { random: true, anyN: true });
+    await choose("6");
+    await go("/?n=8&seed=42");
+    await look("one size again");
+  },
+
   // Hypothesis mode: set, undo, reload, contradiction, discard, solve in it.
   async hypothesis() {
     await fresh();

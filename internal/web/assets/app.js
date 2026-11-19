@@ -918,13 +918,58 @@ function boot() {
     $(party ? "nav-party" : lib ? "nav-library" : tut ? "nav-help" : "nav-solo").setAttribute("aria-current", "page");
   }
   if (d.served && !party && !tut) {
-    const sizes = $("newgame-n");
+    // One size, or "Mehrere Größen": a pool of sizes like a party's, from
+    // which the server picks one at random (/?n=6&n=8). The choice and the
+    // pool are a preference of this device.
+    const MIX_KEY = "starbattle.soloMix", POOL_KEY = "starbattle.soloSizes";
+    const get = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+    const put = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode etc. */ } };
+    let pool = [6, 7, 8, 9];
+    try {
+      const v = JSON.parse(get(POOL_KEY) || "null");
+      if (Array.isArray(v) && v.some((k) => k >= d.minN && k <= d.maxN)) pool = v;
+    } catch { /* default */ }
+    const mixed = get(MIX_KEY) === "1";
+    const sizes = $("newgame-n"), boxes = $("newgame-pool");
     for (let k = d.minN; k <= d.maxN; k++) {
       const o = el("option", null, `${k}×${k}`);
       o.value = k;
-      o.selected = k === n;
+      o.selected = !mixed && k === n;
       sizes.append(o);
+      const lab = el("label", "size");
+      const box = el("input");
+      box.type = "checkbox";
+      box.name = "n";
+      box.value = k;
+      box.checked = pool.includes(k);
+      lab.append(box, `${k}×${k}`);
+      boxes.append(lab);
     }
+    const mix = el("option", null, "Mehrere Größen");
+    mix.value = "mix";
+    mix.selected = mixed;
+    sizes.append(mix);
+    // Only the select or only the boxes are sent: a field without a name or
+    // a disabled one is not part of the form.
+    const show = () => {
+      const on = sizes.value === "mix";
+      sizes.name = on ? "" : "n";
+      boxes.hidden = !on;
+      for (const b of boxes.querySelectorAll("input")) b.disabled = !on;
+    };
+    show();
+    sizes.addEventListener("change", () => {
+      put(MIX_KEY, sizes.value === "mix" ? "1" : "0");
+      show();
+    });
+    boxes.addEventListener("change", (ev) => {
+      const on = [...boxes.querySelectorAll("input:checked")].map((b) => +b.value);
+      if (!on.length) { // at least one size stays
+        ev.target.checked = true;
+        return;
+      }
+      put(POOL_KEY, JSON.stringify(on));
+    });
     $("newgame").hidden = false;
   }
 
