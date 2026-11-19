@@ -6,7 +6,8 @@
 //   - versus (default): everybody solves on their own board. The round ends
 //     when every present participant has solved or given up and ranks by
 //     fewest hints, then shortest time (server wall clock from the common
-//     start).
+//     start). Optionally with lives: each rule breach (reported by the
+//     player's page) costs one, and whoever loses all gives up.
 //   - coop: everybody marks the same board, kept on the server (coop.go),
 //     without hints. The round ends when the board is solved or all present
 //     participants vote to give up.
@@ -138,7 +139,14 @@ type Options struct {
 	Sizes []int
 	Mode  string     // ModeVersus if unknown
 	Clock ClockRules // for ModeClock
+	// Lives per puzzle for ModeVersus: 0 is unlimited, otherwise a player's
+	// Lives-th rule breach ends the round for them (so Lives-1 errors are
+	// allowed). At most MaxLives.
+	Lives int
 }
+
+// MaxLives bounds Options.Lives.
+const MaxLives = 10
 
 // Party is one group playing together. All fields are guarded by Manager.mu.
 type Party struct {
@@ -146,6 +154,7 @@ type Party struct {
 	Sizes    []int
 	Mode     string
 	Clock    ClockRules // ModeClock only
+	Lives    int        // ModeVersus only, 0: unlimited (see Options)
 	Phase    string
 	Round    *Round // current or last round, nil in the lobby
 	players  []*Player
@@ -172,6 +181,7 @@ type Player struct {
 	present  bool // as of the last check, to notice changes
 	Stars    int  // progress in the current round
 	Hints    int  // hints in the current round, never decreases
+	Errors   int  // rule breaches in the current round, never decreases
 }
 
 // Round is one puzzle played by the party.
@@ -189,7 +199,9 @@ type Round struct {
 // Result of one participant.
 type Result struct {
 	Solved bool          `json:"solved"`
+	Out    bool          `json:"out,omitempty"` // gave up by losing all lives
 	Hints  int           `json:"hints"`
+	Errors int           `json:"errors"`
 	Time   time.Duration `json:"-"`
 	TimeMs int64         `json:"timeMs"`
 }
@@ -248,6 +260,10 @@ func (pm *Manager) Create(o Options) (string, error) {
 		return "", errorf(Invalid, "Bitte mindestens eine Größe zwischen %d und %d wählen.", pm.minN, pm.maxN)
 	}
 	slices.Sort(ok)
+	lives := min(max(o.Lives, 0), MaxLives)
+	if mode != ModeVersus {
+		lives = 0
+	}
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	if len(pm.parties) >= MaxParties {
@@ -266,6 +282,7 @@ func (pm *Manager) Create(o Options) (string, error) {
 		Sizes:   ok,
 		Mode:    mode,
 		Clock:   o.Clock.normalize(mode),
+		Lives:   lives,
 		Phase:   PhaseLobby,
 		byToken: map[string]*Player{},
 		subs:    map[chan struct{}]bool{},
@@ -409,31 +426,48 @@ func (p *Party) versusRound(pl *Player, num int) (*Round, error) {
 	return r, nil
 }
 
-// Progress reports the stars set and hints taken in round num.
-func (pm *Manager) Progress(code, token string, num, stars, hints int) error {
+// Progress reports the stars set, hints taken and rules broken in round num.
+// Breaking the rules once too often (see Options.Lives) gives up.
+func (pm *Manager) Progress(code, token string, num, stars, hints, errors int) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
 	if err != nil {
 		return err
 	}
-	if _, err := p.versusRound(pl, num); err != nil {
+	r, err := p.versusRound(pl, num)
+	if err != nil {
 		return err
 	}
-	if p.Phase != PhasePlaying {
+	if p.Phase != PhasePlaying || r.Results[pl.ID] != nil {
 		return nil
 	}
-	hints = max(hints, pl.Hints)
-	if stars != pl.Stars || hints != pl.Hints {
-		pl.Stars, pl.Hints = stars, hints
+	hints, errors = max(hints, pl.Hints), max(errors, pl.Errors)
+	if stars != pl.Stars || hints != pl.Hints || errors != pl.Errors {
+		pl.Stars, pl.Hints, pl.Errors = stars, hints, errors
+		pm.outOfLives(p, pl, r)
 		pm.update(p)
 	}
 	return nil
 }
 
+// outOfLives gives up for pl, if they have used up their lives and have no
+// result yet, and reports whether they are out; pm.mu must be held.
+func (pm *Manager) outOfLives(p *Party, pl *Player, r *Round) bool {
+	if p.Lives == 0 || pl.Errors < p.Lives {
+		return false
+	}
+	if r.Results[pl.ID] == nil {
+		t := max(pm.now().Sub(r.Start), 0)
+		r.Results[pl.ID] = &Result{Out: true, Hints: pl.Hints, Errors: pl.Errors, Time: t, TimeMs: t.Milliseconds()}
+	}
+	return true
+}
+
 // Solve records a solution of round num (star column per row). Repeating a
-// successful call returns the same result.
-func (pm *Manager) Solve(code, token string, num int, stars []int, hints int) (Result, error) {
+// successful call returns the same result. Errors are the rules broken on
+// the way; one too many (see Options.Lives) gives up instead.
+func (pm *Manager) Solve(code, token string, num int, stars []int, hints, errors int) (Result, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -448,6 +482,9 @@ func (pm *Manager) Solve(code, token string, num int, stars []int, hints int) (R
 		if res.Solved {
 			return *res, nil
 		}
+		if res.Out {
+			return Result{}, errorf(Conflict, "Du hast alle Leben verloren.")
+		}
 		return Result{}, errorf(Conflict, "Du hast diese Runde aufgegeben.")
 	}
 	if p.Phase != PhasePlaying {
@@ -457,19 +494,25 @@ func (pm *Manager) Solve(code, token string, num int, stars []int, hints int) (R
 	if now.Before(r.Start) {
 		return Result{}, errorf(Conflict, "Die Runde hat noch nicht begonnen.")
 	}
+	pl.Hints, pl.Errors = max(hints, pl.Hints), max(errors, pl.Errors)
+	if pm.outOfLives(p, pl, r) {
+		pm.update(p)
+		return Result{}, errorf(Conflict, "Du hast alle Leben verloren.")
+	}
 	if !slices.Equal(stars, r.Puzzle.Solution) {
 		return Result{}, errorf(Invalid, "Das ist nicht die Lösung.")
 	}
 	t := now.Sub(r.Start)
-	res := &Result{Solved: true, Hints: max(hints, pl.Hints), Time: t, TimeMs: t.Milliseconds()}
+	res := &Result{Solved: true, Hints: pl.Hints, Errors: pl.Errors, Time: t, TimeMs: t.Milliseconds()}
 	r.Results[pl.ID] = res
-	pl.Hints, pl.Stars = res.Hints, r.Puzzle.N
+	pl.Stars = r.Puzzle.N
 	pm.update(p)
 	return *res, nil
 }
 
-// GiveUp ends round num for the player without a solution.
-func (pm *Manager) GiveUp(code, token string, num, hints int) error {
+// GiveUp ends round num for the player without a solution; with errors that
+// use up the lives (see Options.Lives) as having lost them.
+func (pm *Manager) GiveUp(code, token string, num, hints, errors int) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	p, pl, err := pm.player(code, token)
@@ -489,8 +532,11 @@ func (pm *Manager) GiveUp(code, token string, num, hints int) error {
 	if p.Phase != PhasePlaying {
 		return errorf(Conflict, "Die Runde ist schon vorbei.")
 	}
-	t := max(pm.now().Sub(r.Start), 0)
-	r.Results[pl.ID] = &Result{Hints: max(hints, pl.Hints), Time: t, TimeMs: t.Milliseconds()}
+	pl.Hints, pl.Errors = max(hints, pl.Hints), max(errors, pl.Errors)
+	if !pm.outOfLives(p, pl, r) {
+		t := max(pm.now().Sub(r.Start), 0)
+		r.Results[pl.ID] = &Result{Hints: pl.Hints, Errors: pl.Errors, Time: t, TimeMs: t.Milliseconds()}
+	}
 	pm.update(p)
 	return nil
 }
@@ -501,6 +547,7 @@ type Page struct {
 	Round  int
 	Mode   string
 	K      int // ModeClock: which of the round's puzzles, from 1; else 0
+	Lives  int // ModeVersus: lives per puzzle, 0 unlimited
 	Puzzle *Puzzle
 }
 
@@ -518,7 +565,7 @@ func (pm *Manager) Page(code string, num, k int) (Page, error) {
 	if r == nil || r.Num != num {
 		return Page{}, errorf(NotFound, "Runde %d gibt es (noch) nicht.", num)
 	}
-	pg := Page{Code: p.Code, Round: r.Num, Mode: p.Mode, Puzzle: r.Puzzle}
+	pg := Page{Code: p.Code, Round: r.Num, Mode: p.Mode, Lives: p.Lives, Puzzle: r.Puzzle}
 	if c := r.clock; c != nil {
 		pg.K = max(k, 1)
 		if pg.K > len(c.seq) {
@@ -690,7 +737,7 @@ func (pm *Manager) maybeStart(p *Party) {
 	}
 	for _, pl := range p.players {
 		pl.Ready = false
-		pl.Stars, pl.Hints = 0, 0
+		pl.Stars, pl.Hints, pl.Errors = 0, 0, 0
 		if pl.present {
 			r.names[pl.ID] = pl.Name
 		}
@@ -804,7 +851,8 @@ type Snapshot struct {
 	Mode      string       `json:"mode"`
 	Phase     string       `json:"phase"`
 	Sizes     []int        `json:"sizes"`
-	Round     int          `json:"round"` // 0 in the lobby
+	Lives     int          `json:"lives,omitempty"` // versus: per puzzle, 0 unlimited
+	Round     int          `json:"round"`           // 0 in the lobby
 	N         int          `json:"n,omitempty"`
 	StartInMs int64        `json:"startInMs"` // > 0 during the countdown
 	ElapsedMs int64        `json:"elapsedMs"` // since the start, while playing
@@ -832,8 +880,9 @@ type RankEntry struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Rank   int    `json:"rank"`   // 0 while unranked
-	Status string `json:"status"` // solved, gaveup, playing, absent, left; clock: done
+	Status string `json:"status"` // solved, gaveup, out (lost all lives), playing, absent, left; clock: done
 	Hints  int    `json:"hints"`
+	Errors int    `json:"errors,omitempty"` // versus with lives: rules broken
 	TimeMs int64  `json:"timeMs"`
 	Stars  int    `json:"stars"`            // clock: right minus wrong stars on the current puzzle
 	Moves  int    `json:"moves,omitempty"`  // coop: changes to the shared board
@@ -857,6 +906,7 @@ func (pm *Manager) Snapshot(code, token string) (Snapshot, error) {
 		Mode:      p.Mode,
 		Phase:     p.Phase,
 		Sizes:     p.Sizes,
+		Lives:     p.Lives,
 		Preparing: len(p.ready) == 0,
 		PrepErr:   p.prepErr,
 		Players:   []SnapPlayer{},
@@ -910,16 +960,19 @@ func (p *Party) ranking() []RankEntry {
 		e := RankEntry{ID: id, Name: r.names[id]}
 		pl := byID[id]
 		if pl != nil {
-			e.Name, e.Stars, e.Hints = pl.Name, pl.Stars, pl.Hints
+			e.Name, e.Stars, e.Hints, e.Errors = pl.Name, pl.Stars, pl.Hints, pl.Errors
 		}
 		if r.coop != nil {
 			e.Stars, e.Hints, e.Moves = 0, 0, r.coop.moves[id]
 		}
 		switch res := r.Results[id]; {
 		case res != nil && res.Solved:
-			e.Status, e.Hints, e.TimeMs, e.Stars = "solved", res.Hints, res.TimeMs, r.Puzzle.N
+			e.Status, e.Hints, e.Errors, e.TimeMs, e.Stars = "solved", res.Hints, res.Errors, res.TimeMs, r.Puzzle.N
 		case res != nil:
-			e.Status, e.Hints, e.TimeMs = "gaveup", res.Hints, res.TimeMs
+			e.Status, e.Hints, e.Errors, e.TimeMs = "gaveup", res.Hints, res.Errors, res.TimeMs
+			if res.Out {
+				e.Status = "out"
+			}
 		case pl == nil:
 			e.Status = "left"
 		case !pl.present:
@@ -929,7 +982,7 @@ func (p *Party) ranking() []RankEntry {
 		}
 		out = append(out, e)
 	}
-	order := map[string]int{"solved": 0, "gaveup": 1, "playing": 2, "absent": 3, "left": 4}
+	order := map[string]int{"solved": 0, "gaveup": 1, "out": 1, "playing": 2, "absent": 3, "left": 4}
 	slices.SortStableFunc(out, func(a, b RankEntry) int {
 		if d := cmp.Compare(order[a.Status], order[b.Status]); d != 0 {
 			return d
@@ -946,7 +999,7 @@ func (p *Party) ranking() []RankEntry {
 		return out // one result for all, no ranks
 	}
 	for i := range out {
-		if s := out[i].Status; s == "solved" || s == "gaveup" {
+		if s := out[i].Status; s == "solved" || s == "gaveup" || s == "out" {
 			out[i].Rank = i + 1
 			if i > 0 && out[i-1].Status == "solved" && s == "solved" && out[i-1].Hints == out[i].Hints && out[i-1].TimeMs == out[i].TimeMs {
 				out[i].Rank = out[i-1].Rank

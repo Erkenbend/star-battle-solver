@@ -10,9 +10,9 @@ func TestPartiesUnknownCode(t *testing.T) {
 	pm, _ := newTestParties(t)
 	for name, err := range map[string]error{
 		"join":     func() error { _, _, err := pm.Join("ZZZZ", "Ada", ""); return err }(),
-		"progress": pm.Progress("ZZZZ", "tok", 1, 0, 0),
-		"solve":    func() error { _, err := pm.Solve("ZZZZ", "tok", 1, nil, 0); return err }(),
-		"giveup":   pm.GiveUp("ZZZZ", "tok", 1, 0),
+		"progress": pm.Progress("ZZZZ", "tok", 1, 0, 0, 0),
+		"solve":    func() error { _, err := pm.Solve("ZZZZ", "tok", 1, nil, 0, 0); return err }(),
+		"giveup":   pm.GiveUp("ZZZZ", "tok", 1, 0, 0),
 	} {
 		if pe, ok := errors.AsType[*Error](err); !ok || pe.Kind != NotFound {
 			t.Errorf("%s: %v, want NotFound", name, err)

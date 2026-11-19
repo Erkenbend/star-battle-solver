@@ -129,7 +129,13 @@ func startRound(t *testing.T, pm *Manager, clk *testClock, names ...string) (str
 // startRoundMode is startRound for a party in the given mode.
 func startRoundMode(t *testing.T, pm *Manager, clk *testClock, mode string, names ...string) (string, []string) {
 	t.Helper()
-	code, err := pm.Create(Options{Sizes: []int{5}, Mode: mode})
+	return startRoundWith(t, pm, clk, Options{Sizes: []int{5}, Mode: mode}, names...)
+}
+
+// startRoundWith is startRound for a party with the given options.
+func startRoundWith(t *testing.T, pm *Manager, clk *testClock, o Options, names ...string) (string, []string) {
+	t.Helper()
+	code, err := pm.Create(o)
 	must(t, err)
 	waitPrepared(t, pm, code)
 	var toks []string
@@ -170,7 +176,7 @@ func TestPartyRound(t *testing.T) {
 	wantKind(t, pm.SetReady(code, a, true), Conflict)
 
 	sol := testPuzzle(t, 5).Solution
-	_, err = pm.Solve(code, a, 1, sol, 0)
+	_, err = pm.Solve(code, a, 1, sol, 0, 0)
 	wantKind(t, err, Conflict) // countdown still running
 
 	clk.add(Countdown + time.Second)
@@ -179,12 +185,12 @@ func TestPartyRound(t *testing.T) {
 	}
 	wrong := append([]int(nil), sol...)
 	wrong[0], wrong[1] = wrong[1], wrong[0]
-	_, err = pm.Solve(code, a, 1, wrong, 0)
+	_, err = pm.Solve(code, a, 1, wrong, 0, 0)
 	wantKind(t, err, Invalid)
-	_, err = pm.Solve(code, a, 2, sol, 0)
+	_, err = pm.Solve(code, a, 2, sol, 0, 0)
 	wantKind(t, err, Conflict)
 
-	res, err := pm.Solve(code, a, 1, sol, 1)
+	res, err := pm.Solve(code, a, 1, sol, 1, 0)
 	must(t, err)
 	if !res.Solved || res.Hints != 1 || res.TimeMs != 1000 {
 		t.Fatalf("result %+v", res)
@@ -192,9 +198,9 @@ func TestPartyRound(t *testing.T) {
 	if s := snap(t, pm, code, ""); s.Phase != PhasePlaying || s.Ranking[1].Status != "playing" {
 		t.Fatalf("round ended while Ben still plays: %+v", s)
 	}
-	must(t, pm.Progress(code, b, 1, 3, 0))
+	must(t, pm.Progress(code, b, 1, 3, 0, 0))
 	clk.add(2 * time.Second)
-	_, err = pm.Solve(code, b, 1, sol, 0)
+	_, err = pm.Solve(code, b, 1, sol, 0, 0)
 	must(t, err)
 
 	s = snap(t, pm, code, "")
@@ -206,7 +212,7 @@ func TestPartyRound(t *testing.T) {
 		t.Fatalf("ranking %+v", r)
 	}
 	// Repeating a solve returns the recorded result.
-	if res2, err := pm.Solve(code, a, 1, sol, 5); err != nil || res2 != res {
+	if res2, err := pm.Solve(code, a, 1, sol, 5, 0); err != nil || res2 != res {
 		t.Fatalf("repeated solve: %+v, %v", res2, err)
 	}
 
@@ -222,15 +228,15 @@ func TestPartyGiveUp(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, toks := startRound(t, pm, clk, "A", "B", "C")
 	sol := testPuzzle(t, 5).Solution
-	must(t, pm.GiveUp(code, toks[0], 1, 2))
-	must(t, pm.GiveUp(code, toks[0], 1, 2)) // repeated: fine
-	_, err := pm.Solve(code, toks[0], 1, sol, 0)
+	must(t, pm.GiveUp(code, toks[0], 1, 2, 0))
+	must(t, pm.GiveUp(code, toks[0], 1, 2, 0)) // repeated: fine
+	_, err := pm.Solve(code, toks[0], 1, sol, 0, 0)
 	wantKind(t, err, Conflict)
 	clk.add(30 * time.Second)
-	_, err = pm.Solve(code, toks[1], 1, sol, 4)
+	_, err = pm.Solve(code, toks[1], 1, sol, 4, 0)
 	must(t, err)
-	wantKind(t, pm.GiveUp(code, toks[1], 1, 0), Conflict)
-	must(t, pm.GiveUp(code, toks[2], 1, 0))
+	wantKind(t, pm.GiveUp(code, toks[1], 1, 0, 0), Conflict)
+	must(t, pm.GiveUp(code, toks[2], 1, 0, 0))
 	s := snap(t, pm, code, "")
 	if s.Phase != PhaseResults {
 		t.Fatal("round did not end")
@@ -241,15 +247,102 @@ func TestPartyGiveUp(t *testing.T) {
 	}
 }
 
+func TestPartyLives(t *testing.T) {
+	pm, clk := newTestParties(t)
+	code, toks := startRoundWith(t, pm, clk, Options{Sizes: []int{5}, Lives: 2}, "A", "B", "C", "D")
+	if s := snap(t, pm, code, ""); s.Lives != 2 {
+		t.Fatalf("lives %d, want 2", s.Lives)
+	}
+	sol := testPuzzle(t, 5).Solution
+	status := func(name string) RankEntry {
+		for _, e := range snap(t, pm, code, "").Ranking {
+			if e.Name == name {
+				return e
+			}
+		}
+		t.Fatalf("%s not in the ranking", name)
+		return RankEntry{}
+	}
+
+	// A breaks the rules once, then twice: out.
+	must(t, pm.Progress(code, toks[0], 1, 1, 0, 1))
+	must(t, pm.Progress(code, toks[0], 1, 1, 0, 0)) // errors never decrease
+	if e := status("A"); e.Status != "playing" || e.Errors != 1 {
+		t.Fatalf("A after one error: %+v", e)
+	}
+	clk.add(time.Second)
+	must(t, pm.Progress(code, toks[0], 1, 2, 1, 2))
+	if e := status("A"); e.Status != "out" || e.Errors != 2 || e.Hints != 1 || e.TimeMs != 1000 {
+		t.Fatalf("A after two errors: %+v", e)
+	}
+	_, err := pm.Solve(code, toks[0], 1, sol, 1, 2)
+	wantKind(t, err, Conflict)
+
+	// B solves, but reports too many errors with it (the progress got lost).
+	_, err = pm.Solve(code, toks[1], 1, sol, 0, 3)
+	wantKind(t, err, Conflict)
+	if e := status("B"); e.Status != "out" {
+		t.Fatalf("B: %+v", e)
+	}
+	// C's page gives up by itself on the last life.
+	must(t, pm.GiveUp(code, toks[2], 1, 0, 2))
+	// D solves with one error to spare.
+	res, err := pm.Solve(code, toks[3], 1, sol, 0, 1)
+	must(t, err)
+	if !res.Solved || res.Errors != 1 {
+		t.Fatalf("D: %+v", res)
+	}
+
+	s := snap(t, pm, code, "")
+	if s.Phase != PhaseResults {
+		t.Fatal("round did not end")
+	}
+	r := s.Ranking
+	if r[0].Name != "D" || r[0].Rank != 1 || r[0].Errors != 1 || r[1].Status != "out" || r[1].Rank != 2 || r[3].Status != "out" || r[3].Rank != 4 {
+		t.Fatalf("ranking %+v", r)
+	}
+
+	// The next round starts with all lives.
+	waitPrepared(t, pm, code)
+	for _, tok := range toks {
+		must(t, pm.SetReady(code, tok, true))
+	}
+	clk.add(Countdown)
+	if e := status("A"); e.Status != "playing" || e.Errors != 0 {
+		t.Fatalf("A in round 2: %+v", e)
+	}
+}
+
+func TestPartyLivesOptions(t *testing.T) {
+	pm, _ := newTestParties(t)
+	for _, c := range []struct {
+		o    Options
+		want int
+	}{
+		{Options{Sizes: []int{5}}, 0},
+		{Options{Sizes: []int{5}, Lives: 3}, 3},
+		{Options{Sizes: []int{5}, Lives: -1}, 0},
+		{Options{Sizes: []int{5}, Lives: 99}, MaxLives},
+		{Options{Sizes: []int{5}, Mode: ModeCoop, Lives: 3}, 0},
+		{Options{Sizes: []int{5}, Mode: ModeClock, Lives: 3}, 0},
+	} {
+		code, err := pm.Create(c.o)
+		must(t, err)
+		if got := snap(t, pm, code, "").Lives; got != c.want {
+			t.Errorf("%+v: lives %d, want %d", c.o, got, c.want)
+		}
+	}
+}
+
 func TestPartyHintsNeverDecrease(t *testing.T) {
 	pm, clk := newTestParties(t)
 	code, toks := startRound(t, pm, clk, "A", "B")
-	must(t, pm.Progress(code, toks[0], 1, 1, 3))
-	must(t, pm.Progress(code, toks[0], 1, 2, 1)) // e.g. after cleared storage
+	must(t, pm.Progress(code, toks[0], 1, 1, 3, 0))
+	must(t, pm.Progress(code, toks[0], 1, 2, 1, 0)) // e.g. after cleared storage
 	if h := snap(t, pm, code, "").Ranking[0].Hints; h != 3 {
 		t.Fatalf("hints %d, want 3", h)
 	}
-	res, err := pm.Solve(code, toks[0], 1, testPuzzle(t, 5).Solution, 0)
+	res, err := pm.Solve(code, toks[0], 1, testPuzzle(t, 5).Solution, 0, 0)
 	must(t, err)
 	if res.Hints != 3 {
 		t.Fatalf("result hints %d, want 3", res.Hints)
@@ -269,17 +362,17 @@ func TestPartyAbsence(t *testing.T) {
 		t.Fatalf("presence %+v", s)
 	}
 	sol := testPuzzle(t, 5).Solution
-	_, err = pm.Solve(code, toks[0], 1, sol, 0)
+	_, err = pm.Solve(code, toks[0], 1, sol, 0, 0)
 	must(t, err)
 	if s := snap(t, pm, code, ""); s.Phase != PhaseResults {
 		t.Fatal("absent player blocks the end of the round")
 	}
-	_, err = pm.Solve(code, toks[1], 1, sol, 0)
+	_, err = pm.Solve(code, toks[1], 1, sol, 0, 0)
 	wantKind(t, err, Conflict)
 
 	// The absent player does not block the start either, until back.
 	waitPrepared(t, pm, code)
-	must(t, pm.Progress(code, toks[1], 1, 0, 0)) // B is back (any request)
+	must(t, pm.Progress(code, toks[1], 1, 0, 0, 0)) // B is back (any request)
 	must(t, pm.SetReady(code, toks[0], true))
 	if s := snap(t, pm, code, ""); s.Phase != PhaseResults {
 		t.Fatal("started without B being ready")
@@ -299,11 +392,11 @@ func TestPartyAllAbsent(t *testing.T) {
 	if s := snap(t, pm, code, ""); s.Phase != PhasePlaying {
 		t.Fatal("round ended with nobody there")
 	}
-	must(t, pm.Progress(code, toks[0], 1, 1, 0))
+	must(t, pm.Progress(code, toks[0], 1, 1, 0, 0))
 	if s := snap(t, pm, code, ""); s.Phase != PhasePlaying || !s.Players[0].Present {
 		t.Fatalf("after return: %+v", s)
 	}
-	_, err := pm.Solve(code, toks[0], 1, testPuzzle(t, 5).Solution, 0)
+	_, err := pm.Solve(code, toks[0], 1, testPuzzle(t, 5).Solution, 0, 0)
 	must(t, err)
 	if s := snap(t, pm, code, ""); s.Phase != PhaseResults {
 		t.Fatal("round did not end")
@@ -325,10 +418,10 @@ func TestPartyLateJoin(t *testing.T) {
 	if len(s.Ranking) != 2 || !s.Players[1].Playing || s.Players[2].Playing {
 		t.Fatalf("participants %+v", s)
 	}
-	wantKind(t, pm.Progress(code, c, 1, 1, 0), Conflict)
+	wantKind(t, pm.Progress(code, c, 1, 1, 0, 0), Conflict)
 	sol := testPuzzle(t, 5).Solution
 	for _, tok := range []string{a, b} {
-		_, err := pm.Solve(code, tok, 1, sol, 0)
+		_, err := pm.Solve(code, tok, 1, sol, 0, 0)
 		must(t, err)
 	}
 	if s := snap(t, pm, code, ""); s.Phase != PhaseResults {
@@ -354,7 +447,7 @@ func TestPartyLeave(t *testing.T) {
 	code, toks := startRound(t, pm, clk, "A", "B")
 	must(t, pm.Leave(code, toks[1]))
 	wantKind(t, pm.Leave(code, toks[1]), Forbidden)
-	_, err := pm.Solve(code, toks[0], 1, testPuzzle(t, 5).Solution, 0)
+	_, err := pm.Solve(code, toks[0], 1, testPuzzle(t, 5).Solution, 0, 0)
 	must(t, err)
 	s := snap(t, pm, code, "")
 	if s.Phase != PhaseResults || len(s.Players) != 1 || s.Ranking[1].Status != "left" || s.Ranking[1].Name != "B" {

@@ -110,6 +110,7 @@ type PartyInfo struct {
 	Round  int    `json:"round"`
 	Mode   string `json:"mode"`             // party.ModeVersus, ModeCoop or ModeClock
 	Puzzle int    `json:"puzzle,omitempty"` // ModeClock: which of the round's puzzles, from 1
+	Lives  int    `json:"lives,omitempty"`  // ModeVersus: lives per puzzle, 0 unlimited
 }
 
 // Stats summarizes the search effort.

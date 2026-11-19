@@ -453,3 +453,43 @@ func TestClockServer(t *testing.T) {
 		t.Fatalf("puzzle 2: %d", got)
 	}
 }
+
+func TestLivesServer(t *testing.T) {
+	pm, clk := newTestParties(t)
+	h := Handler(testSolve, nil, pm, nil, nil)
+
+	form := url.Values{"n": {"5"}, "mode": {"versus"}, "lives": {"2"}}
+	req := httptest.NewRequest("POST", "/party", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	loc := rec.Header().Get("Location")
+	code := strings.TrimPrefix(loc, "/party/")
+	if s := snap(t, pm, code, ""); s.Lives != 2 {
+		t.Fatalf("lives %d, want 2", s.Lives)
+	}
+	waitPrepared(t, pm, code)
+	var joined struct {
+		Token string `json:"token"`
+	}
+	if c := postJSON(t, h, loc+"/join", map[string]any{"name": "Ada"}, &joined); c != http.StatusOK {
+		t.Fatalf("join: %d", c)
+	}
+	if c := postJSON(t, h, loc+"/ready", map[string]any{"token": joined.Token, "ready": true}, nil); c != http.StatusOK {
+		t.Fatalf("ready: %d", c)
+	}
+	clk.add(party.Countdown)
+	if d := pageData(t, get(h, loc+"/round/1").Body.String()); d.Party == nil || d.Party.Lives != 2 {
+		t.Fatalf("round page data: %+v", d.Party)
+	}
+	var out struct{ Snapshot party.Snapshot }
+	if c := postJSON(t, h, loc+"/progress", map[string]any{"token": joined.Token, "round": 1, "count": 1, "errors": 2}, &out); c != http.StatusOK {
+		t.Fatalf("progress: %d", c)
+	}
+	if r := out.Snapshot.Ranking; len(r) != 1 || r[0].Status != "out" || r[0].Errors != 2 || out.Snapshot.Phase != party.PhaseResults {
+		t.Fatalf("after the last life: %+v", out.Snapshot)
+	}
+}

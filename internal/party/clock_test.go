@@ -131,10 +131,10 @@ func TestClockRound(t *testing.T) {
 	}
 
 	// Versus actions do not apply.
-	wantKind(t, pm.Progress(code, a, 1, 2, 0), Conflict)
-	_, err := pm.Solve(code, a, 1, rp.Solution, 0)
+	wantKind(t, pm.Progress(code, a, 1, 2, 0, 0), Conflict)
+	_, err := pm.Solve(code, a, 1, rp.Solution, 0, 0)
 	wantKind(t, err, Conflict)
-	wantKind(t, pm.GiveUp(code, a, 1, 0), Conflict)
+	wantKind(t, pm.GiveUp(code, a, 1, 0, 0), Conflict)
 
 	// Ada solves the first puzzle and gets the second.
 	wrong := append([]int{}, rp.Solution...)
