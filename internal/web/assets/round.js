@@ -11,7 +11,9 @@
 // Against each other a party may have lives (d.party.lives, per puzzle): a
 // change of the board that brings a rule violation not there before costs
 // one; those of a hypothesis don't count, as its marks are not ours yet.
-// The rule violations are always shown then. Losing the last life gives up.
+// The rule violations are always shown then. Losing the last life gives up,
+// but the board stays as it was, with the violation in red, until the player
+// asks for the solution ("Lösung zeigen"): it would hide what went wrong.
 // The server keeps the count too (like hints, it never decreases) and gives
 // up for us if the page doesn't.
 //
@@ -22,7 +24,7 @@ function PartyRound(P) {
   const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
   const party = {
     gaveUp: !!(saved && saved.gaveUp), snap: null, startLocal: null, live: false, solving: false,
-    errors: num(saved && saved.errors), sentStars: -1, sentHints: -1, sentErrors: -1,
+    errors: num(saved && saved.errors), revealed: !!(saved && saved.revealed), sentStars: -1, sentHints: -1, sentErrors: -1,
   };
   const lives = d.party.mode === "versus" ? num(d.party.lives) : 0; // 0: unlimited
   let breaches = null; // the rule violations on our board as last seen (their texts)
@@ -59,11 +61,24 @@ function PartyRound(P) {
     return { cells, auto, marks: {} };
   }
 
-  // [text, class] for the banner while not solved, or null.
+  // Given up, and the solution is on the board: at once, except for losing
+  // the last life, where the player asks for it.
+  const solutionShown = () => party.gaveUp && (party.revealed || livesLeft() > 0);
+
+  // [text, class, node?] for the banner while not solved, or null.
   function partyBanner() {
     if (race) return race.banner();
     const s = party.snap;
-    if (party.gaveUp && livesLeft() === 0) return ["Alle Leben verloren: Die Runde ist für dich vorbei. Die Lösung ist eingeblendet.", "what-if"];
+    if (party.gaveUp && livesLeft() === 0) {
+      if (party.revealed) return ["Alle Leben verloren: Die Runde ist für dich vorbei. Die Lösung ist eingeblendet.", "what-if"];
+      const b = P.el("button", "share", "Lösung zeigen");
+      b.id = "reveal";
+      b.onclick = () => {
+        party.revealed = true;
+        P.renderPlay();
+      };
+      return ["Alle Leben verloren: Die Runde ist für dich vorbei. Rot markiert ist, was gegen die Regeln verstößt.", "what-if", b];
+    }
     if (party.gaveUp) return [coop ? "Gemeinsam aufgegeben. Die Lösung ist eingeblendet." : "Aufgegeben. Die Lösung ist eingeblendet.", "what-if"];
     if (!s) return ["Verbinde mit der Party …", ""];
     const me = partyMe();
@@ -104,7 +119,7 @@ function PartyRound(P) {
   }
 
   function partyTabs() {
-    const open = !race && (P.done || party.gaveUp); // no solving trace against the clock
+    const open = !race && (P.done || solutionShown()); // no solving trace against the clock
     $("tab-watch").hidden = !open;
     if (!open && P.mode === "watch") P.setMode("play");
   }
@@ -236,6 +251,7 @@ function PartyRound(P) {
     coop,
     race,
     get gaveUp() { return party.gaveUp; },
+    solutionShown,
     started: partyStarted,
     live: partyLive,
     solutionView,
@@ -246,6 +262,7 @@ function PartyRound(P) {
     save(v) {
       v.gaveUp = party.gaveUp;
       if (lives) v.errors = party.errors;
+      if (party.revealed) v.revealed = true;
     },
     tabs: partyTabs,
     solve: partySolve,

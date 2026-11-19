@@ -449,7 +449,7 @@ function boot() {
     const view = { cells: shown.cells, auto: shown.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
     H.decorate(view, shown.cells); // the marks tried out
-    drawBoard(party && party.gaveUp ? party.solutionView() : view);
+    drawBoard(party && party.solutionShown() ? party.solutionView() : view);
 
     const list = $("problems");
     list.replaceChildren(...probs.map((p) => elr("li", "", p.msg)));
@@ -489,7 +489,10 @@ function boot() {
       }
     } else {
       const b = party ? party.banner() : null;
-      if (b) banner(b[0], b[1]);
+      if (b) {
+        banner(b[0], b[1]);
+        if (b[2]) $("banner").append(" ", b[2]);
+      }
       else if (H.active) banner(H.text(), "hypothesis");
       else banner(null);
     }

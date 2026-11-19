@@ -594,9 +594,14 @@ const scenarios = {
     await click(cell(p.n + c0), { shift: true }); // right below the star
     await settle(bannerHas("Alle Leben verloren"));
     await obs("out of lives");
+    record({ label: "out of lives: violation in red", bad: await js(`document.querySelectorAll("#board .cell.bad").length > 0`) });
     await server(p, "out", (me) => me.status === "out");
     await reload();
     await obs("reloaded when out");
+    await click("#reveal");
+    await obs("solution shown");
+    await reload();
+    await obs("reloaded with solution");
   },
 
   // A coop round: one board for both, changes both ways, undo, a
