@@ -216,8 +216,9 @@ const Party = (() => {
       const lives = snap.lives > 0;
       const t = el("table", "ranking" + (lives ? " lives" : ""));
       const head = el("tr");
-      for (const h of ["#", "Name", "", "Hinweise", "Zeit", ...(lives ? ["Fehler"] : [])]) head.append(el("th", "", h));
-      if (lives) head.cells[5].title = "Regelverstöße in diesem Puzzle";
+      // The columns in the order they rank by.
+      for (const h of ["#", "Name", "", ...(lives ? ["Fehler"] : []), "Hinweise", "Zeit"]) head.append(el("th", "", h));
+      if (lives) head.cells[3].title = "Regelverstöße in diesem Puzzle";
       t.append(el("thead"), el("tbody"));
       t.tHead.append(head);
       for (const e of snap.ranking) {
@@ -227,10 +228,10 @@ const Party = (() => {
           el("td", "rank", e.rank ? e.rank + "." : ""),
           el("td", "name", e.name),
           el("td", "status", what),
+          ...(lives ? [el("td", "num", String(e.errors || 0))] : []),
           el("td", "num", e.status === "solved" || e.status === "gaveup" || e.status === "out" || e.hints ? String(e.hints) : ""),
           el("td", "num", e.status === "solved" ? fmtTime(e.timeMs) : ""),
         );
-        if (lives) tr.append(el("td", "num", String(e.errors || 0)));
         t.tBodies[0].append(tr);
       }
       return t;
