@@ -284,6 +284,9 @@ function boot() {
     prefs.showProblems = true;
     prefs.fadeDone = false;
   }
+  // A party round with lives: rule violations cost one, so they always show.
+  const strict = !!(d.party && d.party.mode === "versus" && d.party.lives > 0);
+  if (strict) prefs.showProblems = true;
 
   // Solving time and hints shown, saved with the marks. The clock runs only
   // while the page is visible and stops for good once the puzzle is solved.
@@ -348,7 +351,7 @@ function boot() {
   const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
   function drawClock() {
     if (race) return race.clock();
-    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : bare ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}`;
+    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : bare ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}` + (party ? party.livesText() : "");
   }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
@@ -430,6 +433,7 @@ function boot() {
   }
 
   function renderPlay() {
+    if (party) party.breaches(); // may cost a life, or the round
     const eff = L.effective(d, marks, prefs.autocross);
     if (H.active && !locked() && L.solved(d, eff.cells)) return H.accept(); // a normal solve
     // Rule violations (two stars touching, a full row …) unless switched off;
@@ -586,7 +590,7 @@ function boot() {
     if (coop) return; // the board lives on the server
     const v = { marks: [...H.committed()], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
     H.save(v);
-    if (party) v.gaveUp = party.gaveUp;
+    if (party) party.save(v);
     save(v);
   }
 
@@ -718,6 +722,7 @@ function boot() {
   window.addEventListener("storage", (ev) => {
     const k = L.prefOfKey(ev.key);
     if (k && tut) return; // fixed for the tutorial's steps
+    if (k === "showProblems" && strict) return; // fixed in a round with lives
     if (k) {
       prefs[k] = L.pref(k);
       applyPrefs();

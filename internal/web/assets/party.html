@@ -30,29 +30,45 @@
   <div class="party-start" id="start" hidden>
     <form class="card" method="post" action="/party" id="create">
       <h2>Neue Party</h2>
-      <p class="muted">Welche Größen dürfen vorkommen? Jedes Puzzle bekommt zufällig eine davon.</p>
-      <div class="sizes" id="sizes"></div>
-      <p class="muted">Wie wird gespielt?</p>
-      <div class="modes">
-        <label class="mode"><input type="radio" name="mode" value="versus" checked> <span><strong>Gegeneinander</strong> <span class="muted">– jede Person auf ihrem eigenen Brett; Wertung: wenigste Hinweise, dann schnellste Zeit.</span></span></label>
-        <label class="mode"><input type="radio" name="mode" value="coop"> <span><strong>Miteinander</strong> <span class="muted">– alle markieren auf demselben Brett, gemeinsame Zeit, ohne Hinweise.</span></span></label>
-        <label class="mode"><input type="radio" name="mode" value="clock"> <span><strong>Gegen die Uhr</strong> <span class="muted">– so viele Puzzles wie möglich in der Zeit, für alle dieselben in derselben Reihenfolge, ohne Hinweise; Wertung: gelöste Puzzles, dann richtige minus falsche Sterne im letzten.</span></span></label>
-      </div>
-      <div class="clock-options" id="clock-options" hidden>
-        <label>Zeit <select name="minutes">
-          <option value="2">2 Minuten</option>
-          <option value="5" selected>5 Minuten</option>
-          <option value="10">10 Minuten</option>
-        </select></label>
-        <label>Überspringen <select name="skips">
-          <option value="0">nie</option>
-          <option value="1">1×</option>
-          <option value="2" selected>2×</option>
-          <option value="3">3×</option>
-          <option value="5">5×</option>
-          <option value="-1">beliebig oft</option>
-        </select></label>
-      </div>
+      <details class="opt" id="opt-sizes">
+        <summary>Größen <span class="muted" id="sizes-sum"></span></summary>
+        <p class="muted">Jedes Puzzle bekommt zufällig eine der gewählten Größen.</p>
+        <div class="sizes" id="sizes"></div>
+      </details>
+      <details class="opt" id="opt-mode">
+        <summary>Spielweise <span class="muted" id="mode-sum"></span></summary>
+        <div class="modes">
+          <label class="mode"><input type="radio" name="mode" value="versus" checked> <span><strong>Gegeneinander</strong> <span class="muted">– jede Person auf ihrem eigenen Brett; Wertung: wenigste Hinweise, dann schnellste Zeit.</span></span></label>
+          <label class="mode"><input type="radio" name="mode" value="coop"> <span><strong>Miteinander</strong> <span class="muted">– alle markieren auf demselben Brett, gemeinsame Zeit, ohne Hinweise.</span></span></label>
+          <label class="mode"><input type="radio" name="mode" value="clock"> <span><strong>Gegen die Uhr</strong> <span class="muted">– so viele Puzzles wie möglich in der Zeit, für alle dieselben in derselben Reihenfolge, ohne Hinweise; Wertung: gelöste Puzzles, dann richtige minus falsche Sterne im letzten.</span></span></label>
+        </div>
+        <div class="mode-options" id="versus-options">
+          <label>Erlaubte Fehler pro Puzzle <select name="lives">
+            <option value="0" selected>beliebig viele</option>
+            <option value="6">5</option>
+            <option value="4">3</option>
+            <option value="3">2</option>
+            <option value="2">1</option>
+            <option value="1">keiner</option>
+          </select></label>
+          <p class="muted">Wer einen Regelverstoß mehr macht (etwa zwei Sterne, die sich berühren), gibt automatisch auf; in einer Annahme zählen sie nicht. Beim Lösen zeigen ♥ die übrigen Leben.</p>
+        </div>
+        <div class="mode-options" id="clock-options" hidden>
+          <label>Zeit <select name="minutes">
+            <option value="2">2 Minuten</option>
+            <option value="5" selected>5 Minuten</option>
+            <option value="10">10 Minuten</option>
+          </select></label>
+          <label>Überspringen <select name="skips">
+            <option value="0">nie</option>
+            <option value="1">1×</option>
+            <option value="2" selected>2×</option>
+            <option value="3">3×</option>
+            <option value="5">5×</option>
+            <option value="-1">beliebig oft</option>
+          </select></label>
+        </div>
+      </details>
       <div class="actions"><button type="submit" class="primary">Party starten</button></div>
     </form>
     <form class="card" id="goto">

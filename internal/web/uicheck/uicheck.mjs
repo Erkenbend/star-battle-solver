@@ -242,7 +242,7 @@ async function server(p, label, until = () => true, { board = false } = {}) {
     if (s && until(alice || {}, s)) break;
   }
   const coop = s && s.coop ? [...s.coop.board].filter((c) => c !== "0").sort().join("") : undefined;
-  const a = alice && { status: alice.status, stars: alice.stars, hints: alice.hints, solved: alice.solved, skips: alice.skips, puzzle: alice.puzzle, moves: alice.moves };
+  const a = alice && { status: alice.status, stars: alice.stars, hints: alice.hints, errors: alice.errors, solved: alice.solved, skips: alice.skips, puzzle: alice.puzzle, moves: alice.moves };
   if (a && board) {
     const onBoard = await js(`document.querySelectorAll("#board .cell.star:not(.hyp)").length`);
     a.stars = a.stars === onBoard ? "as on the board" : `${a.stars}, on the board ${onBoard}`;
@@ -255,10 +255,10 @@ async function solveBy(sol, n, skip = new Set()) {
 }
 
 // A party in mode with Alice in the browser and Bob via the API, up to the
-// start of round 1 (5×5 puzzles).
-async function partyStart(mode) {
+// start of round 1 (5×5 puzzles); options are more fields of the form.
+async function partyStart(mode, options = {}) {
   await fresh();
-  const r = await fetch(BASE + "/party", { method: "POST", body: new URLSearchParams({ n: "5", mode }), redirect: "manual" });
+  const r = await fetch(BASE + "/party", { method: "POST", body: new URLSearchParams({ n: "5", mode, ...options }), redirect: "manual" });
   const code = r.headers.get("location").split("/").pop();
   const bob = await api(`/party/${code}/join`, { name: "Bob" });
   await js(`localStorage.setItem("starbattle.name", "Alice")`);
@@ -570,6 +570,33 @@ const scenarios = {
     await settle(bannerHas("Aufgegeben"));
     await obs("gave up");
     await server(q, "gave up", (me) => me.status === "gaveup");
+  },
+
+  // Against each other with 2 lives: a rule violation costs one, one in a
+  // hypothesis none, the second one ends the round for Alice.
+  async lives() {
+    party = true;
+    const p = await partyStart("versus", { lives: "2" });
+    await obs("started");
+    const c0 = p.sol[0], c1 = c0 === 0 ? 1 : c0 - 1; // a neighbour in row 0
+    await click(cell(c0), { shift: true });
+    await click(cell(c1), { shift: true });
+    await obs("touching stars");
+    await server(p, "one error", (me) => me.errors === 1);
+    await click("#undo");
+    await obs("undone");
+    await click("#hyp");
+    await click(cell(c1), { shift: true });
+    await sleep(1200); // what must not count: time for a report to come
+    await obs("violation in hyp");
+    await server(p, "hyp not counted");
+    await click("#hyp-drop");
+    await click(cell(p.n + c0), { shift: true }); // right below the star
+    await settle(bannerHas("Alle Leben verloren"));
+    await obs("out of lives");
+    await server(p, "out", (me) => me.status === "out");
+    await reload();
+    await obs("reloaded when out");
   },
 
   // A coop round: one board for both, changes both ways, undo, a

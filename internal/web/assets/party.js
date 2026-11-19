@@ -71,7 +71,7 @@ const Party = (() => {
     return ok;
   }
 
-  const STATUS = { solved: "gelöst", gaveup: "aufgegeben", playing: "spielt noch", absent: "abwesend", left: "gegangen", done: "fertig" };
+  const STATUS = { solved: "gelöst", gaveup: "aufgegeben", out: "alle Leben verloren", playing: "spielt noch", absent: "abwesend", left: "gegangen", done: "fertig" };
 
   // The page of the running round for the viewer: against the clock, that of
   // the puzzle they are at (or the last one prepared).
@@ -82,6 +82,12 @@ const Party = (() => {
       path += "/" + Math.max(1, Math.min(me ? me.puzzle : 1, snap.clock.sizes.length));
     }
     return path;
+  }
+
+  // The lives of a party against each other (lives: per puzzle, 0 unlimited),
+  // in a few words: the errors allowed.
+  function livesRule(lives) {
+    return lives === 1 ? "kein Fehler erlaubt" : `höchstens ${lives - 1} Fehler erlaubt`;
   }
 
   // The rules of a party against the clock, in a few words.
@@ -207,9 +213,11 @@ const Party = (() => {
     function rankingTable() {
       if (snap.mode === "coop") return coopTable();
       if (snap.clock) return clockTable();
-      const t = el("table", "ranking");
+      const lives = snap.lives > 0;
+      const t = el("table", "ranking" + (lives ? " lives" : ""));
       const head = el("tr");
-      for (const h of ["#", "Name", "", "Hinweise", "Zeit"]) head.append(el("th", "", h));
+      for (const h of ["#", "Name", "", "Hinweise", "Zeit", ...(lives ? ["Fehler"] : [])]) head.append(el("th", "", h));
+      if (lives) head.cells[5].title = "Regelverstöße in diesem Puzzle";
       t.append(el("thead"), el("tbody"));
       t.tHead.append(head);
       for (const e of snap.ranking) {
@@ -219,9 +227,10 @@ const Party = (() => {
           el("td", "rank", e.rank ? e.rank + "." : ""),
           el("td", "name", e.name),
           el("td", "status", what),
-          el("td", "num", e.status === "solved" || e.status === "gaveup" || e.hints ? String(e.hints) : ""),
+          el("td", "num", e.status === "solved" || e.status === "gaveup" || e.status === "out" || e.hints ? String(e.hints) : ""),
           el("td", "num", e.status === "solved" ? fmtTime(e.timeMs) : ""),
         );
+        if (lives) tr.append(el("td", "num", String(e.errors || 0)));
         t.tBodies[0].append(tr);
       }
       return t;
@@ -286,7 +295,9 @@ const Party = (() => {
           ? "Miteinander: alle auf demselben Brett, ohne Hinweise."
           : snap.clock
             ? `Gegen die Uhr (${clockRules(snap.clock)}): so viele Puzzles wie möglich, ohne Hinweise. Wertung nach gelösten Puzzles, dann richtigen minus falschen Sternen im letzten.`
-            : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit."));
+            : "Gegeneinander: Wertung nach wenigsten Hinweisen, dann schnellster Zeit." + (snap.lives > 0
+              ? ` ${snap.lives} Leben pro Puzzle, also ${livesRule(snap.lives)}: Jeder Regelverstoß kostet eins, wer keins mehr hat, gibt auf.`
+              : "")));
         nodes.push(statusLine());
         if (snap.prepErr) nodes.push(el("p", "party-error", snap.prepErr));
         if (snap.round) nodes.push(rankingTable());
@@ -328,6 +339,7 @@ const Party = (() => {
         const v = JSON.parse(get("starbattle.partySizes") || "null");
         if (Array.isArray(v) && v.length) chosen = v;
       } catch { /* default */ }
+      const form = $("create");
       for (let n = d.minN; n <= d.maxN; n++) {
         const lab = el("label", "size");
         const box = el("input");
@@ -338,13 +350,28 @@ const Party = (() => {
         lab.append(box, ` ${n}×${n}`);
         $("sizes").append(lab);
       }
-      const clockOpts = () => { $("clock-options").hidden = !$("create").querySelector('input[name="mode"][value="clock"]').checked; };
-      for (const r of $("create").querySelectorAll('input[name="mode"]')) r.addEventListener("change", clockOpts);
-      clockOpts(); // the browser may restore the choice
-      $("create").addEventListener("submit", (ev) => {
-        const sizes = [...$("sizes").querySelectorAll("input:checked")].map((b) => +b.value);
+      const chosenSizes = () => [...$("sizes").querySelectorAll("input:checked")].map((b) => +b.value);
+      // The summaries of the folded choices, and the options of the mode.
+      const summarize = () => {
+        const sizes = chosenSizes();
+        const run = sizes.length > 2 && sizes.every((k, i) => i === 0 || k === sizes[i - 1] + 1);
+        $("sizes-sum").textContent = !sizes.length ? "keine gewählt"
+          : run ? `${sizes[0]}×${sizes[0]} bis ${sizes.at(-1)}×${sizes.at(-1)}` : sizes.map((k) => `${k}×${k}`).join(", ");
+        const mode = form.elements.mode.value;
+        $("versus-options").hidden = mode !== "versus";
+        $("clock-options").hidden = mode !== "clock";
+        const lives = +form.elements.lives.value;
+        $("mode-sum").textContent = mode === "coop" ? "Miteinander"
+          : mode === "clock" ? `Gegen die Uhr, ${clockRules({ minutes: +form.elements.minutes.value, skips: +form.elements.skips.value })}`
+            : "Gegeneinander" + (lives > 0 ? ", " + livesRule(lives) : "");
+      };
+      form.addEventListener("change", summarize);
+      summarize(); // the browser may restore the choices
+      form.addEventListener("submit", (ev) => {
+        const sizes = chosenSizes();
         if (!sizes.length) {
           ev.preventDefault();
+          $("opt-sizes").open = true;
           $("party-error").textContent = "Bitte mindestens eine Größe wählen.";
           $("party-error").hidden = false;
           return;
@@ -409,5 +436,5 @@ const Party = (() => {
     bootPage();
   }
 
-  return { token, setToken, name, setName, post, live, fmtTime, hintsText, copyText, el, roundPath };
+  return { token, setToken, name, setName, post, live, fmtTime, hintsText, copyText, el, roundPath, livesRule };
 })();

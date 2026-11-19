@@ -150,7 +150,8 @@ const shots = {
   async "party-anlegen"() {
     await fresh();
     await go("/party");
-    await click('input[name=mode][value=coop]');
+    await click("#opt-mode summary"); // the sizes stay folded
+    await js(`(() => { const s = document.querySelector("select[name=lives]"); s.value = "3"; s.dispatchEvent(new Event("change", { bubbles: true })); })()`);
     await shot("party-anlegen");
   },
   async "party-runde"() {
