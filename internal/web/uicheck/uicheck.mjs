@@ -252,7 +252,7 @@ async function obs(label, { random = false } = {}) {
       clock: txt("clock"), legend: txt("legend"), current: txt("current"),
       steps: document.querySelectorAll("#steps .row").length, active: t(q("#steps .row.active .num")),
       tutorial: txt("tutorial"), tour: t(q(".tour-tip")), tourTarget: q(".tour-target") && q(".tour-target").id,
-      buttons: ["undo", "redo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "site-nav", "party-box", "options-link", "play-options"].map(btn).join(" | "),
+      buttons: ["undo", "redo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "newgame-go", "site-nav", "party-box", "options-link", "play-options"].map(btn).join(" | "),
       pressed: [...document.querySelectorAll("[aria-pressed=true], [aria-expanded=true]")].map((e) => e.id).join(","),
       info: t(q("#info")) && (q("#info").hidden ? "[hidden]" : "shown"),
       selected: [...document.querySelectorAll("[aria-selected=true], [aria-current=page]")].map((e) => e.id).join(","),
@@ -543,6 +543,12 @@ const scenarios = {
     await choose("6");
     await go("/?n=8&seed=42");
     await look("one size again");
+    // "Neues Puzzle" beside the title: one tap, the size of the select.
+    const loaded = once("Page.loadEventFired");
+    await click("#newgame-go");
+    await loaded;
+    await sleep(250);
+    await look("new in one tap", { random: true });
   },
 
   // Hypothesis mode: set, undo, reload, contradiction, discard, solve in it.

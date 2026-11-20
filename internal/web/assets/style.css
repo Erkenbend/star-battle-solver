@@ -119,6 +119,11 @@ a.button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 }
 .top h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
 .sub { margin: 2px 0 0; color: var(--muted); }
+/* The title and, in solo play, "Neues Puzzle" in one tap beside it. */
+.title-row { display: flex; align-items: center; gap: 6px 14px; }
+.title-row h1 { min-width: 0; }
+.title-row .pill { flex: none; }
+@media (max-width: 560px) { .title-row .brand { display: none; } }
 .sub:empty { display: none; }
 /* Phones and tablets first: a short header, the tabs across the width. */
 @media (max-width: 860px) {
@@ -313,7 +318,7 @@ button.pill[aria-pressed="true"], button.pill[aria-expanded="true"] { color: var
 .toggle.sub { margin-left: 24px; }
 .toggle:has(input:disabled) { opacity: 0.5; }
 .toggle input { width: 18px; height: 18px; margin: 0; flex: none; }
-button svg.stroke { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+svg.stroke { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 button svg.flip { transform: scaleX(-1); }
 
 /* The action bar: icon and word side by side next to the board; on phones
@@ -322,30 +327,35 @@ button svg.flip { transform: scaleX(-1); }
 .actionbar button svg { margin-right: 5px; }
 .actionbar .hyp-btn { border-color: var(--hyp); color: var(--hyp); }
 .actionbar button[aria-expanded="true"] { background: color-mix(in srgb, var(--fg) 8%, var(--card)); }
-/* The hint button: tinted, filled while its hint is shown (pressed). */
-.actionbar #hint:not([aria-pressed="true"]) { background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--accent); }
+/* No button stands out; one that is on (the hint shown, playing) is filled. */
+.actionbar button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+/* Next to the board the player's small buttons show only their icon. */
+.actionbar button.icon span { display: none; }
+.speed { display: inline-flex; }
+.speed svg { display: none; }
 @media (max-width: 860px) {
   .actionbar {
     flex-wrap: nowrap; justify-content: center; gap: 0; padding: 3px 2px;
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
   }
-  #panel-play .actionbar button {
+  .actionbar button, .actionbar .speed {
     flex: 1 1 0; min-width: 0; max-width: 92px;
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     padding: 6px 2px; border: 0; background: transparent; border-radius: 10px;
     font-size: 11.5px; line-height: 1.2; color: var(--fg);
   }
-  #panel-play .actionbar button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #panel-play .actionbar button svg { width: 22px; height: 22px; margin: 0; }
-  #panel-play .actionbar button.primary { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  #panel-play .actionbar button.primary[aria-pressed="true"] { color: var(--accent-fg); background: var(--accent); }
-  #panel-play .actionbar .hyp-btn { color: var(--hyp); }
+  .actionbar button span, .actionbar button.icon span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .actionbar button svg, .actionbar .speed svg { display: block; width: 22px; height: 22px; margin: 0; }
+  .actionbar button[aria-pressed="true"] { color: var(--accent-fg); background: var(--accent); }
+  .actionbar .hyp-btn { color: var(--hyp); }
+  /* The speed: the word under the icon is the select itself. */
+  .actionbar .speed select {
+    appearance: none; -webkit-appearance: none; border: 0; background: transparent; padding: 0;
+    max-width: 100%; font-size: 11.5px; line-height: 1.2; text-align: center; text-align-last: center; color: var(--fg);
+  }
   /* In a hypothesis hints and checks are off anyway: room for its two words. */
   #panel-play .actionbar:has(#hyp[hidden]) :is(#hint, #check) { display: none; }
-  #panel-play .actionbar button[aria-expanded="true"] { background: color-mix(in srgb, var(--fg) 8%, transparent); }
-  #panel-watch .actionbar { gap: 6px; }
-  #panel-watch .actionbar button, #panel-watch .actionbar select { padding: 9px 11px; }
-  #panel-watch .actionbar #play { flex: 1; max-width: 160px; }
+  .actionbar button[aria-expanded="true"] { background: color-mix(in srgb, var(--fg) 8%, transparent); }
 }
 
 /* "Mehr": opens in place below the bar, pushing what follows down; nothing

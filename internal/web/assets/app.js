@@ -996,6 +996,14 @@ function boot() {
 
   if (party) party.start();
 
+  // The title without the game's name on phones (.brand), so that it fits
+  // in one line beside "Neues Puzzle": "8×8 · Nr. 42".
+  const h1 = document.querySelector(".top h1");
+  if (h1 && /^Star Battle \d/.test(h1.textContent)) {
+    h1.textContent = h1.textContent.slice(12);
+    h1.prepend(el("span", "brand", "Star Battle "));
+  }
+
   // ---------- served by `starbattle serve`: new puzzles ----------
   if (d.served) {
     $("site-nav").hidden = false;
@@ -1055,6 +1063,7 @@ function boot() {
       put(POOL_KEY, JSON.stringify(on));
     });
     $("newgame").hidden = false;
+    $("newgame-go").hidden = false; // one tap, with the size chosen under "Mehr"
   }
 
   W.init();

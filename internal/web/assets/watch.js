@@ -161,12 +161,15 @@ function Watch(P) {
     if (cursor === positions.length - 1) stop();
   }
 
-  const PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2v12l10-6z"/></svg> Abspielen';
-  const PAUSE = '<svg viewBox="0 0 16 16"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg> Pause';
+  // The play button: pressed while playing, like the hint button while its
+  // hint is shown.
+  const PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2v12l10-6z"/></svg><span>Abspielen</span>';
+  const PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg><span>Pause</span>';
   function stop() {
     clearInterval(timer);
     timer = null;
     $("play").innerHTML = PLAY;
+    $("play").setAttribute("aria-pressed", "false");
   }
   function step(delta) {
     cursor = Math.max(0, Math.min(positions.length - 1, cursor + delta));
@@ -180,6 +183,7 @@ function Watch(P) {
     if (timer) return stop();
     if (cursor === positions.length - 1) cursor = 0;
     $("play").innerHTML = PAUSE;
+    $("play").setAttribute("aria-pressed", "true");
     step(1);
     timer = setInterval(() => step(1), +$("speed").value);
   };
