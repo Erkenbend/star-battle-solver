@@ -164,6 +164,16 @@ async function boardStill(sel, act) {
 async function click(sel, opts) {
   await boardStill(sel, () => press(sel, opts));
 }
+// What is used now and then lies in the sheet "Mehr": opened first, as a
+// player does.
+async function more(sel, opts) {
+  if (await js(`document.getElementById("more-sheet").hidden`)) await click("#more");
+  await click(sel, opts);
+}
+// Closes "Mehr" with a tap beside it: until then it takes the board's taps.
+async function moreClose() {
+  if (!(await js(`document.getElementById("more-sheet").hidden`))) await press("#sheet-backdrop");
+}
 async function press(sel, { shift = false } = {}) {
   const [x, y] = await pos(sel);
   const modifiers = shift ? 8 : 0;
@@ -242,10 +252,20 @@ async function obs(label, { random = false } = {}) {
       clock: txt("clock"), legend: txt("legend"), current: txt("current"),
       steps: document.querySelectorAll("#steps .row").length, active: t(q("#steps .row.active .num")),
       tutorial: txt("tutorial"), tour: t(q(".tour-tip")), tourTarget: q(".tour-target") && q(".tour-target").id,
-      buttons: ["undo", "redo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "site-nav", "party-box", "options-link", "play-options"].map(btn).join(" | "),
+      buttons: ["undo", "redo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "site-nav", "party-box", "options-link", "play-options"].map(btn).join(" | "),
+      pressed: [...document.querySelectorAll("[aria-pressed=true], [aria-expanded=true]")].map((e) => e.id).join(","),
+      info: t(q("#info")) && (q("#info").hidden ? "[hidden]" : "shown"),
       selected: [...document.querySelectorAll("[aria-selected=true], [aria-current=page]")].map((e) => e.id).join(","),
       party: t(q("#party-panel")),
     };
+  })()`);
+  // On a phone the buttons of the shown tab are in reach: the bar is on
+  // screen, whatever the page shows above it.
+  if (phone) o.bar = await js(`(() => {
+    const b = document.querySelector(".panel:not([hidden]) .actionbar");
+    if (!b) return "none";
+    const r = b.getBoundingClientRect();
+    return r.top >= 0 && r.bottom <= innerHeight + 1 && r.height > 0 ? "on screen" : "off screen";
   })()`);
   if (party) { // a random puzzle: which classes occur, not where, and no rule violations
     o.cells = [...new Set(o.cells.flatMap((c) => c.split("+")))].filter((c) => c !== "." && c !== "bad").sort();
@@ -424,6 +444,18 @@ const scenarios = {
     await obs("drag crosses");
     await drag([cell(56), cell(57)]);
     await obs("drag erase");
+    await click("#star-tool"); // a tap sets a star at once
+    await click(cell(60));
+    await obs("star tool");
+    await click(cell(60));
+    await click("#star-tool");
+    await click(cell(60)); // a cross again
+    await tapDone();
+    await click(cell(60));
+    await obs("star tool off");
+    await click("#info-btn");
+    await obs("info");
+    await click("#info-btn");
     await click("#hint");
     await obs("hint");
     await click("#hint");
@@ -444,7 +476,7 @@ const scenarios = {
     await click(cell(wrong), { shift: true });
     await reload();
     await obs("reloaded");
-    await click("#reset");
+    await more("#reset");
     await obs("reset");
     await js(`localStorage.setItem("starbattle.autocross", "1"); window.dispatchEvent(new StorageEvent("storage", { key: "starbattle.autocross" }))`);
     await click(cell(d.solution[0]), { shift: true });
@@ -490,7 +522,7 @@ const scenarios = {
     const box = (k) => `#newgame-pool input[value="${k}"]`;
     const submit = async () => {
       const loaded = once("Page.loadEventFired");
-      await click("#newgame button");
+      await more("#newgame button");
       await loaded;
       await sleep(250);
     };
@@ -500,9 +532,9 @@ const scenarios = {
     await look("new 10×10", { random: true });
     await choose("mix");
     await look("several sizes", { random: true });
-    for (const k of [6, 7, 9]) await click(box(k));
-    await click(box(8)); // the last size stays
-    await click(box(5));
+    for (const k of [6, 7, 9]) await more(box(k));
+    await more(box(8)); // the last size stays
+    await more(box(5));
     await look("pool 5 and 8", { random: true });
     await submit();
     const n = await js(`new URLSearchParams(location.search).get("n")`);
@@ -545,7 +577,7 @@ const scenarios = {
     await click("#hyp");
     await solveBy(d.solution, d.n, new Set([0]));
     await obs("solved in hyp");
-    await click("#reset");
+    await more("#reset");
     await obs("reset");
   },
 
@@ -555,26 +587,30 @@ const scenarios = {
     await js(`localStorage.clear()`);
     await reload();
     await obs("file page");
-    await click("#autocross");
+    await more("#autocross");
     const d = await data();
     await click(cell(d.solution[0]), { shift: true });
+    await obs("autocross sheet open"); // the tap closed it, nothing set
+    await click(cell(d.solution[0]), { shift: true });
     await obs("autocross on");
-    await click("#showproblems");
+    await more("#showproblems");
+    await moreClose();
     await click(cell(d.solution[0] + 1), { shift: true });
     await obs("problems off");
-    await click("#fadecolorsonly"); // a part of the option below: not yet
-    await click("#fadedone");
+    await more("#fadecolorsonly"); // a part of the option below: not yet
+    await more("#fadedone");
     await obs("fade done on");
-    await click("#fadecolorsonly");
+    await more("#fadecolorsonly");
+    await moreClose();
     await click(cell(d.n + d.solution[1]), { shift: true }); // finishes its color
     await obs("fade colors only");
-    await click("#fadedone"); // switches its part off with it
+    await more("#fadedone"); // switches its part off with it
     await obs("fade off, colors only kept");
-    await click("#fadedone");
-    await click("#fadecolorsonly");
-    await click("#autocross");
-    await click("#showproblems");
-    await click("#fadedone");
+    await more("#fadedone");
+    await more("#fadecolorsonly");
+    await more("#autocross");
+    await more("#showproblems");
+    await more("#fadedone");
   },
 
   // Library: a hard puzzle without help (trace only once solved), a motif.
@@ -625,7 +661,7 @@ const scenarios = {
     await obs("hyp in party");
     await server(p, "hyp not reported", undefined, { board: true });
     await click("#hyp-drop");
-    await click("#reset");
+    await more("#reset");
     await obs("reset in party");
     await solveBy(p.sol, p.n);
     await waitFor(`!document.getElementById("tab-watch").hidden`);
@@ -664,7 +700,7 @@ const scenarios = {
     const q = await partyStart("versus");
     await js(`window.confirm = () => true`);
     await click(cell(q.sol[0]), { shift: true });
-    await click("#giveup");
+    await more("#giveup");
     await settle(bannerHas("Aufgegeben"));
     await obs("gave up");
     await server(q, "gave up", (me) => me.status === "gaveup");
@@ -748,7 +784,7 @@ const scenarios = {
     await obs("remote under hyp");
     await click("#hyp-drop");
     await js(`window.confirm = () => true`);
-    await click("#giveup");
+    await more("#giveup");
     await settle(`document.getElementById("giveup").textContent === "Doch nicht aufgeben"`);
     await obs("voted");
     await api(`/party/${p.code}/vote`, { token: p.token, round: 1, giveUp: true });
@@ -789,7 +825,7 @@ const scenarios = {
     await reload();
     await obs("puzzle 2 reloaded");
     const loaded2 = once("Page.loadEventFired");
-    await click("#giveup");
+    await more("#giveup");
     await loaded2;
     await waitFor(`document.querySelector("#board .cell")`);
     await obs("skipped to 3");

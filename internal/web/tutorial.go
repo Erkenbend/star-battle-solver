@@ -51,7 +51,7 @@ type TourStop struct {
 var tutorial = Tutorial{
 	Steps: []TutorialStep{
 		{
-			Action: "Doppelklick: Stern",
+			Action: "Doppeltippen: Stern",
 			Text:   "In jede Zeile, jede Spalte und jede Farbe gehört genau ein Stern. Farbe A hat nur ein Feld, also steht der Stern dort.",
 			Stars:  [][2]int{{2, 0}},
 		},
@@ -66,8 +66,8 @@ var tutorial = Tutorial{
 			Crosses: [][2]int{{0, 0}, {1, 0}, {3, 0}, {4, 0}},
 		},
 		{
-			Action:  "Klick: Kreuz",
-			Text:    "Sterne berühren sich nicht, auch nicht schräg. Kreuze die beiden übrigen Nachbarn des Sterns mit je einem Klick.",
+			Action:  "Tippen: Kreuz",
+			Text:    "Sterne berühren sich nicht, auch nicht schräg. Kreuze die beiden übrigen Nachbarn des Sterns mit je einem Tipp.",
 			Crosses: [][2]int{{1, 1}, {3, 1}},
 		},
 		{
@@ -77,11 +77,14 @@ var tutorial = Tutorial{
 		},
 	},
 	Tour: []TourStop{
+		{"star-tool", "★ Tippen: Ist das an, setzt schon ein Tipp einen Stern. Ziehen kreuzt weiterhin."},
+		{"hyp", "Annahme: Steckst du fest, setz probehalber einen Stern und schau, ob er zu einem Widerspruch führt."},
+		{"more", "Mehr: neues Puzzle, neu beginnen und Spielhilfen wie Nachbarn automatisch kreuzen."},
+		{"info-btn", "Regeln, Bedienung und was die Farben auf dem Brett bedeuten."},
+		{"tab-watch", "Lösungsweg: Der Solver zeigt Schritt für Schritt, wie er das Puzzle löst, mit Begründung."},
 		{"nav-party", "Zusammen spielen: Partys mit anderen, gegeneinander, miteinander oder gegen die Uhr."},
 		{"nav-library", "Bibliothek: Motive und besonders schwere Puzzles."},
-		{"hyp", "Annahme: Steckst du fest, setz probehalber einen Stern und schau, ob er zu einem Widerspruch führt."},
-		{"tab-watch", "Lösungsweg: Der Solver zeigt Schritt für Schritt, wie er das Puzzle löst, mit Begründung."},
-		{"nav-settings", "Einstellungen: Nachbarn automatisch kreuzen, Fat-Finger-Schutz, ein eigenes Symbol statt ★."},
+		{"nav-settings", "Einstellungen: alle Spielhilfen und ein eigenes Symbol statt ★."},
 		{"nav-help", "Diese Anleitung findest du jederzeit hier."},
 	},
 }

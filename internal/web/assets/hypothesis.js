@@ -5,7 +5,7 @@
 // out lie as a layer (over: cell → mark) over the board they started from
 // (base); the page's marks show both. root is the hypothesis' star, the first
 // one set in the mode. "Widerspruch" goes back to base with a cross on root,
-// "Annahme verwerfen" just back to base; solving in the mode takes the marks
+// "Verwerfen" just back to base; solving in the mode takes the marks
 // over as usual. The mode has its own undo and redo (entries {over, root}),
 // so they stop where it began. Only base counts for a party round: it gives
 // the stars reported (against each other, against the clock), and in coop it

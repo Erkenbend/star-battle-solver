@@ -4,7 +4,7 @@
 
 ## Anleitung
 
-Unter `/anleitung` (das „?“ oben rechts) löst man ein kleines 5×5-Puzzle Schritt für Schritt: Doppelklick setzt einen Stern, Ziehen viele Kreuze (Zeile und Spalte des Sterns), Klick ein Kreuz (die übrigen Nachbarn); die Felder, um die es gerade geht, sind markiert. Den Rest löst man selbst, danach zeigt ein kurzer Rundgang auf Zusammen spielen, Bibliothek, Annahme, Lösungsweg und Einstellungen. „Überspringen“ beendet die Anleitung jederzeit.
+Unter `/anleitung` (das „?“ oben rechts) löst man ein kleines 5×5-Puzzle Schritt für Schritt: Doppeltippen setzt einen Stern, Ziehen viele Kreuze (Zeile und Spalte des Sterns), Tippen ein Kreuz (die übrigen Nachbarn); die Felder, um die es gerade geht, sind markiert. Den Rest löst man selbst, danach zeigt ein kurzer Rundgang auf „★ Tippen“, Annahme, „Mehr“, ⓘ, Lösungsweg, Zusammen spielen, Bibliothek und Einstellungen. „Überspringen“ beendet die Anleitung jederzeit.
 
 Wer zum ersten Mal ein Solo- oder Bibliotheks-Puzzle öffnet, landet einmal dort und kommt danach zu diesem Puzzle zurück. Ob die Anleitung schon gezeigt wurde, merkt sich der Browser. Wer schon andere Spuren der Seite im Browser hat (Einstellungen, Fortschritt), gilt nicht als neu; eine Party-Runde leitet nie um.
 
@@ -15,9 +15,17 @@ Wer zum ersten Mal ein Solo- oder Bibliotheks-Puzzle öffnet, landet einmal dort
 | ![Selbst lösen](screenshots/spielen.png) | ![Lösungsweg](screenshots/loesungsweg.png) |
 | **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Lösungsweg:** jeder Schritt mit Regel und Begründung, die betroffenen Felder sind hervorgehoben. |
 
-„Neues Puzzle“ erzeugt eines der Größe 4 bis 15. Mit „Mehrere Größen“ lassen sich, wie bei einer Party, mehrere Größen ankreuzen; jedes neue Puzzle bekommt dann zufällig eine davon (`/?n=6&n=8&n=10`). Die Auswahl merkt sich der Browser. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.
+Die Seite ist fürs Handy und Tablet gebaut: Unter dem Brett stehen nur „★ Tippen“, ⓘ und die Uhr, die Knöpfe zum Spielen liegen in einer Leiste am unteren Rand, in Reichweite des Daumens: Zurück, Vor, Annahme, Prüfen, Hinweis und „Mehr“. Auf breiten Bildschirmen steht die Leiste neben dem Brett.
 
-**Annahme-Modus:** Wer festhängt, drückt „Annahme“ und setzt probehalber einen Stern, dazu Kreuze und weitere Sterne, bis sich ein Widerspruch zeigt. Die Markierungen der Annahme sind lila hinterlegt, ihr erster Stern hat einen Ring. „Widerspruch“ kehrt zum Stand vor der Annahme zurück und kreuzt das Feld dieses Sterns; „Annahme verwerfen“ kehrt nur zurück. Zurück und Vor bleiben innerhalb der Annahme, Hinweise und Prüfen gibt es während der Annahme nicht. Wer in der Annahme fertig löst, hat ganz normal gelöst. In Partys bleibt eine Annahme privat: Gegeneinander und gegen die Uhr zählen ihre Sterne nicht für den Stand, miteinander sehen die anderen sie nicht.
+- **Bedienung:** Tippen setzt ein ✕, Doppeltippen einen ★, Tippen auf ✕ oder ★ macht das Feld wieder frei. Ziehen setzt viele ✕, auf einem ✕ begonnen entfernt es sie. Mit der Maus setzt oder entfernt auch ein Rechtsklick oder Umschalt+Klick einen ★; Strg+Z und Strg+Y nehmen zurück und wiederholen.
+- **★ Tippen:** Ist der Schalter an, setzt oder entfernt schon ein einfaches Tippen einen Stern; Ziehen kreuzt weiterhin. Er gilt nur, solange die Seite offen ist.
+- **ⓘ** klappt unter dem Brett Regeln, Bedienung und die Bedeutung der Farben auf.
+- **Mehr** öffnet von unten ein Blatt mit dem, was man seltener braucht: Neues Puzzle (mit Größe), Neu beginnen, in Partys Aufgeben, und die Spielhilfen aus den [Einstellungen](#einstellungen) zum direkten Umschalten.
+- Was der Solver zum Puzzle sagt (gelöst in wie vielen Schritten, Annahmen), steht im Reiter „Lösungsweg“; dort liegen in der Leiste die Knöpfe zum Abspielen.
+
+„Neues Puzzle“ (unter „Mehr“) erzeugt eines der Größe 4 bis 15. Mit „Mehrere Größen“ lassen sich, wie bei einer Party, mehrere Größen ankreuzen; jedes neue Puzzle bekommt dann zufällig eine davon (`/?n=6&n=8&n=10`). Die Auswahl merkt sich der Browser. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.
+
+**Annahme-Modus:** Wer festhängt, drückt „Annahme“ und setzt probehalber einen Stern, dazu Kreuze und weitere Sterne, bis sich ein Widerspruch zeigt. Die Markierungen der Annahme sind lila hinterlegt, ihr erster Stern hat einen Ring. „Widerspruch“ kehrt zum Stand vor der Annahme zurück und kreuzt das Feld dieses Sterns; „Verwerfen“ kehrt nur zurück. Zurück und Vor bleiben innerhalb der Annahme, Hinweise und Prüfen gibt es während der Annahme nicht. Wer in der Annahme fertig löst, hat ganz normal gelöst. In Partys bleibt eine Annahme privat: Gegeneinander und gegen die Uhr zählen ihre Sterne nicht für den Stand, miteinander sehen die anderen sie nicht.
 
 ![Gedankenexperiment](screenshots/annahme.png)
 
@@ -65,6 +73,6 @@ Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. 
   - **Nur Farben blasser zeigen** (anfangs aus, nur schaltbar, wenn die Option darüber an ist): Zeilen und Spalten behalten ihre Farbe, damit eine blasse Zeile nicht wie eine Farbe mit ähnlichem Ton aussieht.
 - **Symbol für Sterne:** statt ★ zum Beispiel Herz, Pfote, 🐱 oder ein animiertes Kätzchen. Mit **Zufällig** würfelt die Spielseite beim Laden eines aus und behält es, bis man neu lädt oder „Neu beginnen“ drückt; dann kommt ein anderes. Animierte Symbole bewegen sich nur kurz nach dem Setzen eines Sterns, und gar nicht, wenn das System reduzierte Bewegung wünscht. Wie man neue Symbole hinzufügt, steht in [symbols/README.md](../symbols/README.md).
 
-Die Spielseite zeigt unter den Knöpfen, wie die Optionen stehen, mit einem Link dorthin. Eine offene Spielseite übernimmt Änderungen sofort.
+Die Schalter für die Spielhilfen stehen auch auf der Spielseite unter „Mehr“, mit einem Link hierher; beide sind dieselben Einstellungen. Eine offene Spielseite übernimmt Änderungen sofort.
 
-In einer mit `starbattle html` gespeicherten Datei gibt es keine Einstellungsseite, dort stehen die Schalter direkt auf der Seite. Symbole mit Bilddatei lädt die Seite vom Server; in der Datei erscheint stattdessen der Stern, und „Zufällig“ wählt nur unter den Symbolen ohne Bilddatei.
+In einer mit `starbattle html` gespeicherten Datei gibt es keine Einstellungsseite, dort gibt es die Schalter nur unter „Mehr“. Symbole mit Bilddatei lädt die Seite vom Server; in der Datei erscheint stattdessen der Stern, und „Zufällig“ wählt nur unter den Symbolen ohne Bilddatei.

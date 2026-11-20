@@ -26,11 +26,6 @@
     <button role="tab" id="tab-play" aria-selected="true">Selbst lösen</button>
     <button role="tab" id="tab-watch" aria-selected="false">Lösungsweg</button>
   </nav>
-  <form class="newgame" id="newgame" action="/" method="get" hidden>
-    <select name="n" id="newgame-n" title="Größe" aria-label="Größe"></select>
-    <button type="submit" class="primary">Neues Puzzle</button>
-    <div class="sizes newgame-pool" id="newgame-pool" title="Jedes neue Puzzle bekommt zufällig eine dieser Größen" hidden></div>
-  </form>
 </header>
 
 <main class="layout">
@@ -40,34 +35,54 @@
     <div class="board-frame">
       <div class="board" id="board" aria-label="Spielbrett"></div>
     </div>
-    <p class="legend" id="legend"></p>
+    <div class="status">
+      <button id="star-tool" class="pill" aria-pressed="false" title="Ein: Tippen setzt einen Stern statt eines Kreuzes. Ziehen kreuzt weiterhin.">★ Tippen</button>
+      <button id="info-btn" class="pill round" aria-expanded="false" aria-controls="info" title="Regeln, Bedienung und Farben" aria-label="Regeln, Bedienung und Farben"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM7.1 7h1.8v4.5H7.1zM8 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg></button>
+      <span class="clock" id="clock" title="Zeit (läuft nur, solange die Seite sichtbar ist) und gezeigte Hinweise"></span>
+    </div>
+    <div class="card info" id="info" hidden>
+      <p>Setze in jede Zeile, jede Spalte und jede Farbe genau einen Stern. Sterne dürfen sich nicht berühren, auch nicht diagonal.</p>
+      <p class="muted" id="controls-help">Tippen: ✕. Doppeltippen: ★. Tippen auf ✕ oder ★: wieder frei. Ziehen: viele ✕ setzen, auf einem ✕ begonnen: ✕ entfernen. Mit „★ Tippen“ setzt schon ein Tippen einen Stern. Maus: Rechtsklick oder Umschalt+Klick setzt oder entfernt ★; Strg+Z, Strg+Y.</p>
+      <p class="legend muted" id="legend"></p>
+    </div>
   </section>
 
   <section class="panel" id="panel-play">
-    <div class="toolbar">
-      <button id="undo" title="Rückgängig (Strg+Z)">↶ Zurück</button>
-      <button id="redo" title="Wiederholen (Strg+Y)">↷ Vor</button>
-      <button id="hyp" title="Einen Stern probehalber setzen und verfolgen, wohin er führt">Annahme</button>
-      <button id="hyp-contra" class="hyp-btn" title="Der erste Stern der Annahme wird zum Kreuz, alles andere zurückgenommen" hidden>Widerspruch</button>
-      <button id="hyp-drop" class="hyp-btn" title="Zurück zum Stand vor der Annahme" hidden>Annahme verwerfen</button>
-      <button id="hint" class="primary">Hinweis</button>
-      <button id="check" title="Prüft kostenlos, ob bisher alles zur Lösung passt">Prüfen</button>
-      <button id="giveup" class="quiet" hidden>Aufgeben</button>
-      <button id="reset" class="quiet">Neu beginnen</button>
-      <span class="clock" id="clock" title="Zeit (läuft nur, solange die Seite sichtbar ist) und gezeigte Hinweise"></span>
+    <div class="toolbar actionbar" id="actions">
+      <button id="undo" title="Rückgängig (Strg+Z)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2 1 6.25 5.5 10.5V7.5h4a2.75 2.75 0 0 1 0 5.5H7v1.5h2.5a4.25 4.25 0 0 0 0-8.5h-4z"/></svg><span>Zurück</span></button>
+      <button id="redo" title="Wiederholen (Strg+Y)"><svg viewBox="0 0 16 16" aria-hidden="true" class="flip"><path d="M5.5 2 1 6.25 5.5 10.5V7.5h4a2.75 2.75 0 0 1 0 5.5H7v1.5h2.5a4.25 4.25 0 0 0 0-8.5h-4z"/></svg><span>Vor</span></button>
+      <button id="hyp" title="Einen Stern probehalber setzen und verfolgen, wohin er führt"><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path stroke-dasharray="2 1.6" d="m8 1.6 1.9 4 4.3.5-3.2 2.9.9 4.3L8 11.1l-3.9 2.2.9-4.3L1.8 6.1l4.3-.5z"/></svg><span>Annahme</span></button>
+      <button id="hyp-contra" class="hyp-btn" title="Der erste Stern der Annahme wird zum Kreuz, alles andere zurückgenommen" hidden><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path d="m4 4 8 8M12 4l-8 8"/></svg><span>Widerspruch</span></button>
+      <button id="hyp-drop" class="hyp-btn" title="Zurück zum Stand vor der Annahme" hidden><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path d="M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.8 9h6.4l.8-9"/></svg><span>Verwerfen</span></button>
+      <button id="check" title="Prüft kostenlos, ob bisher alles zur Lösung passt"><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path d="m2.5 8.5 3.5 3.5 7.5-8"/></svg><span>Prüfen</span></button>
+      <button id="hint" class="primary" title="Der nächste Schritt des Lösungswegs"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a4.6 4.6 0 0 0-2.6 8.4V11h5.2V9.4A4.6 4.6 0 0 0 8 1zM5.4 12h5.2v1.3H5.4zm1 2h3.2v1H6.4z"/></svg><span>Hinweis</span></button>
+      <button id="more" aria-expanded="false" aria-controls="more-sheet" title="Neues Puzzle, neu beginnen, Spielhilfen"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.6"/><circle cx="8" cy="8" r="1.6"/><circle cx="13" cy="8" r="1.6"/></svg><span>Mehr</span></button>
     </div>
-    <p class="options-link muted" id="options-link" hidden><span id="options-state"></span><a href="/einstellungen">Einstellungen</a></p>
-    <div id="play-options" hidden>
-      <label class="toggle"><input type="checkbox" id="autocross"> Nachbarn eines Sterns automatisch kreuzen</label>
-      <label class="toggle"><input type="checkbox" id="straight"> Fat-Finger-Schutz: Ziehen nur in gerader Zeile oder Spalte</label>
-      <label class="toggle"><input type="checkbox" id="showproblems"> Regelverstöße sofort rot markieren</label>
-      <label class="toggle"><input type="checkbox" id="fadedone"> Erledigte Zeilen, Spalten und Farben blasser zeigen</label>
-      <label class="toggle sub"><input type="checkbox" id="fadecolorsonly"> Nur Farben blasser zeigen</label>
+    <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+    <div class="sheet" id="more-sheet" role="dialog" aria-label="Mehr" hidden>
+      <form class="newgame" id="newgame" action="/" method="get" hidden>
+        <h2>Neues Puzzle</h2>
+        <div class="row">
+          <select name="n" id="newgame-n" title="Größe" aria-label="Größe"></select>
+          <button type="submit" class="primary">Neues Puzzle</button>
+        </div>
+        <div class="sizes newgame-pool" id="newgame-pool" title="Jedes neue Puzzle bekommt zufällig eine dieser Größen" hidden></div>
+      </form>
+      <div class="sheet-actions">
+        <button id="reset">Neu beginnen</button>
+        <button id="giveup" hidden>Aufgeben</button>
+      </div>
+      <div id="play-options">
+        <h2>Spielhilfen</h2>
+        <label class="toggle"><input type="checkbox" id="autocross"> Nachbarn eines Sterns automatisch kreuzen</label>
+        <label class="toggle"><input type="checkbox" id="straight"> Fat-Finger-Schutz: Ziehen nur in gerader Zeile oder Spalte</label>
+        <label class="toggle"><input type="checkbox" id="showproblems"> Regelverstöße sofort rot markieren</label>
+        <label class="toggle"><input type="checkbox" id="fadedone"> Erledigte Zeilen, Spalten und Farben blasser zeigen</label>
+        <label class="toggle sub"><input type="checkbox" id="fadecolorsonly"> Nur Farben blasser zeigen</label>
+        <p class="options-link" id="options-link" hidden><a href="/einstellungen">Alle Einstellungen, eigenes Symbol statt ★</a></p>
+      </div>
     </div>
-    <div class="card" id="play-msg">
-      <p>Setze in jede Zeile, jede Spalte und jede Farbe genau einen Stern. Sterne dürfen sich nicht berühren, auch nicht diagonal.</p>
-      <p class="muted">Klick: ✕. Doppelklick: ★. Klick auf ✕ oder ★: wieder frei. Rechtsklick oder Umschalt+Klick: ★ setzen oder entfernen. Ziehen: viele ✕ setzen, auf einem ✕ begonnen: ✕ entfernen.</p>
-    </div>
+    <div class="card" id="play-msg"></div>
     <ul class="problems" id="problems"></ul>
     <section class="party-box" id="party-box" hidden>
       <div class="party-panel" id="party-panel"></div>
@@ -77,13 +92,14 @@
 
   <section class="panel" id="panel-watch" hidden>
     <div class="card" id="trace-wait"></div>
-    <div class="toolbar">
+    <p class="solver-sum muted" id="solver-sum"></p>
+    <div class="toolbar actionbar">
       <button id="first" class="icon" title="Anfang (Pos1)" aria-label="Anfang"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
       <button id="prev" class="icon" title="Zurück (←)" aria-label="Zurück"><svg viewBox="0 0 16 16"><path d="M12 2v12L4 8z"/></svg></button>
       <button id="play" class="primary" title="Abspielen (Leertaste)"></button>
       <button id="next" class="icon" title="Weiter (→)" aria-label="Weiter"><svg viewBox="0 0 16 16"><path d="M4 2v12l8-6z"/></svg></button>
       <button id="last" class="icon" title="Ende (Ende)" aria-label="Ende"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
-      <select id="speed" title="Tempo">
+      <select id="speed" title="Tempo" aria-label="Tempo">
         <option value="2000">langsam</option>
         <option value="900" selected>normal</option>
         <option value="350">schnell</option>

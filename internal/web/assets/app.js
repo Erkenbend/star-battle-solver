@@ -264,27 +264,31 @@ function boot() {
 
   // ---------- summary ----------
   function drawSummary() {
-    const rating = d.library && d.library.rating ? ` · Schwierigkeit: ${L.ratingStars(d.library.rating)}` : "";
+    // Only what matters for playing; the solver's result is shown with its
+    // solving path (#solver-sum), the size is in the title.
+    const rating = d.library && d.library.rating ? `Schwierigkeit: ${L.ratingStars(d.library.rating)}` : "";
+    const sum = (...parts) => { $("summary").textContent = parts.filter(Boolean).join(" · "); };
     if (d.library && d.library.pending) { // the solver's result comes later
-      $("summary").textContent = `${n}×${n} · ohne Hinweise` + rating;
+      $("solver-sum").textContent = "";
+      sum("ohne Hinweise", rating);
       return;
     }
     if (tut) {
-      $("summary").textContent = "Ein kleines Puzzle zum Ausprobieren";
+      sum("Ein kleines Puzzle zum Ausprobieren");
       return;
     }
     if (d.party && d.party.mode === "clock") {
-      $("summary").textContent = `${n}×${n} · Gegen die Uhr · ohne Hinweise`;
+      sum("Gegen die Uhr · ohne Hinweise");
       return;
     }
     const k = d.steps.length;
     const statusText =
       { solved: `gelöst in ${k} Schritten`, stuck: `steckt nach ${k} Schritten fest`, contradiction: `Widerspruch nach ${k} Schritten` }[d.status] || d.status;
-    let summary = `${n}×${n} · Solver: ${statusText}`;
-    if (d.stats.lookahead) summary += ` · ${d.stats.lookahead} Annahmen`;
-    if (d.stats.guesses) summary += ` · ${d.stats.guesses}× geraten`;
-    if (!d.solution) summary += " · keine eindeutige Lösung";
-    $("summary").textContent = summary + rating;
+    let solver = `Solver: ${statusText}`;
+    if (d.stats.lookahead) solver += ` · ${d.stats.lookahead} Annahmen`;
+    if (d.stats.guesses) solver += ` · ${d.stats.guesses}× geraten`;
+    $("solver-sum").textContent = solver;
+    sum(!d.solution && "keine eindeutige Lösung", rating);
   }
   drawSummary();
 
@@ -370,7 +374,7 @@ function boot() {
   if (bare) {
     $("hint").hidden = true;
     $("check").hidden = true;
-    $("play-msg").append(el("p", "muted", "Bibliothek: ein besonders schweres Puzzle, an dem die einfachen Regeln scheitern. Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast."));
+    $("play-msg").append(el("p", "muted", "Besonders schweres Puzzle: ohne Hinweise und Prüfen. Den Lösungsweg gibt es nach dem Lösen."));
   }
   // No input: solved, or in a party round given up, not started or not ours.
   const locked = () => done || (!!party && (party.gaveUp || !party.live()));
@@ -389,6 +393,9 @@ function boot() {
 
   // A hypothesis ("Annahme", see hypothesis.js) saved with the progress.
   if (!coop) H.restore(saved);
+  // A page saved as a file has no tutorial: one line of rules to start with,
+  // the rest behind ⓘ.
+  if (!d.served) $("play-msg").prepend(el("p", "", "Je Zeile, Spalte und Farbe genau ein Stern; Sterne berühren sich nicht, auch nicht diagonal. Mehr unter ⓘ."));
   const intro = [...$("play-msg").childNodes].map((x) => x.cloneNode(true));
 
   // merge: part of the last change, together one undo step.
@@ -501,7 +508,10 @@ function boot() {
     $("hint").disabled = frozen || H.active; // they would judge the hypothesis by the solution
     $("check").disabled = frozen || H.active;
     H.controls(frozen);
-    $("hint").textContent = overlay && overlay.hint ? "Hinweis ausblenden" : "Hinweis";
+    // Shown, the hint button stays pressed; another tap hides the hint.
+    $("hint").setAttribute("aria-pressed", !!(overlay && overlay.hint));
+    $("hint").title = overlay && overlay.hint ? "Hinweis ausblenden" : "Der nächste Schritt des Lösungswegs";
+    $("star-tool").disabled = frozen;
     // In a coop round the server says when the board is solved.
     const solved = L.solved(d, eff.cells) && !(party && party.gaveUp) && (!coop || done);
     if (solved && !done) {
@@ -744,17 +754,16 @@ function boot() {
   // slipping finger cannot hit neighbours. The setting is per device; it is
   // on by default for touch screens.
   const OPTION_IDS = [["autocross", "autocross"], ["straight", "straight"], ["showProblems", "showproblems"], ["fadeDone", "fadedone"], ["fadeColorsOnly", "fadecolorsonly"]];
-  const onOff = (v) => (v ? "an" : "aus");
   function applyPrefs() {
     for (const [k, id] of OPTION_IDS) $(id).checked = prefs[k];
     $("fadecolorsonly").disabled = !prefs.fadeDone; // a part of fadeDone
-    const fade = !prefs.fadeDone ? "aus" : prefs.fadeColorsOnly ? "nur Farben" : "an";
-    $("options-state").textContent =
-      `Nachbarn kreuzen: ${onOff(prefs.autocross)} · Fat-Finger-Schutz: ${onOff(prefs.straight)} · Regelverstöße: ${onOff(prefs.showProblems)} · Erledigtes blasser: ${fade} · `;
   }
   applyPrefs();
-  if (!d.served) $("play-options").hidden = false;
-  else if (!tut) $("options-link").hidden = false;
+  // The switches are at hand under "Mehr"; on a served page they are the
+  // same as on /einstellungen, which also has the star symbol. The tutorial's
+  // steps rely on its own (see prefs).
+  if (tut) $("play-options").hidden = true;
+  else if (d.served) $("options-link").hidden = false;
   for (const [k, id] of OPTION_IDS) {
     $(id).onchange = () => {
       prefs[k] = $(id).checked;
@@ -840,7 +849,7 @@ function boot() {
     const dr = drag;
     drag = null;
     if (!dr.moved) {
-      if (ev.type === "pointerup") clickCell(dr.start, dr.shift || ev.shiftKey);
+      if (ev.type === "pointerup") clickCell(dr.start, dr.shift || ev.shiftKey || starTool);
       return;
     }
     if (H.active) {
@@ -868,6 +877,32 @@ function boot() {
     ev.preventDefault();
     clickCell(+c.dataset.i, true);
   });
+  // ---------- star tool, "Mehr" and ⓘ ----------
+  // "★ Tippen": a tap sets or removes a star at once, as a right click does;
+  // dragging still crosses. Not kept: the next page starts without it.
+  let starTool = false;
+  $("star-tool").onclick = () => {
+    flushTap();
+    starTool = !starTool;
+    $("star-tool").setAttribute("aria-pressed", starTool);
+  };
+  // "Mehr": a sheet with what is used now and then. It closes on a tap
+  // beside it, on Escape and after one of its actions.
+  function sheet(open) {
+    const bar = $("actions");
+    $("more-sheet").style.top = bar.offsetTop + bar.offsetHeight + 6 + "px"; // next to the board: below the bar
+    $("more-sheet").hidden = $("sheet-backdrop").hidden = !open;
+    $("more").setAttribute("aria-expanded", open);
+  }
+  $("more").onclick = () => sheet($("more-sheet").hidden);
+  $("sheet-backdrop").onclick = () => sheet(false);
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") sheet(false); });
+  for (const id of ["reset", "giveup"]) $(id).addEventListener("click", () => sheet(false));
+  $("info-btn").onclick = () => {
+    $("info").hidden = !$("info").hidden;
+    $("info-btn").setAttribute("aria-expanded", !$("info").hidden);
+  };
+  P.sheet = sheet;
   $("undo").onclick = () => {
     if (locked()) return;
     if (H.active) return H.undoStep();

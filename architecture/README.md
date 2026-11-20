@@ -208,6 +208,14 @@ read and change the play state; the core calls back into them (`H.change`,
 `party.controls`, …). The library, settings, party and designer pages have
 their own small scripts instead.
 
+The puzzle page is laid out for phones and tablets first (see
+[decision 25](decisions/25-mobile-first-page.md)): below the board only the
+star tool, ⓘ and the clock; the buttons of the shown tab in an action bar
+(`.actionbar`), fixed at the bottom up to 860 px and next to the board above;
+what is used now and then in the sheet "Mehr" (`#more-sheet`). Element ids
+stayed what they were, so the parts and the UI check find their buttons
+wherever they now sit.
+
 Three rules of the puzzle page that bugs found on phones broke:
 `renderPlay` runs after every change, also from party events and timers,
 and draws board and banner only in the play tab (the solving path draws its
@@ -304,7 +312,9 @@ designer appends for you). The workflows are in `docs/development.md`.
   party and tutorial scenarios run on a phone-sized screen, the party's
   transitions (solving path, next round, next puzzle) under a stream of
   states and on a slow connection. In every scenario a page load the page
-  aborts itself and, on the phone, the board moving under a tap are errors. Values that differ between
+  aborts itself and, on the phone, the board moving under a tap are errors;
+  on the phone every observation also records whether the action bar is on
+  screen. Values that differ between
   runs (times, random party puzzles) are normalized. The result must equal
   `expected.jsonl`; after an intended UI change, `run.sh -update` rewrites
   it and its diff is part of the review. Not part of `go test`: run it with
