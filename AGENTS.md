@@ -39,6 +39,7 @@
 ## Documentation
 
 * Update the docs a change affects in the same commit: the table in [architecture/README.md](architecture/README.md) section 8 says which
+* After changing goroutines or channels, `go test ./internal/concviz` checks only the story's claims about the code, not the text around it: reread the bullets of that section of [architecture/concurrency.md](architecture/concurrency.md) (and its overview, idioms and testing rows), and grep `architecture/` and `docs/` for the old function and type names
 * Refactoring proposals go into [architecture/refactorings.md](architecture/refactorings.md), following the conventions at its top
 
 ## Learnings
