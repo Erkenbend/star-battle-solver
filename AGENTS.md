@@ -33,6 +33,7 @@
 * Look at layout changes in screenshots at phone and desktop size; the UI check sees texts and a few positions (cut-off words in the action bar, what lies under the tab bar), not how a page looks
 * Screenshots show states a real game reaches (e.g. stars with the crosses they imply)
 * Reproduce a reported bug before fixing it (in the browser: a scratch script with the UI check's helpers); the fix adds an observation to the UI check or a test that fails with the old code
+* Text that comes with a tap on the board (banner, tutorial card) goes below it, never above it: the page should feel like a mobile game, not a web page, so the board stays put under the next tap and the text is on screen without scrolling back up (some scrolling is fine, e.g. the action bar moving down; see [decision 28](architecture/decisions/28-news-below-the-board.md)). The UI check records on the phone whether it is on screen (`seen`)
 * Browser code must hold up on a phone, on a slow connection and while other players' states keep arriving; the UI check covers this with `PHONE_SCENARIOS`, `underFire` and its errors in every scenario (aborted page loads, the board moving under a tap)
 
 ## Documentation
