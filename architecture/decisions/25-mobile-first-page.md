@@ -109,6 +109,12 @@ difference when the page could not scroll (the tutorial on a phone, once the
 page got shorter). Fixed in its own commit; the phone tutorial scenario of
 the UI check caught it.
 
+Variant B, after the first review: the room kept below the pages for the
+tab bar did not apply, because each page's own `padding` rule comes later
+in `style.css` and won; the end of the library, settings and party pages
+lay under the tab bar. Only the screenshots showed it: the UI check runs
+these pages at desktop size.
+
 ## Alternatives
 
 - **Variant B**, see above.
