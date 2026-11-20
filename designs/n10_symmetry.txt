@@ -1,0 +1,23 @@
+# name: Symmetry
+# designer: generator.Complete(pattern, rand.NewPCG(925156, 10), Strict), 2026-11-20
+# pattern (. = free):
+#   ..........
+#   E.A....B.F
+#   E.AAABBB.F
+#   E..DABC..F
+#   E..D..C..F
+#   E.DD..CC.F
+#   E..D..C..F
+#   E..D..C..F
+#   E........F
+#   EEEEEFFFFF
+JJJJJJJJJJ
+EJAIIIIBHF
+EJAAABBBHF
+EJJDABCHHF
+EJJDGGCHHF
+EJDDGGCCHF
+EJJDHGCHHF
+EJJDHHCHHF
+EHHHHHHHHF
+EEEEEFFFFF

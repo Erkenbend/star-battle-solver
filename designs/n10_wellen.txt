@@ -1,0 +1,23 @@
+# name: Wellen
+# designer: generator.Complete(pattern, rand.NewPCG(299280, 10), Strict), 2026-11-20
+# pattern (. = free):
+#   ..........
+#   .AAA.AA...
+#   AA.AAA....
+#   ..........
+#   ....BBB.BB
+#   ....B.BBB.
+#   ..........
+#   DD.D..CCC.
+#   .DDD.CC.CC
+#   ..........
+FFFFFFFJJJ
+FAAAFAAIII
+AAGAAAIIII
+EGGGGGGGGI
+EGGGBBBGBB
+GGGGBGBBBH
+GGGGGGGHHH
+DDGDGGCCCH
+GDDDGCCGCC
+GGGGGGGGGG
