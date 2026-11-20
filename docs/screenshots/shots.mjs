@@ -91,6 +91,21 @@ async function newParty(mode) {
   const r = await fetch(BASE + "/party", { method: "POST", body: new URLSearchParams({ n: "7", mode }), redirect: "manual" });
   return r.headers.get("location").split("/").pop();
 }
+// The cells a player crosses after setting stars (one per row, column and
+// region): the star's neighbours, row, column and region. Partial boards in
+// the pictures show these crosses, as a real game would.
+function crossesOf(d, stars) {
+  const n = d.n, out = new Set();
+  for (const s of stars) {
+    const r = Math.floor(s / n), c = s % n;
+    for (let rr = 0; rr < n; rr++) for (let cc = 0; cc < n; cc++) {
+      const near = Math.abs(rr - r) <= 1 && Math.abs(cc - c) <= 1;
+      if (near || rr === r || cc === c || d.regions[rr][cc] === d.regions[r][c]) out.add(rr * n + cc);
+    }
+  }
+  for (const s of stars) out.delete(s);
+  return [...out].sort((a, b) => a - b);
+}
 const clockIs = (t) => `document.getElementById("clock").textContent.includes(${JSON.stringify(t)})`;
 
 // A party with Nina in the browser and Undine via the API, up to the start of round 1.
@@ -108,15 +123,17 @@ async function partyStart(mode) {
   await loaded;
   await waitFor(`!document.body.classList.contains("party-wait") && document.querySelector("#board .cell")`);
   const d = await js(`JSON.parse(document.getElementById("data").textContent)`);
-  return { code, token: undine.token, sol: d.solution, n: d.n };
+  return { code, token: undine.token, sol: d.solution, n: d.n, regions: d.regions };
 }
 
 const shots = {
   async spielen() {
     await fresh();
     await go("/?n=8&seed=42");
-    for (const i of [0, 1, 8, 9, 62, 63]) await click(cell(i));
-    await click(cell(16), { shift: true });
+    const d = await js(`JSON.parse(document.getElementById("data").textContent)`);
+    const stars = [5 * d.n + d.solution[5]]; // step 1 of the solving path: the colour of one cell
+    for (const s of stars) await click(cell(s), { shift: true });
+    for (const i of crossesOf(d, stars)) await click(cell(i));
     await click("#hint");
     await waitFor(clockIs("0:04"));
     await shot("spielen");
@@ -157,19 +174,23 @@ const shots = {
   async "party-runde"() {
     const p = await partyStart("versus");
     await api(`/party/${p.code}/progress`, { token: p.token, round: 1, count: 3, hints: 0 });
-    for (const r of [1, 4]) await click(cell(r * p.n + p.sol[r]), { shift: true });
+    const stars = [1, 4].map((r) => r * p.n + p.sol[r]);
+    for (const s of stars) await click(cell(s), { shift: true });
+    for (const i of crossesOf(p, stars)) await click(cell(i));
     await waitFor(clockIs("0:05"));
     await shot("party-runde");
   },
   async "party-gemeinsam"() {
     const p = await partyStart("coop");
-    const n = p.n, last = n - 1;
-    const crosses = [...Array(n).keys()].filter((c) => c !== p.sol[last]).slice(0, 3).map((c) => last * n + c);
-    const ops = [0, 1, 2, 3].map((r, k) => [k + 1, r * n + p.sol[r], 0, 2]);
-    ops.push([5, crosses[0], 0, 1], [6, crosses[1], 0, 1]);
+    const n = p.n;
+    // Undine set three stars and their crosses, Nina a fourth star and its own.
+    const theirs = [0, 1, 2].map((r) => r * n + p.sol[r]);
+    const mine = 3 * n + p.sol[3];
+    const theirCrosses = crossesOf(p, theirs);
+    const ops = [...theirs.map((i) => [i, 2]), ...theirCrosses.map((i) => [i, 1])].map(([i, v], k) => [k + 1, i, 0, v]);
     await api(`/party/${p.code}/mark`, { token: p.token, round: 1, ops });
-    await click(cell(4 * n + p.sol[4]), { shift: true });
-    await click(cell(crosses[2]));
+    await click(cell(mine), { shift: true });
+    for (const i of crossesOf(p, [mine])) if (!theirCrosses.includes(i)) await click(cell(i));
     await waitFor(clockIs("0:04"));
     await shot("party-gemeinsam");
   },
@@ -189,7 +210,10 @@ const shots = {
     const e = (await js(`JSON.parse(document.getElementById("data").textContent).parts.find((p) => p.kind === "schwer").entries`)).find((e) => e.name === "9-1");
     const d = await (await fetch(`${BASE}/bibliothek/weg?id=${encodeURIComponent(e.id)}`)).json();
     const marks = new Array(d.n * d.n).fill(0);
-    d.solution.forEach((c, r) => { marks[r * d.n + c] = 2; });
+    const stars = d.solution.map((c, r) => r * d.n + c);
+    // Solved by the last star: the crosses of all the others are there.
+    for (const i of crossesOf(d, stars.slice(0, -1))) marks[i] = 1;
+    for (const i of stars) marks[i] = 2;
     const v = { marks, auto: true, time: (18 * 60 + 43) * 1000 + 300, hints: 0, done: true, paid: [] };
     await js(`localStorage.setItem(${JSON.stringify("starbattle:library:" + e.id)}, ${JSON.stringify(JSON.stringify(v))})`);
     await go("/bibliothek?id=" + encodeURIComponent(e.id));
@@ -198,14 +222,14 @@ const shots = {
   // The step-through player of architecture/concurrency.md (a local file, no
   // server needed): the pipeline of section 4 at step 8, where back-pressure
   // holds worker 2 and the producer waits in its select.
-  async nebenlaeufigkeit() {
+  async concurrency() {
     const loaded = once("Page.loadEventFired");
     await send("Page.navigate", { url: `file://${OUT}/../../architecture/concurrency/player.html#04-hardsearch-pipeline` });
     await loaded;
     await sleep(300);
     await js(`playStep(7)`);
     await waitFor(`!playing`);
-    await shot("nebenlaeufigkeit");
+    await shot("concurrency");
   },
 };
 

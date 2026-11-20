@@ -57,7 +57,7 @@ $ starbattle generate -n 8 -seed 42 | starbattle solve -runner sync -verbose
 
 Das Projekt ist auch ein Go-Experiment: Die Regeln laufen als nebenläufige Observer, eine Goroutine pro Regel, die ihre Folgerungen über Channels austauschen. An neun weiteren Stellen arbeiten Goroutines zusammen, vom Worker-Pool bis zum geordneten Herunterfahren des Servers. [architecture/concurrency.md](architecture/concurrency.md) (englisch) erklärt alle zehn Muster und warum sie so gebaut sind. Zu jedem gibt es ein Sequenzdiagramm und einen Ablauf im **[Abspieler](https://erkenbend.github.io/star-battle-solver/)**, Schritt für Schritt vor und zurück: wer blockiert, wer wen weckt, wie Abbruch und Ende funktionieren.
 
-[![Abspieler: die geordnete Pipeline der Suche nach schweren Puzzles, Schritt 8 von 13](docs/screenshots/nebenlaeufigkeit.png)](https://erkenbend.github.io/star-battle-solver/#04-hardsearch-pipeline)
+[![Abspieler: die geordnete Pipeline der Suche nach schweren Puzzles, Schritt 8 von 13](docs/screenshots/concurrency.png)](https://erkenbend.github.io/star-battle-solver/#04-hardsearch-pipeline)
 
 Darunter sind ein Worker-Pool mit Ergebnissen nach Index, gepufferte Channels als Semaphore, eine geordnete Pipeline mit Abbruch über `context`, ein Future aus `sync.Once` und `close`, zusammengefasste Signale für Server-Sent Events und, zum Vergleich, eine Stelle ganz ohne Channel. Die Abläufe sind in Go geschrieben und laufen auf einem kleinen Modell der Semantik von Channels, `select` und `sync`. Ein Test prüft ihre Angaben gegen den Quelltext, damit Diagramme und Code nicht auseinanderlaufen.
 
