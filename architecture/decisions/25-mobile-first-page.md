@@ -1,9 +1,8 @@
 # 25. Puzzle page laid out for phones first
 
-**Status:** proposed, two variants for review: A on branch `mobile-ui-a`, B
-(this text) on branch `mobile-ui-b`, built on A; see "Variant B" below. After
-the second review only B is worked on; A stays on its branch until the
-decision
+**Status:** done with variant B (see "Variant B": the decision below plus
+its changes), on main since 2026-11-20. Variant A stays on branch
+`mobile-ui-a` for reference, B on `mobile-ui-b`  
 **Date:** 2026-11-20
 
 ## Decision
@@ -135,7 +134,10 @@ these pages at desktop size.
 
 ## Alternatives
 
-- **Variant B**, see above.
+- **Variant A** (branch `mobile-ui-a`): the action bar fixed at the bottom
+  of the screen, "Mehr" as a sheet over the page, the site navigation at
+  the top. The review chose B: app-like navigation in reach of the thumb,
+  nothing lying over the board.
 - Hiding the site navigation behind a menu button: the navigation fits in
   one line on a 393 px phone and is not what made the page feel crowded.
 - A help sheet instead of the inline ⓘ card: an overlay hides the board the

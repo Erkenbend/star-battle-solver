@@ -34,7 +34,7 @@ and open ideas.
 | [22](22-ci-sample-only.md) | CI runs only the sample of hard puzzles | done |
 | [23](23-size-15.md) | Size 15 in the game and the library | done |
 | [24](24-concurrency-animations.md) | Diagrams and a step-through player for `concurrency.md`, checked against the code | done |
-| [25](25-mobile-first-page.md) | Puzzle page laid out for phones first | proposed |
+| [25](25-mobile-first-page.md) | Puzzle page laid out for phones first (variant B) | done |
 
 ## Adding a decision
 
