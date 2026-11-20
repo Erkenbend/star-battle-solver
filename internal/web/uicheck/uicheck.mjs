@@ -290,6 +290,40 @@ async function server(p, label, until = () => true, { board = false } = {}) {
   record({ label: "server: " + label, phase: s && s.phase, alice: a, coop });
 }
 
+// Runs act while Bob's connections come and go every 100 ms: each is a
+// state for everybody, as when players change pages or their phones lose
+// the connection. With latency (ms), on a slow connection too. For the
+// moments that must hold up under a stream of states: tabs, page changes.
+async function underFire(p, act, { latency = 0 } = {}) {
+  if (latency) await send("Network.emulateNetworkConditions", { offline: false, latency, downloadThroughput: -1, uploadThroughput: -1 });
+  let on = true;
+  const fire = (async () => {
+    while (on) {
+      const ac = new AbortController();
+      fetch(`${BASE}/party/${p.code}/events?token=${p.token}`, { signal: ac.signal }).catch(() => {});
+      await sleep(100);
+      ac.abort();
+      await sleep(100);
+    }
+  })();
+  try {
+    return await act();
+  } finally {
+    on = false;
+    await fire;
+    if (latency) await send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  }
+}
+// What tells the solving path from the play tab on a random puzzle (the
+// steps differ): the play tab's banner and solution must not come back.
+async function watchShown(label, n) {
+  record({
+    label,
+    banner: await js(`document.getElementById("banner").hidden ? "[hidden]" : document.getElementById("banner").textContent`),
+    solutionOnBoard: await js(`document.querySelectorAll("#board .cell.star").length === ${n}`),
+  });
+}
+
 async function solveBy(sol, n, skip = new Set()) {
   for (let r = 0; r < n; r++) if (!skip.has(r)) await click(cell(r * n + sol[r]), { shift: true });
 }
@@ -600,14 +634,13 @@ const scenarios = {
     // The solving path while Bob plays on: his progress must not bring back
     // the board and banner of the play tab.
     await click("#tab-watch");
-    await click("#next");
-    await api(`/party/${p.code}/progress`, { token: p.token, round: 1, count: 2, hints: 0 });
-    await settle(`document.getElementById("party-panel").textContent.includes("★ 2/")`);
-    record({ // the steps depend on the random puzzle: only what tells the tabs apart
-      label: "watch while Bob plays",
-      banner: await js(`document.getElementById("banner").hidden ? "[hidden]" : document.getElementById("banner").textContent`),
-      solutionOnBoard: await js(`document.querySelectorAll("#board .cell.star").length === ${p.n}`),
+    await underFire(p, async () => {
+      await click("#next");
+      await api(`/party/${p.code}/progress`, { token: p.token, round: 1, count: 2, hints: 0 });
+      await settle(`document.getElementById("party-panel").textContent.includes("★ 2/")`);
+      await sleep(800);
     });
+    await watchShown("watch while Bob plays", p.n);
     await click("#first"); // what the next observations see of the hidden tab
     await click("#tab-play");
     await api(`/party/${p.code}/giveup`, { token: p.token, round: 1, hints: 0 });
@@ -620,24 +653,12 @@ const scenarios = {
     // must not start the load over.
     await waitFor(`[...document.querySelectorAll("#party-panel button")].some((b) => b.textContent === "Bereit") && !document.querySelector("#party-panel .actions .muted")`);
     await api(`/party/${p.code}/ready`, { token: p.token, ready: true });
-    await send("Network.emulateNetworkConditions", { offline: false, latency: 600, downloadThroughput: -1, uploadThroughput: -1 });
-    let flapping = true;
-    const flap = (async () => {
-      while (flapping) {
-        const ac = new AbortController();
-        fetch(`${BASE}/party/${p.code}/events?token=${p.token}`, { signal: ac.signal }).catch(() => {});
-        await sleep(100);
-        ac.abort();
-        await sleep(100);
-      }
-    })();
     visited.length = 0;
-    const next = once("Page.loadEventFired");
-    await js(`[...document.querySelectorAll("#party-panel button")].find((b) => b.textContent === "Bereit").click()`);
-    await next.catch(() => {});
-    flapping = false;
-    await flap;
-    await send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await underFire(p, async () => {
+      const next = once("Page.loadEventFired");
+      await js(`[...document.querySelectorAll("#party-panel button")].find((b) => b.textContent === "Bereit").click()`);
+      await next.catch(() => {});
+    }, { latency: 600 });
     record({ label: "next round: pages loaded", pages: visited.map((u) => u.replace(/\/party\/[A-Z]{4}/, "/party/CODE")) });
 
     const q = await partyStart("versus");
@@ -738,6 +759,12 @@ const scenarios = {
     await solveBy(q.sol, q.n);
     await settle(bannerHas("Gemeinsam gelöst"));
     await obs("solved together");
+    await click("#tab-watch");
+    await underFire(q, async () => {
+      await click("#next");
+      await sleep(1000);
+    });
+    await watchShown("watch after solving together", q.n);
   },
 
   // Against the clock: progress, solving (on to puzzle 2), reload, skipping.
@@ -748,9 +775,13 @@ const scenarios = {
     await click(cell(p.sol[0]), { shift: true });
     await click(cell(p.n + p.sol[1]), { shift: true });
     await server(p, "progress", (me) => me.stars === 2);
-    const loaded = once("Page.loadEventFired");
-    await solveBy(p.sol, p.n, new Set([0, 1]));
-    await loaded;
+    // On to the next puzzle on a slow connection while states keep coming:
+    // one load (aborted ones are an error of the scenario).
+    await underFire(p, async () => {
+      const loaded = once("Page.loadEventFired");
+      await solveBy(p.sol, p.n, new Set([0, 1]));
+      await loaded;
+    }, { latency: 600 });
     await waitFor(`document.querySelector("#board .cell") && !document.body.classList.contains("party-wait")`);
     await obs("puzzle 2");
     const d2 = await data();
