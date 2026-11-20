@@ -154,24 +154,42 @@ function boot() {
     }
   }
 
-  // The banner sits above the board. When it comes, goes or wraps anew, the
-  // page scrolls by as much, so the board stays where it is on screen: on a
-  // phone the next tap would land a row or two off (a wrong star in a party
-  // round, a chain of the solving path). Where the page cannot scroll that
-  // far, the board still moves. Only once the player has touched the page:
-  // a page that opens with a banner opens at its top. extra: buttons or
-  // links after the text.
+  // Banner and tutorial card sit above the board. When one comes, goes or
+  // wraps anew, the page scrolls by as much, so the board stays where it is
+  // on screen: on a phone the next tap would land a row or two off (a wrong
+  // star in a party round, a chain of the solving path, the next step of the
+  // tutorial). Even if the banner's first line then leaves the screen: while
+  // tapping, the board counts. Where the page cannot scroll that far, it
+  // gets room below (growth) or what shrinks keeps its height (at the top).
+  // Only once the player has touched the page: a page that opens with a
+  // banner opens at its top.
   let touched = false;
   for (const t of ["pointerdown", "keydown"]) document.addEventListener(t, () => { touched = true; }, { once: true, capture: true });
+  function keepBoard(above, change) {
+    if (!touched) return change();
+    const before = boardEl.getBoundingClientRect().top;
+    above.style.minHeight = "";
+    const height = above.hidden ? 0 : above.offsetHeight;
+    change();
+    const shift = boardEl.getBoundingClientRect().top - before;
+    if (!shift) return;
+    window.scrollBy(0, shift);
+    const left = boardEl.getBoundingClientRect().top - before;
+    if (left > 1) { // the end of the page: room below it
+      const pad = parseFloat(document.body.style.paddingBottom) || 0;
+      document.body.style.paddingBottom = pad + left + "px";
+      window.scrollBy(0, left);
+    } else if (left < -1 && height && !above.hidden) above.style.minHeight = height + "px";
+  }
+  // extra: buttons or links after the text.
   function banner(text, cls, ...extra) {
     const b = $("banner");
-    const before = boardEl.getBoundingClientRect().top;
-    b.hidden = !text;
-    b.replaceChildren(...rich(text || ""));
-    for (const e of extra) b.append(" ", e);
-    b.className = "banner " + (cls || "");
-    const shift = boardEl.getBoundingClientRect().top - before;
-    if (shift && touched) window.scrollBy(0, shift);
+    keepBoard(b, () => {
+      b.hidden = !text;
+      b.replaceChildren(...rich(text || ""));
+      for (const e of extra) b.append(" ", e);
+      b.className = "banner " + (cls || "");
+    });
   }
 
   function chip(step) {
@@ -213,7 +231,7 @@ function boot() {
   // race.js) see the page through P: the data, helpers to draw, and the play
   // state of this function, read and written through accessors.
   const P = {
-    L, d, n, $, el, elr, chip, banner, drawBoard, boardEl, cellEls,
+    L, d, n, $, el, elr, chip, banner, keepBoard, drawBoard, boardEl, cellEls,
     get saved() { return saved; },
     get marks() { return marks; },
     set marks(v) { marks = v; },

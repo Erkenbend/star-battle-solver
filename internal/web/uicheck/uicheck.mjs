@@ -144,7 +144,27 @@ async function pos(sel) {
   if (!r) throw new Error("no element " + sel);
   return r;
 }
-async function click(sel, { shift = false } = {}) {
+// On a phone (the scenarios in PHONE_SCENARIOS), the board must stay where
+// it is on screen when the player acts on it: what changes above it (a
+// banner, the tutorial's card) would make the next tap land elsewhere.
+// Every move is an error of the scenario.
+let phone = false;
+const moves = [];
+const boardAt = () => js(`(() => { const b = document.getElementById("board"); return b ? location.href + " " + Math.round(b.getBoundingClientRect().top) : ""; })()`);
+async function boardStill(sel, act) {
+  if (!phone || !String(sel).startsWith("#board")) return act();
+  await pos(sel); // scrolled to first
+  const before = await boardAt();
+  await act();
+  await tapDone();
+  const after = await boardAt();
+  const [u0, t0] = before.split(" "), [u1, t1] = after.split(" ");
+  if (before && after && u0 === u1 && Math.abs(t1 - t0) > 1) moves.push(`${sel}: ${t1 - t0} px`); // 1 px: rounding at the phone's pixel ratio
+}
+async function click(sel, opts) {
+  await boardStill(sel, () => press(sel, opts));
+}
+async function press(sel, { shift = false } = {}) {
   const [x, y] = await pos(sel);
   const modifiers = shift ? 8 : 0;
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, modifiers });
@@ -154,10 +174,15 @@ async function click(sel, { shift = false } = {}) {
 }
 const tapDone = () => settle(`!document.querySelector("#board[data-pending]")`, 2000); // a click waiting for its double
 async function dblclick(sel) {
-  await click(sel);
-  await click(sel);
+  await boardStill(sel, async () => {
+    await press(sel);
+    await press(sel);
+  });
 }
 async function drag(sels) {
+  await boardStill(sels[0], () => pull(sels));
+}
+async function pull(sels) {
   const ps = [];
   for (const s of sels) ps.push(await pos(s));
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: ps[0][0], y: ps[0][1] });
@@ -635,15 +660,7 @@ const scenarios = {
     const c0 = p.sol[0];
     const wrongIn = (r) => r * p.n + [...Array(p.n).keys()].find((c) => c !== p.sol[r] && c !== c0);
     await click(cell(c0), { shift: true }); // right
-    // On a phone: the banner coming above the board must not move it.
-    await send("Emulation.setDeviceMetricsOverride", PHONE);
-    await sleep(100);
-    const boardTop = `Math.round(document.getElementById("board").getBoundingClientRect().top)`;
-    const top0 = await js(boardTop);
-    await click(cell(wrongIn(2)), { shift: true }); // two rows further: no rule against it
-    record({ label: "wrong star on a phone: board stays", stays: (await js(boardTop)) === top0 });
-    await send("Emulation.setDeviceMetricsOverride", DESKTOP);
-    await sleep(100);
+    await click(cell(wrongIn(2)), { shift: true }); // two rows further: no rule against it; its banner must not move the board
     await obs("wrong star");
     await server(p, "one error", (me) => me.errors === 1);
     await click("#undo");
@@ -749,10 +766,14 @@ const scenarios = {
   },
 };
 
+// Where people play on a phone: the party and the tutorial.
+const PHONE_SCENARIOS = new Set(["tutorial", "versus", "lives", "coop", "race"]);
 for (const [name, f] of Object.entries(scenarios)) {
   if (ONLY.length && !ONLY.includes(name)) continue;
   scenario = name;
   party = false;
+  phone = PHONE_SCENARIOS.has(name);
+  await send("Emulation.setDeviceMetricsOverride", phone ? PHONE : DESKTOP);
   try {
     await f();
   } catch (e) {
@@ -760,6 +781,7 @@ for (const [name, f] of Object.entries(scenarios)) {
   }
   if (errors.length) record({ label: "JS ERRORS", errors: errors.splice(0) });
   if (aborted.length) record({ label: "ABORTED PAGE LOADS", count: aborted.splice(0).length });
+  if (moves.length) record({ label: "BOARD MOVED", moves: moves.splice(0) });
 }
 ws.onclose = null;
 ws.close();
