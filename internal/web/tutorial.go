@@ -10,13 +10,15 @@ import (
 )
 
 // The tutorial (/anleitung) is the normal play page with a small fixed puzzle.
-// It guides through the first moves (a star by double click, crosses by click
-// and by dragging), lets the player solve the rest and then points at the
-// page's buttons one after the other. app.js sends new visitors of a solo page
-// there once; the "?" in the navigation leads there any time.
+// It guides through the first moves (a star by double click, crosses by
+// dragging along the star's row and column, then by click on its remaining
+// neighbours), lets the player solve the rest and then points at the page's
+// buttons one after the other. app.js sends new visitors of a solo page there
+// once; the "?" in the navigation leads there any time.
 
 // tutorialPuzzle has a one-cell region A, so the first star is obvious, and
-// after crossing around it region D has a single free cell.
+// after crossing its row, column and neighbours region D has a single free
+// cell.
 const tutorialPuzzle = `BBBCC
 BBCCC
 ADDDC
@@ -54,19 +56,19 @@ var tutorial = Tutorial{
 			Stars:  [][2]int{{2, 0}},
 		},
 		{
-			Action:  "Klick: Kreuz",
-			Text:    "Sterne berühren sich nicht, auch nicht schräg. Kreuze die beiden markierten Felder.",
-			Crosses: [][2]int{{1, 1}, {3, 1}},
-		},
-		{
 			Action:  "Ziehen: viele Kreuze",
-			Text:    "In Zeile 2 passt kein weiterer Stern. Halte gedrückt und ziehe über die markierten Felder.",
+			Text:    "In Zeile 2 passt kein weiterer Stern. Halte gedrückt und ziehe über die markierten Felder, um sie zu kreuzen.",
 			Crosses: [][2]int{{2, 1}, {2, 2}, {2, 3}, {2, 4}},
 		},
 		{
 			Action:  "Ziehen: viele Kreuze",
 			Text:    "Genauso in Spalte 0.",
 			Crosses: [][2]int{{0, 0}, {1, 0}, {3, 0}, {4, 0}},
+		},
+		{
+			Action:  "Klick: Kreuz",
+			Text:    "Sterne berühren sich nicht, auch nicht schräg. Kreuze die beiden übrigen Nachbarn des Sterns mit je einem Klick.",
+			Crosses: [][2]int{{1, 1}, {3, 1}},
 		},
 		{
 			Action: "Jetzt du",
