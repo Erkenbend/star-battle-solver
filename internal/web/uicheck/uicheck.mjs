@@ -170,9 +170,9 @@ async function more(sel, opts) {
   if (await js(`document.getElementById("more-sheet").hidden`)) await click("#more");
   await click(sel, opts);
 }
-// Closes "Mehr" with a tap beside it: until then it takes the board's taps.
+// Closes "Mehr" (it opens in place) with another tap on it.
 async function moreClose() {
-  if (!(await js(`document.getElementById("more-sheet").hidden`))) await press("#sheet-backdrop");
+  if (!(await js(`document.getElementById("more-sheet").hidden`))) await click("#more");
 }
 async function press(sel, { shift = false } = {}) {
   const [x, y] = await pos(sel);
@@ -259,13 +259,13 @@ async function obs(label, { random = false } = {}) {
       party: t(q("#party-panel")),
     };
   })()`);
-  // On a phone the buttons of the shown tab are in reach: the bar is on
-  // screen, whatever the page shows above it.
+  // On a phone the site's tab bar lies over the bottom of the screen: the
+  // buttons of the shown tab must not end up under it.
   if (phone) o.bar = await js(`(() => {
-    const b = document.querySelector(".panel:not([hidden]) .actionbar");
+    const b = document.querySelector(".panel:not([hidden]) .actionbar"), nav = document.getElementById("site-nav");
     if (!b) return "none";
-    const r = b.getBoundingClientRect();
-    return r.top >= 0 && r.bottom <= innerHeight + 1 && r.height > 0 ? "on screen" : "off screen";
+    const r = b.getBoundingClientRect(), top = nav && !nav.hidden ? nav.getBoundingClientRect().top : innerHeight;
+    return r.bottom <= top + 1 || r.top >= innerHeight ? "not covered" : "under the tab bar";
   })()`);
   if (party) { // a random puzzle: which classes occur, not where, and no rule violations
     o.cells = [...new Set(o.cells.flatMap((c) => c.split("+")))].filter((c) => c !== "." && c !== "bad").sort();
@@ -589,9 +589,7 @@ const scenarios = {
     await obs("file page");
     await more("#autocross");
     const d = await data();
-    await click(cell(d.solution[0]), { shift: true });
-    await obs("autocross sheet open"); // the tap closed it, nothing set
-    await click(cell(d.solution[0]), { shift: true });
+    await click(cell(d.solution[0]), { shift: true }); // "Mehr" open: the board takes taps all the same
     await obs("autocross on");
     await more("#showproblems");
     await moreClose();

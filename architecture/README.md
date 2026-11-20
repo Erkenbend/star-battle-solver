@@ -211,8 +211,10 @@ their own small scripts instead.
 The puzzle page is laid out for phones and tablets first (see
 [decision 25](decisions/25-mobile-first-page.md)): below the board only the
 star tool, ⓘ and the clock; the buttons of the shown tab in an action bar
-(`.actionbar`), fixed at the bottom up to 860 px and next to the board above;
-what is used now and then in the sheet "Mehr" (`#more-sheet`). Element ids
+(`.actionbar`), below the board up to 860 px and next to it above; what is
+used now and then in "Mehr" (`#more-sheet`), opening in place below the bar.
+Up to 860 px the site navigation of every page is a tab bar fixed at the
+bottom. Element ids
 stayed what they were, so the parts and the UI check find their buttons
 wherever they now sit.
 
@@ -313,8 +315,8 @@ designer appends for you). The workflows are in `docs/development.md`.
   transitions (solving path, next round, next puzzle) under a stream of
   states and on a slow connection. In every scenario a page load the page
   aborts itself and, on the phone, the board moving under a tap are errors;
-  on the phone every observation also records whether the action bar is on
-  screen. Values that differ between
+  on the phone every observation also records whether the action bar is
+  under the tab bar. Values that differ between
   runs (times, random party puzzles) are normalized. The result must equal
   `expected.jsonl`; after an intended UI change, `run.sh -update` rewrites
   it and its diff is part of the review. Not part of `go test`: run it with

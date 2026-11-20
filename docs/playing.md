@@ -15,12 +15,12 @@ Wer zum ersten Mal ein Solo- oder Bibliotheks-Puzzle öffnet, landet einmal dort
 | ![Selbst lösen](screenshots/spielen.png) | ![Lösungsweg](screenshots/loesungsweg.png) |
 | **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Lösungsweg:** jeder Schritt mit Regel und Begründung, die betroffenen Felder sind hervorgehoben. |
 
-Die Seite ist fürs Handy und Tablet gebaut: Unter dem Brett stehen nur „★ Tippen“, ⓘ und die Uhr, die Knöpfe zum Spielen liegen in einer Leiste am unteren Rand, in Reichweite des Daumens: Zurück, Vor, Annahme, Prüfen, Hinweis und „Mehr“. Auf breiten Bildschirmen steht die Leiste neben dem Brett.
+Die Seite ist fürs Handy und Tablet gebaut: Unter dem Brett stehen „★ Tippen“, ⓘ und die Uhr, darunter eine Leiste mit den Knöpfen zum Spielen: Zurück, Vor, Annahme, Prüfen, Hinweis und „Mehr“. Auf breiten Bildschirmen steht die Leiste neben dem Brett. Die Bereiche der Seite (Solo, Zusammen, Bibliothek, Anleitung, Einstellungen) liegen auf Handy und Tablet wie in einer App in einer Leiste am unteren Rand, auf breiten Bildschirmen oben.
 
 - **Bedienung:** Tippen setzt ein ✕, Doppeltippen einen ★, Tippen auf ✕ oder ★ macht das Feld wieder frei. Ziehen setzt viele ✕, auf einem ✕ begonnen entfernt es sie. Mit der Maus setzt oder entfernt auch ein Rechtsklick oder Umschalt+Klick einen ★; Strg+Z und Strg+Y nehmen zurück und wiederholen.
 - **★ Tippen:** Ist der Schalter an, setzt oder entfernt schon ein einfaches Tippen einen Stern; Ziehen kreuzt weiterhin. Er gilt nur, solange die Seite offen ist.
 - **ⓘ** klappt unter dem Brett Regeln, Bedienung und die Bedeutung der Farben auf.
-- **Mehr** öffnet von unten ein Blatt mit dem, was man seltener braucht: Neues Puzzle (mit Größe), Neu beginnen, in Partys Aufgeben, und die Spielhilfen aus den [Einstellungen](#einstellungen) zum direkten Umschalten.
+- **Mehr** klappt unter der Leiste auf, was man seltener braucht: Neues Puzzle (mit Größe), Neu beginnen, in Partys Aufgeben, und die Spielhilfen aus den [Einstellungen](#einstellungen) zum direkten Umschalten.
 - Was der Solver zum Puzzle sagt (gelöst in wie vielen Schritten, Annahmen), steht im Reiter „Lösungsweg“; dort liegen in der Leiste die Knöpfe zum Abspielen.
 
 „Neues Puzzle“ (unter „Mehr“) erzeugt eines der Größe 4 bis 15. Mit „Mehrere Größen“ lassen sich, wie bei einer Party, mehrere Größen ankreuzen; jedes neue Puzzle bekommt dann zufällig eine davon (`/?n=6&n=8&n=10`). Die Auswahl merkt sich der Browser. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.

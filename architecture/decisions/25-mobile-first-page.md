@@ -1,7 +1,7 @@
 # 25. Puzzle page laid out for phones first
 
-**Status:** proposed (branch `mobile-ui-a`); an alternative is on branch
-`mobile-ui-b`, see below
+**Status:** proposed, two variants for review: A on branch `mobile-ui-a`, B
+(this text) on branch `mobile-ui-b`, built on A; see "Variant B" below
 **Date:** 2026-11-20
 
 ## Decision
@@ -45,18 +45,39 @@ Element ids stayed, so `round.js`, `coop.js`, `race.js`, the tour and the UI
 check still find their buttons. The UI check opens "Mehr" before using what
 is in it (`more()`), closes it with a tap beside it before tapping the board
 again, and on the phone records for every observation whether the action bar
-is on screen.
+is on screen (variant A).
+
+## Variant B
+
+B keeps everything of A except where things sit on phones and tablets:
+
+- The **action bar** is not fixed: it follows right below the board's line
+  (star tool, ⓘ, clock), as a rounded card.
+- **"Mehr"** opens in place below the bar instead of as a sheet over the
+  page; it never covers the board, and the board takes taps while it is
+  open. Closed with another tap on "Mehr".
+- The **site navigation** becomes a tab bar fixed at the bottom of every
+  page (puzzle, party, library, settings, error), icon above word: Solo,
+  Zusammen, Bibliothek, Anleitung, Einstellungen, as in an app. On wide
+  screens it stays at the top as before.
+- The UI check records on the phone whether the action bar lies under the
+  tab bar, instead of whether it is on screen.
+
+Trade-off: A keeps the play buttons always in reach of the thumb and the
+navigation small at the top; B makes the navigation app-like and keeps the
+play buttons next to the board, so on a tall board or with a hint card they
+can scroll away. B is the closer step towards an installable web app.
 
 ## Measurements
 
 Solo page `/?n=8&seed=42`, phone 393×760 CSS px, at load:
 
-| | before (main) | after |
-|---|---|---|
-| top of the board | 232 px | 135 px |
-| page height | 1104 px | 760 px (no scrolling) |
-| visible words | 148 | 43 |
-| rows of buttons | 4 | 2 (tabs, bar) |
+| | before (main) | A | B |
+|---|---|---|---|
+| top of the board | 232 px | 135 px | 100 px |
+| page height | 1104 px | 760 px (no scrolling) | 760 px (no scrolling) |
+| visible words | 148 | 43 | 44 |
+| rows of buttons | 4 | 2 (tabs, bar) | 2 (tabs, bar), plus the tab bar |
 
 ## Found on the way
 
@@ -68,10 +89,7 @@ the UI check caught it.
 
 ## Alternatives
 
-- **Variant B** (branch `mobile-ui-b`): no fixed bar; one dense icon toolbar
-  directly below the board and "Mehr" as a popover there, the navigation as
-  a bottom tab bar. Keeps the page's top-down flow, but the buttons move
-  with the board's size, and on large boards they fall below the screen.
+- **Variant B**, see above.
 - Hiding the site navigation behind a menu button: the navigation fits in
   one line on a 393 px phone and is not what made the page feel crowded.
 - A help sheet instead of the inline ⓘ card: an overlay hides the board the
