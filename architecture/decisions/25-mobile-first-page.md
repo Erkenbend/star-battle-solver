@@ -102,6 +102,11 @@ After the second review (B only):
   keeps only Neu beginnen / Alles löschen there.
 - **No "Vor" button** anywhere: redo is rarely needed and stays on Ctrl+Y
   (also within a hypothesis). The UI check redoes with Ctrl+Y.
+- **No tabs with only one of them:** while "Lösungsweg" is hidden (a party
+  round in progress, a hard library puzzle before it is solved), the lone
+  filled "Selbst lösen" looked like a big button; the tab row is hidden
+  then (`.tabs:has(#tab-watch[hidden])`) and appears once there is a
+  solving path. The UI check records whether the tab row shows.
 
 ## Measurements
 
