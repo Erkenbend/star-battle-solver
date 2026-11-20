@@ -604,7 +604,9 @@ const scenarios = {
     await click(cell(wrongIn(3)), { shift: true });
     await settle(bannerHas("Alle Leben verloren"));
     await obs("out of lives");
-    record({ label: "out of lives: wrong star in red", bad: await js(`document.querySelectorAll("#board .cell.bad").length === 1`) });
+    // That star, not the rule violations it may add (a color of the random
+    // puzzle with two stars), so not a count.
+    record({ label: "out of lives: wrong star in red", bad: await js(hasClass(wrongIn(3), "bad")) });
     await server(p, "out", (me) => me.status === "out");
     await reload();
     await obs("reloaded when out");
