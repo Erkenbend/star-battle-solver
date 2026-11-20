@@ -37,6 +37,7 @@ and open ideas.
 | [25](25-mobile-first-page.md) | Puzzle page laid out for phones first (variant B) | done |
 | [26](26-installable-web-app.md) | The site can be installed as a web app (manifest, icons, no offline play) | done |
 | [27](27-solo-resumes.md) | "/" leads back to the unsolved solo puzzle | done |
+| [28](28-news-below-the-board.md) | Banner and tutorial card below the board, `keepBoard` removed | done |
 
 ## Adding a decision
 

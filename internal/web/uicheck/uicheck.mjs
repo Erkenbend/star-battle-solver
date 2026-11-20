@@ -145,9 +145,10 @@ async function pos(sel) {
   return r;
 }
 // On a phone (the scenarios in PHONE_SCENARIOS), the board must stay where
-// it is on screen when the player acts on it: what changes above it (a
-// banner, the tutorial's card) would make the next tap land elsewhere.
-// Every move is an error of the scenario.
+// it is on screen when the player acts on it: what changed above it (a
+// banner, the tutorial's card, the tabs appearing) would make the next tap
+// land elsewhere, and on the solving tap the page would jump. Every move is
+// an error of the scenario.
 let phone = false;
 const moves = [];
 const boardAt = () => js(`(() => { const b = document.getElementById("board"); return b ? location.href + " " + Math.round(b.getBoundingClientRect().top) : ""; })()`);
@@ -276,6 +277,20 @@ async function obs(label, { random = false } = {}) {
     const r = b.getBoundingClientRect(), top = nav && !nav.hidden ? nav.getBoundingClientRect().top : innerHeight;
     return r.bottom <= top + 1 || r.top >= innerHeight ? "not covered" : "under the tab bar";
   })()`);
+  // The banner and the tutorial's card come with a tap on the board (solved,
+  // a hypothesis, a party's news, the next step): they must be on screen
+  // then, not above it, where only scrolling back up finds them. Only
+  // recorded while one is shown.
+  if (phone) {
+    const seen = await js(`(() => {
+      const nav = document.getElementById("site-nav"), bottom = nav && !nav.hidden ? nav.getBoundingClientRect().top : innerHeight;
+      return ["banner", "tutorial"].map((id) => document.getElementById(id)).filter((e) => e && !e.hidden && e.offsetParent).map((e) => {
+        const r = e.getBoundingClientRect();
+        return e.id + ": " + (r.top < -1 ? "above the screen" : r.bottom > bottom + 1 ? "below the screen" : "on screen");
+      }).join(", ");
+    })()`);
+    if (seen) o.seen = seen;
+  }
   // Words of the action bar cut off ("Aufgeb…"): only recorded when there are any.
   if (phone) {
     const cut = await js(`[...document.querySelectorAll(".actionbar button span")].filter((e) => e.offsetParent && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent).join(",")`);
@@ -518,9 +533,9 @@ const scenarios = {
   },
 
   // The same on a phone, where the page is shorter than the screen: what
-  // comes above the board (a hint, a check, the banner of the solve) must
-  // not move it under a tap, and the action bar must neither lie under the
-  // tab bar nor cut its words.
+  // comes with a tap (a hint, a check, the banner of the solve) must not
+  // move the board, the banner must be on screen, and the action bar must
+  // neither lie under the tab bar nor cut its words.
   async solophone() {
     await scenarios.solo();
   },
@@ -707,6 +722,13 @@ const scenarios = {
     await obs("motif solved");
   },
 
+  // The library on a phone: once a puzzle is solved, its banner ("Weiter:
+  // 10-4") must be on screen, and the board must not move. After library,
+  // which sees the hard puzzle before the server has solved it.
+  async libraryphone() {
+    await scenarios.library();
+  },
+
   // A party round against each other: progress, hints, hypothesis (not
   // reported), solving, the end of the round; then giving up.
   async versus() {
@@ -729,7 +751,7 @@ const scenarios = {
     await more("#reset");
     await obs("reset in party");
     await solveBy(p.sol, p.n);
-    await waitFor(`!document.getElementById("tab-watch").hidden`);
+    await waitFor(`!document.getElementById("tab-watch").disabled`);
     await obs("solved");
     await server(p, "solved", (me) => me.status === "solved");
     // The solving path while Bob plays on: his progress must not bring back
@@ -940,10 +962,10 @@ const scenarios = {
   },
 };
 
-// Where people play on a phone: solo, the party, the tutorial and coming
+// Where people play on a phone: solo, the library, the party, the tutorial and coming
 // back to a puzzle through the tab bar; and the other pages under the
 // phone's tab bar.
-const PHONE_SCENARIOS = new Set(["tutorial", "solophone", "resume", "versus", "lives", "coop", "race", "pages"]);
+const PHONE_SCENARIOS = new Set(["tutorial", "solophone", "libraryphone", "resume", "versus", "lives", "coop", "race", "pages"]);
 for (const [name, f] of Object.entries(scenarios)) {
   if (ONLY.length && !ONLY.includes(name)) continue;
   scenario = name;

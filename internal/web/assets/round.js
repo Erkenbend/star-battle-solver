@@ -135,8 +135,10 @@ function PartyRound(P) {
   }
 
   function partyTabs() {
-    const open = !race && (P.done || solutionShown()); // no solving trace against the clock
-    $("tab-watch").hidden = !open;
+    const open = !race && (P.done || solutionShown());
+    $("tab-watch").hidden = !!race; // no solving trace against the clock
+    $("tab-watch").disabled = !open; // else greyed out until the end: appearing then, its row would push the board down
+    $("tab-watch").title = open || race ? "" : "Den Lösungsweg gibt es, sobald die Runde für dich vorbei ist";
     if (!open && P.mode === "watch") P.setMode("play");
   }
 

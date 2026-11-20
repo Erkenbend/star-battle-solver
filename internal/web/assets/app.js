@@ -154,42 +154,19 @@ function boot() {
     }
   }
 
-  // Banner and tutorial card sit above the board. When one comes, goes or
-  // wraps anew, the page scrolls by as much, so the board stays where it is
-  // on screen: on a phone the next tap would land a row or two off (a wrong
-  // star in a party round, a chain of the solving path, the next step of the
-  // tutorial). Even if the banner's first line then leaves the screen: while
-  // tapping, the board counts. Where the page cannot scroll that far, it
-  // gets room below (growth) or what shrinks keeps its height (at the top).
-  // Only once the player has touched the page: a page that opens with a
-  // banner opens at its top.
-  let touched = false;
-  for (const t of ["pointerdown", "keydown"]) document.addEventListener(t, () => { touched = true; }, { once: true, capture: true });
-  function keepBoard(above, change) {
-    if (!touched) return change();
-    const before = boardEl.getBoundingClientRect().top;
-    const height = above.hidden ? 0 : above.offsetHeight; // as shown, a height held before included
-    above.style.minHeight = "";
-    change();
-    const shift = boardEl.getBoundingClientRect().top - before;
-    if (!shift) return;
-    window.scrollBy(0, shift);
-    const left = boardEl.getBoundingClientRect().top - before;
-    if (left > 1) { // the end of the page: room below it, as much as the scroll needs (more than left on a page shorter than the screen)
-      const pad = parseFloat(document.body.style.paddingBottom) || 0;
-      document.body.style.paddingBottom = pad + Math.max(0, window.scrollY + left + innerHeight - document.body.offsetHeight) + "px";
-      window.scrollBy(0, left);
-    } else if (left < -1 && height && !above.hidden) above.style.minHeight = height + "px";
-  }
+  // Banner and tutorial card (.news) sit below the board on phones, beside
+  // it on wide screens: what a tap brings shows at once, and when one
+  // comes, goes or wraps anew the board stays where it is on screen, so the
+  // next tap lands where the player aims (a party round, a chain of the
+  // solving path, the next step of the tutorial). Nothing above the board
+  // may change height on a tap.
   // extra: buttons or links after the text.
   function banner(text, cls, ...extra) {
     const b = $("banner");
-    keepBoard(b, () => {
-      b.hidden = !text;
-      b.replaceChildren(...rich(text || ""));
-      for (const e of extra) b.append(" ", e);
-      b.className = "banner " + (cls || "");
-    });
+    b.hidden = !text;
+    b.replaceChildren(...rich(text || ""));
+    for (const e of extra) b.append(" ", e);
+    b.className = "banner " + (cls || "");
   }
 
   function chip(step) {
@@ -231,7 +208,7 @@ function boot() {
   // race.js) see the page through P: the data, helpers to draw, and the play
   // state of this function, read and written through accessors.
   const P = {
-    L, d, n, $, el, elr, chip, banner, keepBoard, drawBoard, boardEl, cellEls,
+    L, d, n, $, el, elr, chip, banner, drawBoard, boardEl, cellEls,
     get saved() { return saved; },
     get marks() { return marks; },
     set marks(v) { marks = v; },
@@ -526,14 +503,15 @@ function boot() {
       party.tabs();
       party.report();
     }
-    if (bare) {
-      $("tab-watch").hidden = !done;
+    if (bare) { // the tab is there, greyed out: appearing on the solving tap, its row would push the board down
+      $("tab-watch").disabled = !done;
+      $("tab-watch").title = done ? "" : "Den Lösungsweg gibt es, sobald das Puzzle gelöst ist";
       if (done && lib.pending) loadTrace();
     }
     if (T) T.draw(eff.cells);
   }
 
-  // The banner above the board in the play tab, once renderPlay is done.
+  // The banner below the board in the play tab, once renderPlay is done.
   function playBanner(solved) {
     if (solved && !race && !tut) { // against the clock, the party banner tells how it goes on; in the tutorial its card
       const with_ = bare ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;

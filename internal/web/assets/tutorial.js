@@ -1,8 +1,9 @@
 "use strict";
 
 // The tutorial (/anleitung, d.tutorial, see tutorial.go) on the puzzle page:
-// a card above the board guides through the steps, marking the cells each
-// one asks for; the player's moves decide which step is shown. Once solved,
+// a card below the board (beside it on wide screens) guides through the
+// steps, marking the cells each one asks for; the player's moves decide
+// which step is shown. Once solved,
 // a tour points at the page's buttons one by one, then the player goes on to
 // the page they came from.
 //
@@ -37,23 +38,21 @@ function Tutorial(P) {
     P.cellEls.forEach((e, i) => e.classList.toggle("goal", goal.has(i)));
     if (k === tut.step) return;
     tut.step = k;
-    P.keepBoard($("tutorial"), () => { // the board stays in place
-      const skip = el("button", "quiet", "Überspringen");
-      skip.onclick = tutLeave;
-      const head = el("div", "head");
-      if (k < steps.length) {
-        head.append(el("span", null, `Anleitung · Schritt ${k + 1} von ${steps.length}`), skip);
-        $("tutorial").replaceChildren(head, el("strong", null, steps[k].action), elr("p", null, steps[k].text));
-      } else {
-        const go = el("button", "primary", "Weiter");
-        go.onclick = () => tourShow(0);
-        const actions = el("div", "actions");
-        actions.append(go);
-        head.append(el("span", null, "Anleitung"), skip);
-        $("tutorial").replaceChildren(head, el("strong", null, "Gelöst!"), el("p", null, "Zum Schluss ein kurzer Blick auf die Knöpfe."), actions);
-      }
-      $("tutorial").hidden = false;
-    });
+    const skip = el("button", "quiet", "Überspringen");
+    skip.onclick = tutLeave;
+    const head = el("div", "head");
+    if (k < steps.length) {
+      head.append(el("span", null, `Anleitung · Schritt ${k + 1} von ${steps.length}`), skip);
+      $("tutorial").replaceChildren(head, el("strong", null, steps[k].action), elr("p", null, steps[k].text));
+    } else {
+      const go = el("button", "primary", "Weiter");
+      go.onclick = () => tourShow(0);
+      const actions = el("div", "actions");
+      actions.append(go);
+      head.append(el("span", null, "Anleitung"), skip);
+      $("tutorial").replaceChildren(head, el("strong", null, "Gelöst!"), el("p", null, "Zum Schluss ein kurzer Blick auf die Knöpfe."), actions);
+    }
+    $("tutorial").hidden = false;
   }
 
   // The tour: a dimmed page with a hole around the element of stop k and a

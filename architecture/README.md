@@ -229,9 +229,12 @@ Three rules of the puzzle page that bugs found on phones broke:
 `renderPlay` runs after every change, also from party events and timers,
 and draws board and banner only in the play tab (the solving path draws its
 own); a party page changes pages only through `Party.goTo`, as setting
-`location` again while a page loads starts the load over; and what changes
-height above the board goes through `keepBoard` (`banner()` does), which
-keeps the board where it is on screen. Some board
+`location` again while a page loads starts the load over; and nothing above
+the board changes height on a tap, so the board stays where it is on
+screen: the banner and the tutorial's card (`.news`) come below it on
+phones and beside it on wide screens, a tab that comes later is greyed out
+rather than hidden ([decision 28](decisions/28-news-below-the-board.md)).
+Some board
 logic exists twice, in Go and in JS; the comments point to the counterpart,
 and the node test checks that following the hints solves every hard puzzle.
 

@@ -106,6 +106,9 @@ After the second review (B only):
   filled "Selbst lösen" looked like a big button; the tab row is hidden
   then (`.tabs:has(#tab-watch[hidden])`) and appears once there is a
   solving path. The UI check records whether the tab row shows.
+  Changed in [decision 28](28-news-below-the-board.md): the tab is greyed
+  out instead, so the row does not push the board down on the solving tap;
+  hidden only against the clock.
 
 ## Measurements
 
