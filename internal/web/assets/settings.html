@@ -19,35 +19,43 @@
     <a href="/einstellungen" class="settings" title="Einstellungen" aria-label="Einstellungen" aria-current="page"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M6.9 1h2.2l.4 2 1.3.6 1.7-1.2 1.6 1.6-1.2 1.7.6 1.3 2 .4v2.2l-2 .4-.6 1.3 1.2 1.7-1.6 1.6-1.7-1.2-1.3.6-.4 2H6.9l-.4-2-1.3-.6-1.7 1.2-1.6-1.6 1.2-1.7-.6-1.3-2-.4V6.9l2-.4.6-1.3-1.2-1.7 1.6-1.6 1.7 1.2 1.3-.6zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z"/></svg><span>Einstellungen</span></a>
   </nav>
   <div class="title">
-    <h1>Einstellungen</h1>
-    <p class="sub">Gilt für alle Puzzles und Spielmodi in diesem Browser.</p>
+    <div class="title-row">
+      <h1>Einstellungen</h1>
+      <button id="info-btn" class="pill round" aria-expanded="false" aria-controls="info" title="Worum es geht" aria-label="Worum es geht"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM7.1 7h1.8v4.5H7.1zM8 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg></button>
+    </div>
   </div>
 </header>
 
 <main class="settings-main">
+  <div class="card info" id="info" hidden>
+    <p>Gilt für alle Puzzles und Spielmodi in diesem Browser. Jede Änderung ist sofort gespeichert.</p>
+    <p class="muted">Symbol für Sterne: Die Regeln bleiben gleich, nur das Brett zeigt statt ★ dein Symbol. Mitspielende in einer Party sehen ihr eigenes. Die Vorschau zeigt es auf verschiedenen Farben, rechts als falsch markiert.</p>
+  </div>
   <fieldset class="settings-group">
-    <legend><h2>Spielen</h2></legend>
-    <label class="option"><input type="checkbox" id="autocross">
-      <span><strong>Nachbarn eines Sterns automatisch kreuzen</strong>
-      <span class="muted">Alle Felder in Zeile, Spalte und Farbe eines Sterns und rund um ihn bekommen einen Punkt, denn dort kann kein weiterer Stern stehen.</span></span></label>
-    <label class="option"><input type="checkbox" id="straight">
-      <span><strong>Fat-Finger-Schutz</strong>
-      <span class="muted">Beim Ziehen nur in gerader Zeile oder Spalte kreuzen, damit ein abrutschender Finger keine Nachbarn trifft. Auf Touchscreens von Anfang an an.</span></span></label>
-    <label class="option"><input type="checkbox" id="showproblems">
-      <span><strong>Regelverstöße sofort rot markieren</strong>
-      <span class="muted">Zum Beispiel zwei Sterne, die sich berühren. Ausgeschaltet zeigt nur noch „Prüfen“ Fehler.</span></span></label>
-    <label class="option"><input type="checkbox" id="fadedone">
-      <span><strong>Erledigte Zeilen, Spalten und Farben blasser zeigen</strong>
-      <span class="muted">Sobald eine Zeile, Spalte oder Farbe ihren Stern hat, verlieren ihre Felder etwas Farbe. So sieht man auf großen Brettern leichter, was noch offen ist.</span></span></label>
-    <label class="option sub"><input type="checkbox" id="fadecolorsonly">
-      <span><strong>Nur Farben blasser zeigen</strong>
-      <span class="muted">Zeilen und Spalten behalten ihre Farbe, damit eine blasse Zeile nicht wie eine Farbe mit ähnlichem Ton aussieht. Nur mit der Option darüber.</span></span></label>
+    <legend><h2>Spielhilfen</h2></legend>
+    <div class="card list">
+      <label class="option"><input type="checkbox" id="autocross">
+        <span><strong>Nachbarn eines Sterns automatisch kreuzen</strong>
+        <span class="muted">Zeile, Spalte, Farbe und Nachbarn eines Sterns bekommen einen Punkt: Dort kann kein weiterer stehen.</span></span></label>
+      <label class="option"><input type="checkbox" id="straight">
+        <span><strong>Fat-Finger-Schutz</strong>
+        <span class="muted">Ziehen kreuzt nur in gerader Zeile oder Spalte. Auf Touchscreens von Anfang an an.</span></span></label>
+      <label class="option"><input type="checkbox" id="showproblems">
+        <span><strong>Regelverstöße sofort rot markieren</strong>
+        <span class="muted">Etwa zwei Sterne, die sich berühren. Aus: Fehler zeigt nur „Prüfen“.</span></span></label>
+      <label class="option"><input type="checkbox" id="fadedone">
+        <span><strong>Erledigte Zeilen, Spalten und Farben blasser zeigen</strong>
+        <span class="muted">Was seinen Stern hat, verliert Farbe; was noch offen ist, fällt auf.</span></span></label>
+      <label class="option sub"><input type="checkbox" id="fadecolorsonly">
+        <span><strong>Nur Farben blasser zeigen</strong>
+        <span class="muted">Zeilen und Spalten behalten ihre Farbe, damit sie nicht wie eine ähnliche Farbe aussehen.</span></span></label>
+    </div>
   </fieldset>
   <fieldset class="settings-group symbols" id="symbols">
     <legend><h2>Symbol für Sterne</h2></legend>
-    <p class="muted">Die Regeln bleiben gleich, nur das Brett zeigt statt ★ dein Symbol. Mitspielende in einer Party sehen ihr eigenes. Die Vorschau zeigt es auf verschiedenen Farben, rechts als falsch markiert.</p>
     <p class="settings-status" id="status" role="status"></p>
     <div class="symbol-list" id="symbol-list"></div>
+    <p class="symbol-desc muted" id="symbol-desc"></p>
   </fieldset>
 </main>
 <p class="saved-toast" id="saved" role="status" aria-live="polite"></p>

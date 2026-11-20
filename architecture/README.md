@@ -216,7 +216,11 @@ used now and then in "Mehr" (`#more-sheet`), opening in place below the bar.
 Up to 860 px the site navigation of every page is a tab bar fixed at the
 bottom. Element ids
 stayed what they were, so the parts and the UI check find their buttons
-wherever they now sit.
+wherever they now sit. The other pages share its parts, all in `style.css`:
+ⓘ beside the title (`#info-btn`) folds the page's longer text (`#info`);
+an option is a switch (a checkbox in `.toggle` or `.option`), several sizes
+are chips (`.sizes .size`), one of a few is a segmented choice (`.tabs`,
+`.modes`), a group of choices has a small capital heading.
 
 Three rules of the puzzle page that bugs found on phones broke:
 `renderPlay` runs after every change, also from party events and timers,

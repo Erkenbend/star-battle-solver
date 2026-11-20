@@ -313,11 +313,37 @@ button.pill[aria-pressed="true"], button.pill[aria-expanded="true"] { color: var
 .panel { position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .clock { margin-left: auto; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.toggle { font-size: 14px; display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+/* An option, on or off: its words, then a switch (a checkbox drawn as one). */
+.toggle { font-size: 14px; display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 4px 0; cursor: pointer; }
 /* An option that is part of the one above: indented, faint while that is off. */
 .toggle.sub { margin-left: 24px; }
 .toggle:has(input:disabled) { opacity: 0.5; }
-.toggle input { width: 18px; height: 18px; margin: 0; flex: none; }
+:is(.toggle, .option) input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; order: 2; flex: none; position: relative;
+  width: 40px; height: 24px; margin: 0; border-radius: 999px; cursor: inherit;
+  background: color-mix(in srgb, var(--fg) 22%, transparent); transition: background 0.15s;
+}
+:is(.toggle, .option) input[type="checkbox"]::before {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s;
+}
+:is(.toggle, .option) input[type="checkbox"]:checked { background: var(--accent); }
+:is(.toggle, .option) input[type="checkbox"]:checked::before { transform: translateX(16px); }
+:is(.toggle, .option) input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { :is(.toggle, .option) input[type="checkbox"], :is(.toggle, .option) input[type="checkbox"]::before { transition: none; } }
+/* A size to choose, several at once: a chip, filled when chosen. */
+.sizes .size {
+  position: relative; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--card); font-size: 14px; cursor: pointer;
+}
+.sizes .size input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.sizes .size:has(input:checked) { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.sizes .size:has(input:disabled) { opacity: 0.5; cursor: default; }
+.sizes .size:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* A heading over a few choices: small, in capitals, faint ("Spielhilfen"). */
+.sheet h2, .settings-group h2, .party-main .card > h2 {
+  margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+}
 svg.stroke { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 button svg.flip { transform: scaleX(-1); }
 
@@ -366,7 +392,6 @@ button svg.flip { transform: scaleX(-1); }
   border: 1px solid var(--border); border-radius: 12px;
 }
 .sheet-backdrop { display: none !important; }
-.sheet h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .sheet .row { display: flex; gap: 6px; }
 .sheet .row select { flex: 1; }
 .sheet-actions { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -375,7 +400,7 @@ button svg.flip { transform: scaleX(-1); }
 #play-options { display: flex; flex-direction: column; gap: 4px; }
 .options-link { margin: 6px 0 0; font-size: 14px; }
 .options-link a { color: var(--accent); }
-.newgame-pool { gap: 4px 14px; font-size: 14px; }
+.newgame-pool { margin-top: 10px; }
 @media (max-width: 860px) {
   .sheet .toggle { padding: 7px 0; }
 }
@@ -389,6 +414,9 @@ button svg.flip { transform: scaleX(-1); }
 }
 .card p { margin: 0 0 6px; }
 .card p:last-child { margin-bottom: 0; }
+/* A list of options in one card, a line between them. */
+.card.list { padding: 0 14px; }
+.card.list > * + * { border-top: 1px solid var(--border); }
 .muted { color: var(--muted); }
 .card .actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .current { min-height: 7.5em; }
@@ -507,23 +535,28 @@ input:not([type]), input[type="text"] {
 }
 input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .party-main { max-width: 760px; margin: 0 auto; padding: 8px 16px 32px; display: flex; flex-direction: column; gap: 14px; }
-.party-main h2 { margin: 0 0 4px; font-size: 18px; }
 .party-start, .party-lobby { display: flex; flex-direction: column; gap: 14px; }
-.sizes { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.sizes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .size { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.modes { display: grid; gap: 6px; margin-top: 8px; }
-.mode { display: flex; align-items: baseline; gap: 6px; }
+/* The modes of a party: one of three, like the tabs. */
+.modes { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.mode { flex: 1; position: relative; text-align: center; padding: 6px 2px; border-radius: 7px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+@media (max-width: 420px) { .mode { font-size: 13px; } }
+.mode input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.mode:has(input:checked) { background: var(--accent); color: var(--accent-fg); }
+.mode:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mode-desc { margin: 8px 0 0; font-size: 13px; }
 /* The choices of a new party fold away, so the card stays short and the
    code field of "Beitreten" below is in sight; each summary tells the choice. */
-details.opt { border-top: 1px solid var(--border); padding: 8px 0; }
-details.opt:last-of-type { border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+details.opt { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px 0; margin: 12px 0 10px; }
 details.opt > summary { cursor: pointer; font-weight: 600; }
 details.opt > summary .muted { font-weight: 400; margin-left: 4px; }
 details.opt > p { margin: 8px 0 0; }
-.mode-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 10px; }
+.mode-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 10px; font-size: 14px; }
 .mode-options[hidden] { display: none; }
 .mode-options label { display: flex; align-items: center; gap: 6px; }
 .mode-options p { margin: 0; font-size: 13px; }
+#create .actions button { flex: 1; max-width: 320px; }
 .code-input { width: 6.5em; text-transform: uppercase; letter-spacing: 0.2em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .share { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .share .code { font: 700 26px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.18em; }
@@ -573,11 +606,12 @@ details.opt > p { margin: 8px 0 0; }
 .banner a.next:hover { border-color: var(--muted); }
 .lib-main { max-width: 1180px; margin: 0 auto; padding: 8px 16px 32px; display: flex; flex-direction: column; gap: 18px; }
 .lib-tabs { align-self: flex-start; }
-.lib-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+@media (max-width: 860px) { .lib-tabs { align-self: stretch; } .lib-tabs button { flex: 1; } }
+.lib-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 18px; max-width: 760px; }
 .lib-progress { margin: 0; font-weight: 550; font-variant-numeric: tabular-nums; }
 /* Groups flow side by side, so the small sizes (1 to 3 puzzles) share a row. */
 #groups { display: flex; flex-wrap: wrap; gap: 24px 32px; }
-.lib-group h2 { margin: 0 0 8px; font-size: 16px; color: var(--muted); font-weight: 600; }
+.lib-group h2 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
 .lib-grid { display: flex; flex-wrap: wrap; gap: 12px; }
 .lib-tile {
   width: 120px;
@@ -586,6 +620,12 @@ details.opt > p { margin: 8px 0 0; }
   color: var(--fg); text-decoration: none;
 }
 .lib-tile:hover { border-color: var(--muted); }
+/* Phones: three tiles a row, the sizes flowing on in the same columns. */
+@media (max-width: 560px) {
+  #groups { gap: 18px 10px; }
+  .lib-grid { gap: 10px; }
+  .lib-tile { width: calc((100vw - 32px - 20px) / 3); padding: 6px; }
+}
 .lib-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .lib-tile svg { width: 100%; height: auto; display: block; border-radius: 4px; }
 .lib-tile svg .thick { stroke: var(--fg); stroke-width: 0.08; fill: none; stroke-linecap: square; }
@@ -620,38 +660,44 @@ details.opt > p { margin: 8px 0 0; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner, .tabs button.loading::after { animation-duration: 2.4s; } }
-.lib-note { border-left: 4px solid var(--hint); max-width: 760px; }
+.card.info { max-width: 760px; }
+.info .lib-note { margin-top: 8px; }
+.lib-warn { margin: 0; padding-left: 10px; border-left: 3px solid var(--hint); font-size: 14px; }
 
 /* ---------- settings ---------- */
-.settings-main { max-width: 1180px; margin: 0 auto; padding: 8px 16px 32px; display: flex; flex-direction: column; gap: 24px; }
+.settings-main { max-width: 1180px; margin: 0 auto; padding: 8px 16px 32px; display: flex; flex-direction: column; gap: 20px; }
 .settings-group { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .settings-group legend { padding: 0; margin-bottom: 4px; }
-.settings-group h2 { margin: 0; font-size: 18px; }
 .settings-group > p { margin: 0 0 4px; }
-.option {
-  display: flex; align-items: flex-start; gap: 10px; max-width: 760px;
-  padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
-}
-.option input { margin: 3px 0 0; flex: none; }
-.option.sub { margin-left: 28px; max-width: 732px; }
+.settings-group .list { max-width: 760px; }
+.option { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; cursor: pointer; }
+.option.sub { padding-left: 24px; }
 .option:has(input:disabled) { opacity: 0.5; cursor: default; }
 .option > span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.option strong { font-weight: 550; }
 .option .muted { font-size: 12.5px; }
-.symbol-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
-@media (max-width: 400px) { .symbol-list { grid-template-columns: minmax(0, 1fr); } }
+/* The symbols: tiles with their preview and name, the chosen one framed. */
+.symbol-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 8px; }
 .symbol-option {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px; min-width: 0;
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 10px 8px 8px; min-width: 0;
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;
   cursor: pointer;
 }
 .symbol-option:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.symbol-option input { margin: 0; flex: none; }
+.symbol-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.symbol-option input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
 .symbol-preview { display: flex; flex: none; }
 .symbol-cell { display: contents; } /* carries the classes of its cell's symbol */
 .symbol-preview .cell { width: 38px; cursor: inherit; touch-action: auto; }
-.symbol-text { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
-.symbol-text .muted { font-size: 12.5px; }
+.symbol-name { font-size: 14px; font-weight: 550; }
+.symbol-option:has(input:checked) .symbol-name { color: var(--accent); }
+.symbol-desc { margin: 0; font-size: 13px; max-width: 760px; }
+@media (max-width: 400px) {
+  .symbol-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .symbol-preview .cell { width: 33px; }
+}
+.settings-status:empty { display: none; }
 .settings-status { min-height: 1.45em; margin: 0; font-size: 14px; color: var(--muted); }
 /* The notice after each change (settings.js saved), wherever the page is scrolled. */
 .saved-toast {

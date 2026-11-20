@@ -19,8 +19,10 @@
     <a href="/einstellungen" class="settings" title="Einstellungen" aria-label="Einstellungen"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M6.9 1h2.2l.4 2 1.3.6 1.7-1.2 1.6 1.6-1.2 1.7.6 1.3 2 .4v2.2l-2 .4-.6 1.3 1.2 1.7-1.6 1.6-1.7-1.2-1.3.6-.4 2H6.9l-.4-2-1.3-.6-1.7 1.2-1.6-1.6 1.2-1.7-.6-1.3-2-.4V6.9l2-.4.6-1.3-1.2-1.7 1.6-1.6 1.7 1.2 1.3-.6zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z"/></svg><span>Einstellungen</span></a>
   </nav>
   <div class="title">
-    <h1>Bibliothek</h1>
-    <p class="sub">Motive aus dem Designer und besonders schwere Puzzles.</p>
+    <div class="title-row">
+      <h1>Bibliothek</h1>
+      <button id="info-btn" class="pill round" aria-expanded="false" aria-controls="info" title="Worum es geht" aria-label="Worum es geht"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM7.1 7h1.8v4.5H7.1zM8 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg></button>
+    </div>
   </div>
 </header>
 
@@ -29,14 +31,18 @@
     <button role="tab" id="tab-motive" data-kind="motive" aria-selected="true">Motive</button>
     <button role="tab" id="tab-schwer" data-kind="schwer" aria-selected="false">Schwer</button>
   </nav>
-  <div class="card lib-note" data-kind="motive">
+  <div class="card info" id="info" hidden>
+    <p>Motive aus dem Designer und besonders schwere Puzzles.</p>
+    <div class="lib-note" data-kind="motive">
     <p><strong>Motive:</strong> Puzzles, deren Regionen ein Bild ergeben, gezeichnet im Designer.</p>
     <p class="muted">Gespielt wird wie beim Solo-Spiel: mit Hinweisen, Prüfen und dem Lösungsweg des Solvers.</p>
-  </div>
-  <div class="card lib-note" data-kind="schwer" hidden>
+    </div>
+    <div class="lib-note" data-kind="schwer" hidden>
     <p><strong>Achtung, besonders schwer:</strong> Diese Puzzles sind keine gewöhnlichen Puzzles aus dem Generator. Sie wurden ausgesucht, weil die einfachen Regeln an ihnen scheitern. Oft hilft nur noch ein Gedankenexperiment („Was wäre, wenn hier ein Stern stünde?“), und selbst der Solver braucht dafür manchmal viele Anläufe.</p>
     <p class="muted">Hier gibt es keine Hinweise und kein Prüfen. Den Lösungsweg des Solvers siehst du erst, wenn du das Puzzle gelöst hast.</p>
+    </div>
   </div>
+  <p class="lib-note lib-warn" data-kind="schwer" hidden><strong>Besonders schwer:</strong> ohne Hinweise und Prüfen, mehr unter ⓘ.</p>
   <div class="lib-bar">
     <p class="lib-progress" id="progress"></p>
     <label class="toggle"><input type="checkbox" id="hide-solved"> Gelöste ausblenden</label>

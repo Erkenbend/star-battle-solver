@@ -38,6 +38,28 @@ removed; things moved:
 - Hint shown: the hint button stays pressed (`aria-pressed`) instead of
   changing its label to "Hinweis ausblenden", which did not fit in the bar.
 
+After the first review:
+
+- **"Neues Puzzle" in one tap** beside the title (`#newgame-go`, a submit
+  button of the form in "Mehr", so it takes the size chosen there). On
+  phones the title drops "Star Battle" to fit beside it in one line.
+- **No button stands out:** the hint button is no longer tinted; a button
+  that is on (hint shown, playing) is filled (`aria-pressed`).
+- **The player** in the solving path has the action bar's look on phones:
+  Anfang, Zurück, Abspielen/Pause, Weiter, Ende, and the speed as a select
+  under a gauge icon. Before, its buttons and the select ran over the edges
+  of the screen.
+- **The other pages** (library, settings, party) got the same parts: the
+  intro text behind ⓘ beside the title, options as switches, sizes as
+  chips, section headings in small capitals. Settings: the play options in
+  one list card with one line of explanation each (shortened, the full
+  text is in `docs/playing.md`), the symbols as tiles with preview and name
+  (two a row on phones), what kind of symbol the chosen one is below them.
+  Library: the tabs across the width, three tiles a row on phones, a
+  one-line warning on the hard part (the long one behind ⓘ). Party: the
+  three modes as one segmented choice with the chosen mode's description
+  below; the explanation of lives only once lives are limited.
+
 The tutorial's steps say "Tippen"/"Doppeltippen", and its tour points at the
 star tool, Annahme, Mehr and ⓘ in addition to the navigation.
 

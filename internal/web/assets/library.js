@@ -18,6 +18,13 @@
   };
   const SVG = "http://www.w3.org/2000/svg";
 
+  // ⓘ beside the title: what the page is about, folded away.
+  $("info-btn").onclick = () => {
+    const on = $("info").hidden;
+    $("info").hidden = !on;
+    $("info-btn").setAttribute("aria-expanded", on);
+  };
+
   let solved = {};
   try {
     const v = JSON.parse(localStorage.getItem("starbattle:library:solved") || "{}");

@@ -17,6 +17,13 @@
     return e;
   };
 
+  // ⓘ beside the title: what the page is about, folded away.
+  $("info-btn").onclick = () => {
+    const on = $("info").hidden;
+    $("info").hidden = !on;
+    $("info-btn").setAttribute("aria-expanded", on);
+  };
+
   const KIND = {
     svg: "Form, färbt sich bei Fehlern rot",
     glyph: "Schriftzeichen, sieht je nach Gerät etwas anders aus",
@@ -125,6 +132,7 @@
       L.saveMark(entry());
       current = id;
       $("status").textContent = "";
+      $("symbol-desc").textContent = `${name}: ${description}`;
       saved(`„${name}“ gespeichert`);
       shown = specs();
       const next = preview(shown);
@@ -132,9 +140,11 @@
       box = next;
       play();
     });
-    const text = el("span", "symbol-text");
-    text.append(el("strong", "", name), el("span", "muted", description));
-    lab.append(input, box, text);
+    // The tile shows the name; what kind of symbol it is, below the list
+    // for the chosen one, and as the tile's tooltip.
+    lab.title = description;
+    if (input.checked) $("symbol-desc").textContent = `${name}: ${description}`;
+    lab.append(input, box, el("strong", "symbol-name", name));
     list.append(lab);
   }
   d.symbols.forEach((s, k) => option(s.id, s.name, describe(s), () => s, () => [allSpecs[k]]));

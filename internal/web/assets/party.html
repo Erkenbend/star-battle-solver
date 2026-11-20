@@ -19,61 +19,64 @@
     <a href="/einstellungen" class="settings" title="Einstellungen" aria-label="Einstellungen"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M6.9 1h2.2l.4 2 1.3.6 1.7-1.2 1.6 1.6-1.2 1.7.6 1.3 2 .4v2.2l-2 .4-.6 1.3 1.2 1.7-1.6 1.6-1.7-1.2-1.3.6-.4 2H6.9l-.4-2-1.3-.6-1.7 1.2-1.6-1.6 1.2-1.7-.6-1.3-2-.4V6.9l2-.4.6-1.3-1.2-1.7 1.6-1.6 1.7 1.2 1.3-.6zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z"/></svg><span>Einstellungen</span></a>
   </nav>
   <div class="title">
-    <h1 id="party-title">Zusammen spielen</h1>
-    <p class="sub" id="party-sub">Alle lösen gleichzeitig dieselben Puzzles: gegeneinander, miteinander am selben Brett oder gegen die Uhr.</p>
+    <div class="title-row">
+      <h1 id="party-title">Zusammen spielen</h1>
+      <button id="info-btn" class="pill round" aria-expanded="false" aria-controls="info" title="Worum es geht" aria-label="Worum es geht"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zM7.1 7h1.8v4.5H7.1zM8 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg></button>
+    </div>
   </div>
 </header>
 
 <main class="party-main">
   <div class="banner what-if" id="party-error" hidden></div>
+  <div class="card info" id="info" hidden>
+    <p>Alle lösen gleichzeitig dieselben Puzzles: gegeneinander, miteinander am selben Brett oder gegen die Uhr.</p>
+    <p class="muted">Wer eine Party startet, bekommt einen Code aus vier Buchstaben; mit ihm oder dem Link treten die anderen bei.</p>
+  </div>
 
   <div class="party-start" id="start" hidden>
     <form class="card" method="post" action="/party" id="create">
       <h2>Neue Party</h2>
+      <div class="modes" role="radiogroup" aria-label="Spielweise">
+        <label class="mode"><input type="radio" name="mode" value="versus" checked><span>Gegeneinander</span></label>
+        <label class="mode"><input type="radio" name="mode" value="coop"><span>Miteinander</span></label>
+        <label class="mode"><input type="radio" name="mode" value="clock"><span>Gegen die Uhr</span></label>
+      </div>
+      <p class="muted mode-desc" id="mode-desc"></p>
+      <div class="mode-options" id="versus-options">
+        <label>Erlaubte Fehler pro Puzzle <select name="lives">
+          <option value="0" selected>beliebig viele</option>
+          <option value="6">5</option>
+          <option value="4">3</option>
+          <option value="3">2</option>
+          <option value="2">1</option>
+          <option value="1">keiner</option>
+        </select></label>
+        <p class="muted" id="lives-help">Fehler ist jeder Stern, der nicht zur Lösung passt (Kreuze zählen nicht); wer einen mehr setzt, gibt automatisch auf. In einer Annahme zählen sie nicht. Beim Lösen zeigen ♥ die übrigen Leben. In der Wertung zählen dann zuerst die wenigsten Fehler.</p>
+      </div>
+      <div class="mode-options" id="clock-options" hidden>
+        <label>Zeit <select name="minutes">
+          <option value="2">2 Minuten</option>
+          <option value="5" selected>5 Minuten</option>
+          <option value="10">10 Minuten</option>
+        </select></label>
+        <label>Überspringen <select name="skips">
+          <option value="0">nie</option>
+          <option value="1">1×</option>
+          <option value="2" selected>2×</option>
+          <option value="3">3×</option>
+          <option value="5">5×</option>
+          <option value="-1">beliebig oft</option>
+        </select></label>
+      </div>
       <details class="opt" id="opt-sizes">
         <summary>Größen <span class="muted" id="sizes-sum"></span></summary>
         <p class="muted">Jedes Puzzle bekommt zufällig eine der gewählten Größen.</p>
         <div class="sizes" id="sizes"></div>
       </details>
-      <details class="opt" id="opt-mode">
-        <summary>Spielweise <span class="muted" id="mode-sum"></span></summary>
-        <div class="modes">
-          <label class="mode"><input type="radio" name="mode" value="versus" checked> <span><strong>Gegeneinander</strong> <span class="muted">– jede Person auf ihrem eigenen Brett; Wertung: wenigste Hinweise, dann schnellste Zeit.</span></span></label>
-          <label class="mode"><input type="radio" name="mode" value="coop"> <span><strong>Miteinander</strong> <span class="muted">– alle markieren auf demselben Brett, gemeinsame Zeit, ohne Hinweise.</span></span></label>
-          <label class="mode"><input type="radio" name="mode" value="clock"> <span><strong>Gegen die Uhr</strong> <span class="muted">– so viele Puzzles wie möglich in der Zeit, für alle dieselben in derselben Reihenfolge, ohne Hinweise; Wertung: gelöste Puzzles, dann richtige minus falsche Sterne im letzten.</span></span></label>
-        </div>
-        <div class="mode-options" id="versus-options">
-          <label>Erlaubte Fehler pro Puzzle <select name="lives">
-            <option value="0" selected>beliebig viele</option>
-            <option value="6">5</option>
-            <option value="4">3</option>
-            <option value="3">2</option>
-            <option value="2">1</option>
-            <option value="1">keiner</option>
-          </select></label>
-          <p class="muted">Fehler ist jeder Stern, der nicht zur Lösung passt (Kreuze zählen nicht); wer einen mehr setzt, gibt automatisch auf. In einer Annahme zählen sie nicht. Beim Lösen zeigen ♥ die übrigen Leben. In der Wertung zählen dann zuerst die wenigsten Fehler.</p>
-        </div>
-        <div class="mode-options" id="clock-options" hidden>
-          <label>Zeit <select name="minutes">
-            <option value="2">2 Minuten</option>
-            <option value="5" selected>5 Minuten</option>
-            <option value="10">10 Minuten</option>
-          </select></label>
-          <label>Überspringen <select name="skips">
-            <option value="0">nie</option>
-            <option value="1">1×</option>
-            <option value="2" selected>2×</option>
-            <option value="3">3×</option>
-            <option value="5">5×</option>
-            <option value="-1">beliebig oft</option>
-          </select></label>
-        </div>
-      </details>
       <div class="actions"><button type="submit" class="primary">Party starten</button></div>
     </form>
     <form class="card" id="goto">
       <h2>Beitreten</h2>
-      <p class="muted">Code der Party, z.&nbsp;B. von der Person, die sie gestartet hat.</p>
       <div class="actions">
         <input id="goto-code" class="code-input" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD" aria-label="Party-Code" required>
         <button type="submit" class="primary">Beitreten</button>

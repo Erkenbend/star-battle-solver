@@ -15,15 +15,15 @@ Wer zum ersten Mal ein Solo- oder Bibliotheks-Puzzle öffnet, landet einmal dort
 | ![Selbst lösen](screenshots/spielen.png) | ![Lösungsweg](screenshots/loesungsweg.png) |
 | **Selbst lösen:** mit Rückgängig, Prüfen und Hinweisen, die den nächsten logischen Schritt zeigen. | **Lösungsweg:** jeder Schritt mit Regel und Begründung, die betroffenen Felder sind hervorgehoben. |
 
-Die Seite ist fürs Handy und Tablet gebaut: Unter dem Brett stehen „★ Tippen“, ⓘ und die Uhr, darunter eine Leiste mit den Knöpfen zum Spielen: Zurück, Vor, Annahme, Prüfen, Hinweis und „Mehr“. Auf breiten Bildschirmen steht die Leiste neben dem Brett. Die Bereiche der Seite (Solo, Zusammen, Bibliothek, Anleitung, Einstellungen) liegen auf Handy und Tablet wie in einer App in einer Leiste am unteren Rand, auf breiten Bildschirmen oben.
+Die Seite ist fürs Handy und Tablet gebaut: Neben dem Titel steht „Neues Puzzle“, unter dem Brett „★ Tippen“, ⓘ und die Uhr, darunter eine Leiste mit den Knöpfen zum Spielen: Zurück, Vor, Annahme, Prüfen, Hinweis und „Mehr“. Kein Knopf ist hervorgehoben; ein Knopf, der gerade an ist (Hinweis gezeigt, Abspielen läuft), ist gefüllt. Auf breiten Bildschirmen steht die Leiste neben dem Brett. Die Bereiche der Seite (Solo, Zusammen, Bibliothek, Anleitung, Einstellungen) liegen auf Handy und Tablet wie in einer App in einer Leiste am unteren Rand, auf breiten Bildschirmen oben.
 
 - **Bedienung:** Tippen setzt ein ✕, Doppeltippen einen ★, Tippen auf ✕ oder ★ macht das Feld wieder frei. Ziehen setzt viele ✕, auf einem ✕ begonnen entfernt es sie. Mit der Maus setzt oder entfernt auch ein Rechtsklick oder Umschalt+Klick einen ★; Strg+Z und Strg+Y nehmen zurück und wiederholen.
 - **★ Tippen:** Ist der Schalter an, setzt oder entfernt schon ein einfaches Tippen einen Stern; Ziehen kreuzt weiterhin. Er gilt nur, solange die Seite offen ist.
 - **ⓘ** klappt unter dem Brett Regeln, Bedienung und die Bedeutung der Farben auf.
-- **Mehr** klappt unter der Leiste auf, was man seltener braucht: Neues Puzzle (mit Größe), Neu beginnen, in Partys Aufgeben, und die Spielhilfen aus den [Einstellungen](#einstellungen) zum direkten Umschalten.
-- Was der Solver zum Puzzle sagt (gelöst in wie vielen Schritten, Annahmen), steht im Reiter „Lösungsweg“; dort liegen in der Leiste die Knöpfe zum Abspielen.
+- **Mehr** klappt unter der Leiste auf, was man seltener braucht: die Größe neuer Puzzles, Neu beginnen, in Partys Aufgeben, und die Spielhilfen aus den [Einstellungen](#einstellungen) zum direkten Umschalten.
+- Was der Solver zum Puzzle sagt (gelöst in wie vielen Schritten, Annahmen), steht im Reiter „Lösungsweg“; dort liegen in der Leiste die Knöpfe zum Abspielen: Anfang, Zurück, Abspielen, Weiter, Ende und das Tempo.
 
-„Neues Puzzle“ (unter „Mehr“) erzeugt eines der Größe 4 bis 15. Mit „Mehrere Größen“ lassen sich, wie bei einer Party, mehrere Größen ankreuzen; jedes neue Puzzle bekommt dann zufällig eine davon (`/?n=6&n=8&n=10`). Die Auswahl merkt sich der Browser. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.
+„Neues Puzzle“ neben dem Titel erzeugt mit einem Tipp eines in der Größe, die unter „Mehr“ gewählt ist (4 bis 15, anfangs die des aktuellen Puzzles). Mit „Mehrere Größen“ lassen sich, wie bei einer Party, mehrere Größen ankreuzen; jedes neue Puzzle bekommt dann zufällig eine davon (`/?n=6&n=8&n=10`). Die Auswahl merkt sich der Browser. Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `starbattle generate -n 8 -seed 42`. Mit `starbattle html` lässt sich dieselbe Seite auch als einzelne Datei speichern.
 
 **Annahme-Modus:** Wer festhängt, drückt „Annahme“ und setzt probehalber einen Stern, dazu Kreuze und weitere Sterne, bis sich ein Widerspruch zeigt. Die Markierungen der Annahme sind lila hinterlegt, ihr erster Stern hat einen Ring. „Widerspruch“ kehrt zum Stand vor der Annahme zurück und kreuzt das Feld dieses Sterns; „Verwerfen“ kehrt nur zurück. Zurück und Vor bleiben innerhalb der Annahme, Hinweise und Prüfen gibt es während der Annahme nicht. Wer in der Annahme fertig löst, hat ganz normal gelöst. In Partys bleibt eine Annahme privat: Gegeneinander und gegen die Uhr zählen ihre Sterne nicht für den Stand, miteinander sehen die anderen sie nicht.
 
@@ -38,7 +38,7 @@ Bei schweren Puzzles zeigt der Lösungsweg auch die **Gedankenexperimente**: die
 | ![Bibliothek](screenshots/bibliothek.png) | ![Bibliothek: gelöst](screenshots/bibliothek-geloest.png) |
 | **Bibliothek, Teil „Schwer“:** besonders schwere Puzzles zum Stöbern, an denen die einfachen Regeln scheitern. Daneben gibt es Motive aus dem Designer. | **Ohne Hilfe lösen:** keine Hinweise, kein Prüfen. Danach gibt es den Lösungsweg des Solvers, einen Link zum Teilen und das nächste ungelöste Puzzle. |
 
-Die Bibliothek unter `/bibliothek` hat zwei Teile, beide nach Größe sortiert und mit Vorschau. Welcher Teil offen ist, steht im Link (`/bibliothek#motive`, `/bibliothek#schwer`).
+Die Bibliothek unter `/bibliothek` hat zwei Teile, beide nach Größe sortiert und mit Vorschau, auf dem Handy drei Kacheln je Zeile. Welcher Teil offen ist, steht im Link (`/bibliothek#motive`, `/bibliothek#schwer`). Was die Teile sind, klappt ⓘ neben dem Titel auf; im Teil „Schwer“ steht eine Zeile Warnung über den Kacheln.
 
 - **Motive** sind die Puzzles aus `designs`, im [Designer](development.md#design-puzzles-entwerfen) gezeichnet, sodass die Regionen ein Bild ergeben. Gespielt wird wie beim Solo-Spiel: mit Hinweisen, Prüfen und dem Lösungsweg jederzeit. Jedes Motiv hat einen Namen (Zeile `# name:` in der Datei) statt einer Nummer.
 - **Schwer** sind die Puzzles aus `testdata/hard`, an denen die einfachen Regeln scheitern. Gelöst wird dort ohne Hilfe: Es gibt keine Hinweise, kein Prüfen und den Lösungsweg erst nach dem Lösen. Sie heißen nach Größe und Nummer, etwa `10-3`. Jedes hat eine Schwierigkeit von ★☆☆ (die Regeln allein reichen) über ★★☆ (Gedankenexperimente nötig) bis ★★★ (viele oder lange Gedankenexperimente). Sie steht auf der Kachel (nur die vollen Sterne), über dem Brett und im geteilten Ergebnis (wie sie berechnet wird, steht in [development.md](development.md#schwierigkeit)).
@@ -52,7 +52,7 @@ Die ID wird aus den Regionen berechnet. Links und gespeicherte Ergebnisse bleibe
 | | |
 |---|---|
 | ![Party anlegen](screenshots/party-anlegen.png) | ![Gegeneinander](screenshots/party-runde.png) |
-| **Party anlegen:** Größen und Spielweise wählen (beides zum Aufklappen), Code oder Link weitergeben. | **Gegeneinander:** alle lösen dasselbe Puzzle auf dem eigenen Brett und sehen den Fortschritt der anderen live. |
+| **Party anlegen:** Spielweise wählen (darunter steht, wie sie geht), die Größen zum Aufklappen, Code oder Link weitergeben. | **Gegeneinander:** alle lösen dasselbe Puzzle auf dem eigenen Brett und sehen den Fortschritt der anderen live. |
 
 Unter `/party` spielen mehrere Leute dieselben Runden, wahlweise:
 
@@ -64,14 +64,14 @@ Unter `/party` spielen mehrere Leute dieselben Runden, wahlweise:
 
 ## Einstellungen
 
-Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen. Sie gelten in allen Spielmodi und werden bei jeder Änderung sofort im Browser gespeichert, also pro Gerät; einen Speichern-Knopf gibt es nicht, ein kurzer Hinweis unten bestätigt jede Änderung:
+Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen, als Schalter mit je einer Zeile Erklärung. Sie gelten in allen Spielmodi und werden bei jeder Änderung sofort im Browser gespeichert, also pro Gerät; einen Speichern-Knopf gibt es nicht, ein kurzer Hinweis unten bestätigt jede Änderung:
 
 - **Nachbarn eines Sterns automatisch kreuzen:** Felder, auf denen wegen eines Sterns kein weiterer stehen kann, bekommen einen Punkt.
 - **Fat-Finger-Schutz:** Beim Ziehen wird nur in gerader Zeile oder Spalte gekreuzt. Auf Touchscreens ist er von Anfang an an.
 - **Regelverstöße sofort rot markieren:** Ist das aus, zeigt nur noch „Prüfen“ Fehler.
 - **Erledigte Zeilen, Spalten und Farben blasser zeigen** (anfangs aus): Hat eine Zeile, Spalte oder Farbe genau einen Stern, verlieren ihre Felder etwas Farbe. Auf großen Brettern sieht man so leichter, was noch offen ist. Im gelösten Puzzle und in der Anleitung bleibt alles farbig.
   - **Nur Farben blasser zeigen** (anfangs aus, nur schaltbar, wenn die Option darüber an ist): Zeilen und Spalten behalten ihre Farbe, damit eine blasse Zeile nicht wie eine Farbe mit ähnlichem Ton aussieht.
-- **Symbol für Sterne:** statt ★ zum Beispiel Herz, Pfote, 🐱 oder ein animiertes Kätzchen. Mit **Zufällig** würfelt die Spielseite beim Laden eines aus und behält es, bis man neu lädt oder „Neu beginnen“ drückt; dann kommt ein anderes. Animierte Symbole bewegen sich nur kurz nach dem Setzen eines Sterns, und gar nicht, wenn das System reduzierte Bewegung wünscht. Wie man neue Symbole hinzufügt, steht in [symbols/README.md](../symbols/README.md).
+- **Symbol für Sterne:** Kacheln mit Vorschau und Namen, unter ihnen steht, was für ein Symbol das gewählte ist. Statt ★ zum Beispiel Herz, Pfote, 🐱 oder ein animiertes Kätzchen. Mit **Zufällig** würfelt die Spielseite beim Laden eines aus und behält es, bis man neu lädt oder „Neu beginnen“ drückt; dann kommt ein anderes. Animierte Symbole bewegen sich nur kurz nach dem Setzen eines Sterns, und gar nicht, wenn das System reduzierte Bewegung wünscht. Wie man neue Symbole hinzufügt, steht in [symbols/README.md](../symbols/README.md).
 
 Die Schalter für die Spielhilfen stehen auch auf der Spielseite unter „Mehr“, mit einem Link hierher; beide sind dieselben Einstellungen. Eine offene Spielseite übernimmt Änderungen sofort.
 

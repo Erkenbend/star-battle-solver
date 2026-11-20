@@ -343,6 +343,12 @@ const Party = (() => {
   function bootPage() {
     const d = JSON.parse(document.getElementById("data").textContent);
     const $ = (id) => document.getElementById(id);
+    // ⓘ beside the title: what the page is about, folded away.
+    $("info-btn").onclick = () => {
+      const on = $("info").hidden;
+      $("info").hidden = !on;
+      $("info-btn").setAttribute("aria-expanded", on);
+    };
     if (d.error) {
       $("party-error").textContent = d.error + " ";
       const home = el("a", "next", "Zur Startseite");
@@ -369,7 +375,12 @@ const Party = (() => {
         $("sizes").append(lab);
       }
       const chosenSizes = () => [...$("sizes").querySelectorAll("input:checked")].map((b) => +b.value);
-      // The summaries of the folded choices, and the options of the mode.
+      // The summary of the folded sizes; the mode's description and options.
+      const MODE = {
+        versus: "Jede Person auf ihrem eigenen Brett; Wertung: wenigste Hinweise, dann schnellste Zeit.",
+        coop: "Alle markieren auf demselben Brett, gemeinsame Zeit, ohne Hinweise.",
+        clock: "So viele Puzzles wie möglich in der Zeit, für alle dieselben in derselben Reihenfolge, ohne Hinweise; Wertung: gelöste Puzzles, dann richtige minus falsche Sterne im letzten.",
+      };
       const summarize = () => {
         const sizes = chosenSizes();
         const run = sizes.length > 2 && sizes.every((k, i) => i === 0 || k === sizes[i - 1] + 1);
@@ -378,10 +389,8 @@ const Party = (() => {
         const mode = form.elements.mode.value;
         $("versus-options").hidden = mode !== "versus";
         $("clock-options").hidden = mode !== "clock";
-        const lives = +form.elements.lives.value;
-        $("mode-sum").textContent = mode === "coop" ? "Miteinander"
-          : mode === "clock" ? `Gegen die Uhr, ${clockRules({ minutes: +form.elements.minutes.value, skips: +form.elements.skips.value })}`
-            : "Gegeneinander" + (lives > 0 ? ", " + livesRule(lives) : "");
+        $("mode-desc").textContent = MODE[mode];
+        $("lives-help").hidden = !(+form.elements.lives.value > 0); // only once lives are limited
       };
       form.addEventListener("change", summarize);
       summarize(); // the browser may restore the choices
