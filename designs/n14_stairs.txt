@@ -1,0 +1,31 @@
+# name: Stairs
+# designer: generator.Complete(pattern, rand.NewPCG(337379, 14)), 2026-11-20
+# pattern (. = free):
+#   DD....CC......
+#   .DD..CC.......
+#   ..DDCC......AA
+#   ...DD......AA.
+#   ....DD....AA..
+#   .....DD..AA...
+#   ......DDAA....
+#   .......AA.....
+#   BB....AA......
+#   .BB...A.....EE
+#   ..BB.......EE.
+#   ...BB.....EE..
+#   ....BB...EE...
+#   .....B...E....
+DDDDCCCCNNNNNN
+DDDDCCCNNNNNNN
+DDDDCCNNNNNNAA
+KDKDDNNNNNNAAI
+KKKFDDNNNNAAII
+KKKFFDDNNAAAII
+KKKFFFDDAAAIII
+KFFFFFFAAIIIIG
+BBFHFFAAIIIIGG
+JBBHHHALIIIIEE
+JJBBHLLLIIEEEE
+JJJBBLLLLIEEEE
+JJJJBBLLEEEEEE
+JJJMMBLLLEEEEE
