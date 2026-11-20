@@ -1,6 +1,6 @@
 // Designer page (starbattle design): draw a pattern, check it on the server
-// while drawing, let the server complete it again and again and show the
-// hardest completions, pick one, save it.
+// while drawing, let the server search for several completions, pick one,
+// save it.
 (function designer() {
   const L = Logic;
   const cfg = JSON.parse(document.getElementById("data").textContent);
@@ -23,7 +23,6 @@
   let candPattern = null; // the pattern they were computed for
   let candStrict = false; // and the mode
   let chosen = null;  // the selected candidate
-  let picked = false; // chosen by a click, not just the hardest so far
   let problem = null; // cells with a problem, as "r,c"
   let valid = false;  // the last check found no problem
 
@@ -227,17 +226,14 @@
     }
   }
 
-  // The server searches until its budget of attempts is used up or the page
-  // stops it. Candidates arrive one by one (NDJSON, see designer.go) as
-  // soon as they are among the k hardest so far, so one can be inspected
-  // and saved early; later ones can push them out again.
+  // The server searches until it has k completions, its budget of attempts
+  // is used up or the page stops it. Candidates arrive one by one (NDJSON,
+  // see designer.go), so one can be inspected and saved early.
   let genCtl = null;
   const plural = (k, one, many) => `${k.toLocaleString("de-DE")} ${k === 1 ? one : many}`;
   const num = (k) => k.toLocaleString("de-DE");
-  // Hardest first, as harder in designer.go: the library collects puzzles
-  // the rules alone cannot solve. Of equally hard ones, the one that came
-  // first; so the first k here are the server's k hardest.
-  const harder = (a, b) => b.rulesFree - a.rulesFree || b.stats.lookahead - a.stats.lookahead || a.entered - b.entered;
+  // Hardest first: the library collects puzzles the rules alone cannot solve.
+  const harder = (a, b) => b.rulesFree - a.rulesFree || b.stats.lookahead - a.stats.lookahead || a.seed - b.seed;
   $("go").addEventListener("click", async () => {
     if (genCtl) return;
     const ctl = (genCtl = new AbortController());
@@ -247,7 +243,6 @@
     cands = [];
     candPattern = snapshot;
     candStrict = strict;
-    picked = false;
     showCands(null);
     markStale();
     $("go").disabled = true;
@@ -259,8 +254,8 @@
       (limit ? ` von höchstens ${num(cfg.maxTries)}` : "") +
       (counts.duplicates ? ` · ${num(counts.duplicates)} doppelt` : "");
     const progress = () => {
-      $("info").textContent = `Suche läuft seit ${secs()} s · ${counters(true)} · ` +
-        `${plural(cands.length, "Vorschlag", "Vorschläge")}. Fertige Vorschläge lassen sich schon speichern.`;
+      $("info").textContent = `Suche läuft seit ${secs()} s · ${num(cands.length)} von ${num(k)} Vorschlägen · ${counters(true)}. ` +
+        "Fertige Vorschläge lassen sich schon speichern.";
     };
     progress();
     const timer = setInterval(progress, 500);
@@ -282,18 +277,14 @@
       if (ev.candidate) {
         cands.push(ev.candidate);
         cands.sort(harder);
-        // A candidate the user picked stays, even when it is pushed out.
-        const keep = cands.slice(0, k);
-        if (picked && chosen && !keep.includes(chosen)) keep.push(chosen);
-        cands = keep;
-        showCands(picked && chosen ? chosen.seed : cands[0].seed);
+        showCands(chosen ? chosen.seed : ev.candidate.seed);
         progress();
         return;
       }
       if (ev.done) {
         counts = ev.done;
         $("info").textContent = cands.length
-          ? summary("Fertig nach")
+          ? summary("Fertig nach") + (cands.length < k ? ` Mehr waren in ${num(counts.tried)} Versuchen nicht zu finden.` : "")
           : `Kein Vorschlag gefunden (${secs()} s, ${counters()}). Der Generator schafft dieses Muster nicht; etwas weniger oder anders zeichnen hilft meist.` +
             (strict ? " Im strengen Modus bleibt ihm oft zu wenig Spielraum, etwa wenn kleine freie Flächen ringsum eingeschlossen sind; ohne „Streng“ klappt es eher." : "");
       }
@@ -415,10 +406,7 @@
       const m = el("div", "meta");
       m.innerHTML = difficulty(c); // numbers only
       b.append(m);
-      b.addEventListener("click", () => {
-        picked = true;
-        showCands(c.seed);
-      });
+      b.addEventListener("click", () => showCands(c.seed));
       box.append(b);
     });
     if (next !== chosen) {

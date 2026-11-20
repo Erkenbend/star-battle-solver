@@ -1,6 +1,6 @@
 // Package designer is the tool behind `starbattle design`, for the project's
 // developers and deliberately not part of serve: draw part of a puzzle, let
-// the generator complete it again and again on all cores, keep the hardest
+// the generator complete it on all cores until it has several distinct
 // completions, pick one and save it to a collection of the project (see
 // package collection), usually designs/.
 //
@@ -41,17 +41,17 @@ var designerHTML string
 //go:embed assets/designer.js
 var designerJS string
 
-// candidateChoices are the page's choices for how many completions to show
-// at most; the search finds many more and keeps the hardest. The default is
+// candidateChoices are the page's choices for how many completions to
+// search; the search ends early if its attempts run out. The default is
 // defaultCandidates.
 var candidateChoices = []int{1, 2, 4, 8, 12, 16, 24}
 
 const defaultCandidates = 8
 
 // MaxTries bounds the generator attempts of one search, all completions
-// together. On 16 cores that is about 10 s for an 8×8 drawing, 20 to 80 s
-// for 10×10 to 14×14 drawings, 12 minutes for an empty 14×14; the page can
-// stop earlier (decision 29).
+// together, for a pattern the generator rarely completes. On 16 cores they
+// take about 10 s for an 8×8 drawing, 20 to 80 s for 10×10 to 14×14
+// drawings; the page can stop earlier (decision 29).
 const MaxTries = 100_000
 
 // designAttempts bounds the attempts of one completion (one seed). It is
@@ -68,7 +68,7 @@ type Page struct {
 	MinN       int    `json:"minN"`
 	MaxN       int    `json:"maxN"`
 	Dir        string `json:"dir"`
-	Candidates int    `json:"candidates"` // default number of completions shown
+	Candidates int    `json:"candidates"` // default number of completions
 	Choices    []int  `json:"choices"`    // see candidateChoices
 	MaxTries   int    `json:"maxTries"`
 }
@@ -76,7 +76,7 @@ type Page struct {
 // designRequest is the body of /api/check, /api/complete and /api/save.
 type designRequest struct {
 	Pattern    [][]int `json:"pattern"`              // region per cell, -1 = free
-	Candidates int     `json:"candidates,omitempty"` // complete: how many to show at most
+	Candidates int     `json:"candidates,omitempty"` // complete: how many to find at most
 	Tries      int     `json:"tries,omitempty"`      // complete: attempts at most (default and at most MaxTries)
 	Regions    [][]int `json:"regions,omitempty"`    // save: the chosen completion
 	Seed       uint64  `json:"seed,omitempty"`       // save: its seed
@@ -100,15 +100,13 @@ type Candidate struct {
 	Steps    int       `json:"steps"`     // steps of the solver's trace
 	RulesOut int       `json:"rulesFree"` // free cells when the rules alone got stuck, 0 if they solve it
 	Stats    web.Stats `json:"stats"`
-	Millis   int64     `json:"millis"`  // time to generate
-	Entered  int       `json:"entered"` // when it entered the k hardest: 1, 2, … (see harder)
+	Millis   int64     `json:"millis"` // time to generate
 }
 
 // designEvent is one line of /api/complete's answer (NDJSON): the pattern's
-// problem (then nothing else follows), a candidate as soon as it is among
-// the k hardest so far, the counters every progressEvery, or, last, done
-// with the final counters. A candidate can be pushed out of the k hardest
-// by later ones; the page sorts them as harder does and shows the first k.
+// problem (then nothing else follows), a candidate as soon as it is found
+// and rated, the counters every progressEvery, or, last, done with the
+// final counters.
 type designEvent struct {
 	Problem   *patternProblem `json:"problem,omitempty"`
 	Candidate *Candidate      `json:"candidate,omitempty"`
@@ -119,16 +117,14 @@ type designEvent struct {
 // designCounts are the counters of a search.
 type designCounts struct {
 	Tried      int64 `json:"tried"`      // attempts of the generator
-	Accepted   int64 `json:"accepted"`   // uniquely solvable puzzles found, without duplicates
+	Accepted   int64 `json:"accepted"`   // uniquely solvable new puzzles, at most k
 	Duplicates int64 `json:"duplicates"` // puzzles found again (from another seed)
 }
 
 // Handler serves the designer. Saved puzzles go to dir. solve rates a
-// completion and serves /play, rules is the same solver without search: it
-// rates every completion first, so the search runs only where the rules get
-// stuck (see search.rate). /play shows a puzzle to try it, as in serve; with
-// a symbol catalog (may be nil), its link to /einstellungen works too.
-func Handler(dir string, solve, rules web.SolveFunc, syms *web.Symbols) http.Handler {
+// completion. /play shows a puzzle to try it, as in serve; with a symbol
+// catalog (may be nil), its link to /einstellungen works too.
+func Handler(dir string, solve web.SolveFunc, syms *web.Symbols) http.Handler {
 	mux := http.NewServeMux()
 	play := web.Handler(solve, nil, nil, nil, syms)
 	mux.Handle("GET /play", play)
@@ -170,7 +166,7 @@ func Handler(dir string, solve, rules web.SolveFunc, syms *web.Symbols) http.Han
 		if tries <= 0 || tries > MaxTries {
 			tries = MaxTries
 		}
-		s := &search{pattern: req.Pattern, strict: req.Strict, k: k, tries: int64(tries), solve: solve, rules: rules}
+		s := &search{pattern: req.Pattern, strict: req.Strict, k: int64(k), tries: int64(tries), solve: solve}
 		out := s.run(r.Context())
 		tick := time.NewTicker(progressEvery)
 		defer tick.Stop()
@@ -269,55 +265,53 @@ func checkPattern(pattern [][]int, strict bool) *patternProblem {
 }
 
 // search completes a pattern again and again, each time with a new seed,
-// until tries attempts are used up or the request is gone, and keeps the k
-// hardest distinct puzzles. The work is the generator's: brute force decides
-// uniqueness in every repair step. The rule-based solver only rates what it
-// finds, and its search only where that can change which puzzles are kept.
+// until it has k distinct puzzles, tries attempts are used up or the request
+// is gone. The work is the generator's: brute force decides uniqueness in
+// every repair step. The rule-based solver only rates the k puzzles found.
 type search struct {
-	pattern      [][]int
-	strict       bool
-	k            int
-	tries        int64
-	solve, rules web.SolveFunc
+	pattern [][]int
+	strict  bool
+	k       int64
+	tries   int64
+	solve   web.SolveFunc
+	cancel  context.CancelFunc // ends the search: k found or tries used up
 
 	tried, accepted, duplicates atomic.Int64
 
-	mu      sync.Mutex
-	seeds   map[uint64]bool // seeds drawn so far
-	seen    map[string]bool // puzzles found so far (collection.ID)
-	best    []*Candidate    // the hardest so far, hardest first, at most k
-	entered int             // candidates that entered best so far
+	mu    sync.Mutex
+	seeds map[uint64]bool // seeds drawn so far
+	seen  map[string]bool // puzzles found so far (collection.ID)
 }
 
 // run starts one worker per core but one (the generator's own CPU limit,
 // shared with every other caller, applies to their attempts as well) and
-// returns the channel on which they send each candidate that is among the k
-// hardest when it is rated. The channel is closed when the last worker has
-// stopped; the caller must receive until then.
+// returns the channel on which they send the candidates, at most k. The
+// channel is closed when the last worker has stopped; the caller must
+// receive until then.
 func (s *search) run(ctx context.Context) <-chan *Candidate {
 	s.seeds, s.seen = map[uint64]bool{}, map[string]bool{}
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, s.cancel = context.WithCancel(ctx)
 	out := make(chan *Candidate)
 	var wg sync.WaitGroup
 	for range max(1, runtime.GOMAXPROCS(0)-1) {
-		wg.Go(func() { s.work(ctx, cancel, out) })
+		wg.Go(func() { s.work(ctx, out) })
 	}
 	go func() {
 		wg.Wait()
-		cancel()
+		s.cancel()
 		close(out)
 	}()
 	return out
 }
 
 // work completes the pattern with fresh seeds until ctx is done. The
-// attempt that reaches the budget cancels ctx, which stops the attempts of
-// the other workers too.
-func (s *search) work(ctx context.Context, cancel context.CancelFunc, out chan<- *Candidate) {
+// attempt that uses up the budget, or the k-th puzzle found, cancels ctx,
+// which stops the attempts of the other workers too.
+func (s *search) work(ctx context.Context, out chan<- *Candidate) {
 	n := len(s.pattern)
 	tried := func() {
 		if s.tried.Add(1) >= s.tries {
-			cancel()
+			s.cancel()
 		}
 	}
 	for ctx.Err() == nil {
@@ -331,13 +325,17 @@ func (s *search) work(ctx context.Context, cancel context.CancelFunc, out chan<-
 			Done:          ctx.Done(),
 			Tried:         tried,
 		})
-		if err != nil || !s.fresh(p) {
-			continue // no puzzle from this seed, or cancelled, or a duplicate
+		if err != nil || !s.accept(p) {
+			continue // no puzzle from this seed, or cancelled, a duplicate, or k found already
 		}
 		c := &Candidate{Seed: seed, Regions: p.Regions, Solution: sol, Millis: time.Since(start).Milliseconds()}
-		if s.rate(p, c) {
-			out <- c
+		if res, err := s.solve(p); err == nil {
+			c.Status = res.Status.String()
+			c.Steps = len(res.Trace)
+			c.Stats = web.Stats{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}
+			c.RulesOut = freeWhenStuck(p, res.Trace)
 		}
+		out <- c
 	}
 }
 
@@ -355,113 +353,53 @@ func (s *search) newSeed() uint64 {
 	}
 }
 
-// fresh records p and reports whether it is new, counting it as accepted
-// or as a duplicate.
-func (s *search) fresh(p *puzzle.Puzzle) bool {
+// accept reports whether p is a new puzzle and one of the first k, counting
+// it as accepted or as a duplicate. The k-th ends the search. Puzzles that
+// other workers find while it ends are neither.
+func (s *search) accept(p *puzzle.Puzzle) bool {
 	id := collection.ID(p)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.seen[id] {
+	switch {
+	case s.accepted.Load() >= s.k:
+		return false
+	case s.seen[id]:
 		s.duplicates.Add(1)
 		return false
 	}
 	s.seen[id] = true
-	s.accepted.Add(1)
-	return true
-}
-
-// rate fills in c's difficulty and reports whether c is now among the k
-// hardest. The rules run first; only if they get stuck and c can still
-// make it into the k hardest (harder looks at their free cells first) does
-// the solver with search run, for the lookahead count and the steps. On an
-// empty 14×14 pattern, the search costs four times as much as the
-// completion, the rules alone a third.
-func (s *search) rate(p *puzzle.Puzzle, c *Candidate) bool {
-	res, err := s.rules(p)
-	if err != nil {
-		return false
-	}
-	if res.Status == solver.Stuck {
-		c.RulesOut = freeCells(res.State)
-		if !s.mayEnter(c) {
-			return false
-		}
-		if res, err = s.solve(p); err != nil {
-			return false
-		}
-		c.Stats = web.Stats{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}
-	}
-	c.Status, c.Steps = res.Status.String(), len(res.Trace)
-	return s.enter(c)
-}
-
-// mayEnter reports whether c, rated by the rules but not yet by the search,
-// could be among the k hardest. Entering takes a candidate that is strictly
-// harder than the last of best (see enter), and the search only adds
-// lookahead where the rules get stuck.
-func (s *search) mayEnter(c *Candidate) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.best) < s.k {
-		return true
-	}
-	last := s.best[s.k-1].RulesOut
-	return c.RulesOut > last || c.RulesOut == last && c.RulesOut > 0
-}
-
-// enter adds c to the k hardest if it is one of them, numbering it.
-func (s *search) enter(c *Candidate) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c.Entered = s.entered + 1
-	if len(s.best) == s.k && !harder(c, s.best[s.k-1]) {
-		return false
-	}
-	s.entered++
-	i, _ := slices.BinarySearchFunc(s.best, c, func(a, b *Candidate) int {
-		if harder(a, b) {
-			return -1
-		}
-		return 1
-	})
-	s.best = slices.Insert(s.best, i, c)
-	if len(s.best) > s.k {
-		s.best = s.best[:s.k]
+	if s.accepted.Add(1) == s.k {
+		s.cancel()
 	}
 	return true
-}
-
-// harder orders candidates hardest first: more free cells where the rules
-// alone get stuck (the library collects puzzles the rules cannot solve),
-// then more lookahead, then the one that entered the k hardest first, so an
-// equally hard one never pushes out an earlier one. designer.js sorts the
-// same way: the page keeps the first k of what it got, which then are the
-// k hardest of the server, whatever order the candidates arrived in.
-func harder(a, b *Candidate) bool {
-	if a.RulesOut != b.RulesOut {
-		return a.RulesOut > b.RulesOut
-	}
-	if a.Stats.Lookahead != b.Stats.Lookahead {
-		return a.Stats.Lookahead > b.Stats.Lookahead
-	}
-	return a.Entered < b.Entered
 }
 
 func (s *search) counts() *designCounts {
 	return &designCounts{Tried: s.tried.Load(), Accepted: s.accepted.Load(), Duplicates: s.duplicates.Load()}
 }
 
-// freeCells counts the free cells of st.
-func freeCells(st *board.State) int {
-	free := 0
-	for r := range st.P.N {
-		for c := range st.P.N {
-			if st.At(r, c) == board.Free {
-				free++
+// freeWhenStuck replays trace up to its first search step and returns the
+// free cells left at that point: how far the rules alone get. 0 if the
+// trace needs no search.
+func freeWhenStuck(p *puzzle.Puzzle, trace []solver.Step) int {
+	s := board.New(p)
+	for _, st := range trace {
+		if st.Source == solver.HypothesisSource {
+			free := 0
+			for r := range p.N {
+				for c := range p.N {
+					if s.At(r, c) == board.Free {
+						free++
+					}
+				}
 			}
+			return free
+		}
+		for _, m := range st.Marks {
+			s.Set(m.Pos.Row, m.Pos.Col, m.Kind)
 		}
 	}
-	return free
+	return 0
 }
 
 var designName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,40}$`)

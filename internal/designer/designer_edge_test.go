@@ -6,15 +6,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"slices"
+	"runtime"
 	"strings"
-	"sync"
 	"testing"
 
-	"starbattle/internal/collection"
+	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
-	"starbattle/internal/web"
 )
 
 // grid returns an n×n pattern of free cells with the given rows on top.
@@ -57,81 +55,13 @@ func TestCheckPatternMessages(t *testing.T) {
 	}
 }
 
-// TestDesignerKeepsHardest: of all puzzles a search finds, the page gets
-// the hardest, and the solver searches only where the rules get stuck.
-func TestDesignerKeepsHardest(t *testing.T) {
-	var mu sync.Mutex
-	rated := map[string]int{} // puzzle → free cells after the rules
-	searched := 0
-	rules := func(p *puzzle.Puzzle) (solver.Result, error) {
-		res, err := testRules(p)
-		mu.Lock()
-		defer mu.Unlock()
-		if _, ok := rated[collection.ID(p)]; ok {
-			t.Error("rated twice")
-		}
-		rated[collection.ID(p)] = freeCells(res.State)
-		return res, err
-	}
-	solve := func(p *puzzle.Puzzle) (solver.Result, error) {
-		mu.Lock()
-		if rated[collection.ID(p)] == 0 {
-			t.Error("searched although the rules solve it")
-		}
-		searched++
-		mu.Unlock()
-		return testSolve(p)
-	}
-	h := Handler(t.TempDir(), solve, rules, nil)
-	cs, done := candidates(t, designEvents(t, postDesign(t, h, "/api/complete", designRequest{Pattern: grid(12), Candidates: 2, Tries: 150})))
-	slices.SortFunc(cs, func(a, b *Candidate) int {
-		if harder(a, b) {
-			return -1
-		}
-		return 1
-	})
-	hardest := 0
-	for _, free := range rated {
-		hardest = max(hardest, free)
-	}
-	t.Logf("%d candidates sent, %d puzzles rated, %d searched, counters %+v", len(cs), len(rated), searched, done)
-	if done.Accepted != int64(len(rated)) || len(cs) < min(2, len(rated)) || cs[0].RulesOut != hardest {
-		t.Fatalf("hardest %d free cells, first candidate %d; %d sent, %d rated, counters %+v", hardest, cs[0].RulesOut, len(cs), len(rated), done)
-	}
-	for _, c := range cs {
-		if (c.RulesOut == 0) != (c.Stats == web.Stats{}) || c.Status != solver.Solved.String() {
-			t.Errorf("candidate %d: %+v", c.Seed, c)
-		}
-	}
-}
-
-// TestSearchPageAgrees: the page keeps the first k of the candidates it got,
-// sorted by harder; whatever order they arrived in, those are the search's
-// k hardest.
-func TestSearchPageAgrees(t *testing.T) {
-	s := &search{pattern: grid(10), k: 3, tries: 300, solve: testSolve, rules: testRules}
-	var got []*Candidate
-	for c := range s.run(context.Background()) {
-		got = append(got, c)
-	}
-	slices.Reverse(got) // any order
-	slices.SortFunc(got, func(a, b *Candidate) int {
-		if harder(a, b) {
-			return -1
-		}
-		return 1
-	})
-	page := got[:min(len(got), s.k)]
-	if len(page) != len(s.best) {
-		t.Fatalf("page %d, search %d", len(page), len(s.best))
-	}
-	for i := range page {
-		if page[i] != s.best[i] {
-			t.Fatalf("place %d: page %+v, search %+v", i, page[i], s.best[i])
-		}
-	}
-	if s.entered != len(got) {
-		t.Fatalf("%d entered, %d sent", s.entered, len(got))
+// TestDesignerBudget: a pattern that gives too few puzzles ends with the
+// budget of attempts; attempts already running finish.
+func TestDesignerBudget(t *testing.T) {
+	rec := postDesign(t, Handler(t.TempDir(), testSolve, nil), "/api/complete", designRequest{Pattern: heart, Candidates: 24, Tries: 5})
+	cs, done := candidates(t, designEvents(t, rec))
+	if done.Tried < 5 || done.Tried >= 5+int64(runtime.GOMAXPROCS(0)) || int64(len(cs)) != done.Accepted || len(cs) >= 24 {
+		t.Fatalf("%d candidates, counters %+v", len(cs), done)
 	}
 }
 
@@ -141,9 +71,24 @@ func TestDesignerCancelled(t *testing.T) {
 	cancel()
 	b, _ := json.Marshal(designRequest{Pattern: heart, Candidates: 2})
 	rec := httptest.NewRecorder()
-	Handler(t.TempDir(), testSolve, testRules, nil).ServeHTTP(rec, httptest.NewRequest("POST", "/api/complete", bytes.NewReader(b)).WithContext(ctx))
+	Handler(t.TempDir(), testSolve, nil).ServeHTTP(rec, httptest.NewRequest("POST", "/api/complete", bytes.NewReader(b)).WithContext(ctx))
 	if _, done := candidates(t, designEvents(t, rec)); done.Tried != 0 {
 		t.Fatalf("counters %+v", done)
+	}
+}
+
+func TestFreeWhenStuck(t *testing.T) {
+	p := puzzle.MustParse("AAB\nACB\nCCB\n") // layout only
+	mark := func(r, c int, k board.Cell) solver.Mark {
+		return solver.Mark{Pos: puzzle.Pos{Row: r, Col: c}, Kind: k}
+	}
+	rules := solver.Step{Marks: []solver.Mark{mark(0, 0, board.Star), mark(0, 1, board.Cross), mark(1, 0, board.Cross)}}
+	if got := freeWhenStuck(p, []solver.Step{rules}); got != 0 {
+		t.Fatalf("without search: got %d, want 0", got)
+	}
+	search := solver.Step{Source: solver.HypothesisSource, Marks: []solver.Mark{mark(2, 2, board.Cross)}}
+	if got := freeWhenStuck(p, []solver.Step{rules, search}); got != 6 {
+		t.Fatalf("with search: got %d, want 6", got)
 	}
 }
 
@@ -173,7 +118,7 @@ func TestSaveDesignErrors(t *testing.T) {
 }
 
 func TestDesignerBadRequests(t *testing.T) {
-	h := Handler(t.TempDir(), testSolve, testRules, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	for _, path := range []string{"/api/check", "/api/complete", "/api/save"} {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{kaputt"))
 		rec := httptest.NewRecorder()

@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -41,10 +40,6 @@ func testSolve(p *puzzle.Puzzle) (solver.Result, error) {
 	return solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true}), nil
 }
 
-func testRules(p *puzzle.Puzzle) (solver.Result, error) {
-	return solver.Solve(board.New(p), observers.All(p), solver.Options{}), nil
-}
-
 // get requests path from h and returns the response.
 func get(h http.Handler, path string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
@@ -59,7 +54,7 @@ func TestDesignerPlay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := Handler(t.TempDir(), testSolve, testRules, syms)
+	h := Handler(t.TempDir(), testSolve, syms)
 	paths := []string{"/play?p=DBBBB/DDBCC/DDBAA/EDDAA/EAAAA", "/einstellungen", "/symbole.json"}
 	for _, s := range syms.List() {
 		if s.Kind == web.KindSprite {
@@ -72,7 +67,7 @@ func TestDesignerPlay(t *testing.T) {
 			t.Errorf("%s: %d", p, rec.Code)
 		}
 	}
-	if rec := get(Handler(t.TempDir(), testSolve, testRules, nil), "/einstellungen"); rec.Code != http.StatusNotFound {
+	if rec := get(Handler(t.TempDir(), testSolve, nil), "/einstellungen"); rec.Code != http.StatusNotFound {
 		t.Errorf("without symbols: /einstellungen %d", rec.Code)
 	}
 }
@@ -114,7 +109,7 @@ var heart = patternOf(
 )
 
 func TestDesignerPage(t *testing.T) {
-	h := Handler(t.TempDir(), testSolve, testRules, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id="canvas"`) {
@@ -129,7 +124,7 @@ func TestDesignerPage(t *testing.T) {
 }
 
 func TestDesignerCheck(t *testing.T) {
-	h := Handler(t.TempDir(), testSolve, testRules, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	rec := postDesign(t, h, "/api/check", designRequest{Pattern: heart})
 	if got := strings.TrimSpace(rec.Body.String()); got != "null" {
 		t.Fatalf("valid pattern: got %s", got)
@@ -167,12 +162,19 @@ func candidates(t *testing.T, evs []designEvent) ([]*Candidate, *designCounts) {
 
 func TestDesignerCompleteAndSave(t *testing.T) {
 	dir := t.TempDir()
-	h := Handler(dir, testSolve, testRules, nil)
-	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: heart, Candidates: 3, Tries: 40})
+	h := Handler(dir, testSolve, nil)
+	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: heart, Candidates: 3})
 	cs, done := candidates(t, designEvents(t, rec))
-	// The budget ends the search; attempts already running finish.
-	if done.Tried < 40 || done.Tried >= 40+int64(runtime.GOMAXPROCS(0)) || done.Accepted == 0 || len(cs) == 0 || int64(len(cs)) > done.Accepted {
+	// The third puzzle ends the search.
+	if len(cs) != 3 || done.Accepted != 3 {
 		t.Fatalf("%d candidates, counters %+v", len(cs), done)
+	}
+	seeds := map[uint64]bool{}
+	for _, c := range cs {
+		if seeds[c.Seed] || c.Status != solver.Solved.String() {
+			t.Fatalf("candidate %+v", c)
+		}
+		seeds[c.Seed] = true
 	}
 	c := cs[0]
 	for _, c := range cs {
@@ -220,7 +222,7 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 	}
 	// Without a name: numbered.
 	save.Name = ""
-	if rec = postDesign(t, Handler(t.TempDir(), testSolve, testRules, nil), "/api/save", save); !strings.Contains(rec.Body.String(), "n08_d001.txt") {
+	if rec = postDesign(t, Handler(t.TempDir(), testSolve, nil), "/api/save", save); !strings.Contains(rec.Body.String(), "n08_d001.txt") {
 		t.Fatalf("unnamed save: %s", rec.Body)
 	}
 	// A name is used once across sizes: n10_herz.txt would be "Herz" too.
@@ -249,7 +251,7 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 }
 
 func TestDesignerCompleteInvalid(t *testing.T) {
-	h := Handler(t.TempDir(), testSolve, testRules, nil)
+	h := Handler(t.TempDir(), testSolve, nil)
 	rec := postDesign(t, h, "/api/complete", designRequest{Pattern: patternOf("AAAA", "....", "AAAA", "...."), Candidates: 2})
 	evs := designEvents(t, rec)
 	if len(evs) != 1 || evs[0].Problem == nil {
@@ -259,7 +261,7 @@ func TestDesignerCompleteInvalid(t *testing.T) {
 
 func TestDesignerStrict(t *testing.T) {
 	dir := t.TempDir()
-	h := Handler(dir, testSolve, testRules, nil)
+	h := Handler(dir, testSolve, nil)
 	// Not connected as drawn: fine normally, not strictly.
 	parts := patternOf("A..A....", "........", "........", "........", "........", "........", "........", "........")
 	if rec := postDesign(t, h, "/api/check", designRequest{Pattern: parts}); strings.TrimSpace(rec.Body.String()) != "null" {
