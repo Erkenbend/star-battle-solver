@@ -1,89 +1,136 @@
 package concviz
 
-// designerStory: section 5, designer.completeDesign. One goroutine per
-// candidate, results streamed through a channel with a buffer of exactly k,
-// a waiter goroutine that closes it, and a mutex for the shared set of seen
-// layouts.
+// designerStory: section 5, the designer's search (designer.search.run and
+// the handler of /api/complete). Workers that loop until a budget cancels
+// their context, an unbuffered results channel with a waiter that closes
+// it, a handler that selects between results and a ticker, and a mutex for
+// the shared set of the k hardest, which also decides whether the expensive
+// rating runs at all.
 func designerStory() *Story {
-	s := newStory("05-designer-stream.svg", "5. Design completions streamed to the page: fan-out, a buffer of k, a waiter",
-		"internal/designer/designer.go", 1280, 680)
+	s := newStory("05-designer-stream.svg", "5. The designer's search: workers until a budget, results and progress in one select",
+		"internal/designer/designer.go", 1280, 720)
 
-	handler := s.Main("handler", Pt{140, 250}, "designer.Handler", "designer.completeDesign")
-	c1 := s.Go("candidate 1", Pt{900, 110}, "designer.completeDesign")
-	c2 := s.Go("candidate 2", Pt{900, 250}, "designer.completeDesign")
-	c3 := s.Go("candidate 3", Pt{900, 390}, "designer.completeDesign")
-	waiter := s.Go("waiter", Pt{520, 500}, "designer.completeDesign")
+	worker := []string{"designer.search.run", "designer.search.work", "designer.search.fresh", "designer.search.rate", "designer.search.mayEnter", "designer.search.enter"}
+	handler := s.Main("handler", Pt{150, 250}, "designer.Handler", "designer.search.run")
+	w1 := s.Go("worker 1", Pt{880, 130}, worker...)
+	w2 := s.Go("worker 2", Pt{880, 370}, worker...)
+	waiter := s.Go("waiter", Pt{500, 470}, "designer.search.run")
+	ticker := s.Outside("time.Ticker", Pt{150, 620})
+	ctxG := s.Outside("context", Pt{1150, 620})
 
-	// The handler ranges over the call's result directly.
-	ranged := "completeDesign(req.Pattern, req.Strict, k, solve, r.Context().Done())"
-	out := s.Chan("out", "*foundCandidate", 3, Pt{520, 250}, -1, "out", ranged).Made("designer.completeDesign", "k")
-	wg := s.WaitGroup(Pt{900, 520}, "wg")
-	mu := s.Mutex(Pt{1160, 180}, "mu")
-	seen := s.Box("seen: layouts so far", Pt{1160, 320}, 190, 50, "–")
-	page := s.Box("page (NDJSON lines)", Pt{140, 420}, 200, 64, "–")
+	out := s.Chan("out", "*Candidate", 0, Pt{500, 250}, -1, "out").Made("designer.search.run", "")
+	tick := s.Chan("tick.C", "time.Time", 1, Pt{150, 470}, -1, "tick.C").Labels('l').Outside("time.NewTicker(500 ms)")
+	done := s.Chan("ctx.Done()", "struct{}", 0, Pt{1150, 490}, -1, "ctx.Done()").Labels('a').Outside("context.WithCancel(r.Context())")
+	wg := s.WaitGroup(Pt{880, 560}, "wg")
+	mu := s.Mutex(Pt{1150, 130}, "s.mu")
+	best := s.Box("s.best (k = 2)", Pt{1150, 290}, 190, 64, "–")
+	page := s.Box("page (NDJSON lines)", Pt{500, 620}, 220, 64, "–")
 
-	s.Flow(c1, out)
-	s.Flow(c2, out)
-	s.Flow(c3, out)
+	s.Flow(w1, out)
+	s.Flow(w2, out)
 	s.Flow(out, handler)
+	s.Flow(tick, handler)
+	s.Flow(ticker, tick)
 	s.Flow(handler, page)
 	s.Flow(waiter, out)
+	s.Flow(ctxG, done)
+	s.Flow(done, w1)
+	s.Flow(done, w2)
 
-	s.Step("The page asks for 3 completions. completeDesign makes out with a buffer of exactly k = 3 and starts one goroutine per candidate.")
-	wg.Go(handler, c1)
-	wg.Go(handler, c2)
-	wg.Go(handler, c3)
-	c1.Calls("generator.Complete")
-	c1.Busy("generator.Complete")
-	c2.Busy("generator.Complete")
-	c3.Busy("generator.Complete")
+	wait := func() { handler.Select(RecvCase(out), RecvCase(tick)) }
 
-	s.Step("It also starts a waiter that will close out after wg.Wait, and returns out at once. The handler ranges over it, still in the same request.")
+	s.Step("The page asks for at most 2 proposals. run derives a context it can cancel from the request's, makes out unbuffered and starts one worker per core but one, 2 here.")
+	wg.Go(handler, w1)
+	wg.Go(handler, w2)
+	w1.Calls("generator.Complete")
+	w1.Busy("Complete(seed 4711)")
+	w2.Busy("Complete(seed 815)")
+
+	s.Step("A waiter will close out after wg.Wait. The handler waits in a select: a candidate on out, or the ticker.")
 	handler.Spawn(waiter)
 	waiter.Wait(wg)
-	handler.Range(out)
+	wait()
 
-	s.Step("Candidate 2 finds a puzzle first. Under the mutex it records the layout in seen; the lock only guards the map.")
-	c2.Lock(mu)
-	seen.Set("layout A")
-	c2.Unlock(mu)
-	c2.Busy("solve: rate the puzzle")
+	s.Step("Every 500 ms the ticker fires. The handler writes the counters, atomics the workers count up, and selects again.")
+	ticker.Send(tick, "tick")
+	handler.Busy("writes the counters")
+	page.Set("progress")
+	wait()
 
-	s.Step("It sends the result: the handler is waiting, so it is a handoff. The page shows the first candidate while the others still run.")
-	c2.Send(out, "cand 2")
-	c2.Exit("returned")
-	handler.Busy("writes a line, Flush")
-	page.Set("cand 2")
+	s.Step("Worker 1 has a puzzle, A. Under s.mu it checks that A is new. The rules solve A; best has room, so A enters, again under the lock.")
+	w1.Lock(mu)
+	w1.Unlock(mu)
+	w1.Busy("rules: A solved")
+	w1.Lock(mu)
+	best.Set("A: 0 free")
+	w1.Unlock(mu)
 
-	s.Step("Candidates 1 and 3 finish together. 1 takes the lock; 3 must wait for it.")
-	c1.Lock(mu)
-	c3.Lock(mu)
+	s.Step("It sends A on out, a handoff to the waiting handler, which writes a line. Worker 1 goes on with a new seed.")
+	w1.Send(out, "A")
+	handler.Busy("writes A, Flush")
+	page.Set("progress, A")
+	w1.Busy("Complete(seed 99)")
+	wait()
 
-	s.Step("1 has a new layout and unlocks: 3 gets the lock and finds its layout already in seen, a duplicate.")
-	seen.Set("layout A, B")
-	c1.Unlock(mu)
-	c3.Unlock(mu)
+	s.Step("Worker 2's puzzle B gets the rules stuck at 40 free cells. More than A, the last of best (a look under the lock): it may enter, so the solver searches, outside the lock.")
+	w2.Busy("rules: B stuck at 40")
+	w2.Lock(mu)
+	w2.Unlock(mu)
+	w2.Calls("s.solve")
+	w2.Busy("search: rates B")
 
-	s.Step("Both send while the handler is still writing. With room for k values, no send can block, not even if the page is gone.")
-	c3.Send(out, "dup")
-	c3.Exit("returned")
-	c1.Calls("solve")
-	c1.Send(out, "cand 1")
-	c1.Exit("returned")
+	s.Step("Worker 1's next puzzle C: the rules stop at 12 free cells. Also more than A, so it searches too.")
+	w1.Busy("rules: C stuck at 12")
+	w1.Lock(mu)
+	w1.Unlock(mu)
+	w1.Busy("search: rates C")
 
-	s.Step("The last candidate is done, so wg.Wait returns and the waiter closes out. Values already in the buffer stay readable.")
+	s.Step("B is rated. It enters best and goes out to the handler.")
+	w2.Lock(mu)
+	best.Set("B: 40 free", "A: 0 free")
+	w2.Unlock(mu)
+	w2.Send(out, "B")
+	handler.Busy("writes B, Flush")
+	page.Set("progress, A, B")
+	w2.Busy("Complete(seed 23)")
+
+	s.Step("C enters too and pushes A out of best. The handler is still writing B: worker 1 waits on the unbuffered out, for one line at most.")
+	w1.Lock(mu)
+	best.Set("B: 40 free", "C: 12 free")
+	w1.Unlock(mu)
+	w1.Send(out, "C")
+
+	s.Step("The handler takes C. The page sorts what it got as harder does and keeps the first 2: B and C, as in best, in whatever order they came.")
+	wait()
+	handler.Busy("writes C, Flush")
+	page.Set("progress, B, C", "(A dropped)")
+	w1.Busy("Complete(seed 3)")
+	wait()
+
+	s.Step("Worker 2's D: the rules stop at 5 free cells, fewer than C's 12. D cannot enter, so the costly search never runs for it.")
+	w2.Busy("rules: D stuck at 5")
+	w2.Lock(mu)
+	w2.Unlock(mu)
+	w2.Busy("D dropped, no search;\nComplete(seed 77)")
+
+	s.Step("The attempt that uses up the budget, one of worker 1's, calls cancel: ctx.Done() is closed. Closing the page would do the same, through r.Context().")
+	w1.Calls("cancel")
+	ctxG.Close(done)
+	w1.Busy("loop sees ctx.Err()")
+	w2.Busy("generator sees Done,\ngives up")
+
+	s.Step("Both loops end, the workers return and wg counts down to 0. Puzzles still being rated would have been sent first: the handler receives until out is closed.")
+	w1.Exit("returned")
+	w2.Exit("returned")
+
+	s.Step("wg.Wait returns: the waiter cancels the context (also when the budget did not) and closes out. That wakes the handler's select.")
+	waiter.Calls("cancel")
 	waiter.Close(out)
 	waiter.Exit("returned")
 
-	s.Step("The handler drains the buffer: it counts the duplicate and writes candidate 1. Then range ends on the closed, empty channel.")
-	handler.Range(out)
-	handler.Busy("duplicate: counted")
-	handler.Range(out)
-	page.Set("cand 2", "cand 1")
-	handler.Range(out)
-
-	s.Step("The handler writes the summary line and returns. Closing the page instead would have cancelled r.Context(), which the generator polls.")
-	page.Set("cand 2", "cand 1", "done: 2 found, 1 dup")
+	s.Step("The handler sees out closed: it writes done with the final counters and returns.")
+	handler.Busy("writes done")
+	page.Set("progress, B, C", "done: final counters")
 	handler.Exit("returned")
 
 	return s.end()

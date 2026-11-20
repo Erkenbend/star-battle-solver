@@ -164,32 +164,45 @@ func readPuzzle(fs *flag.FlagSet) (*puzzle.Puzzle, error) {
 // solverFlags registers the flags that configure the solver and returns a
 // function that runs it on p with those settings (call after fs.Parse).
 func solverFlags(fs *flag.FlagSet, defaultRunner string) func(p *puzzle.Puzzle) (solver.Result, error) {
+	return solverFlagsSearch(fs, defaultRunner)("")
+}
+
+// solverFlagsSearch is solverFlags for a command that also needs the solver
+// with another search: it returns the solve function for a value of -search,
+// "" meaning the flag's.
+func solverFlagsSearch(fs *flag.FlagSet, defaultRunner string) func(search string) func(p *puzzle.Puzzle) (solver.Result, error) {
 	runner := fs.String("runner", defaultRunner, "concurrent (one goroutine per observer) or sync")
 	search := fs.String("search", "full", "when the rules get stuck: full (lookahead + backtracking), lookahead, or none")
 	partnerDepth := fs.Int("partner-depth", observers.DefaultConfig.PartnerDepth, "ForcedPartner: max forced stars in a row (0 = off)")
 	deadMax := fs.Int("dead-max", observers.DefaultConfig.DeadCellsMax, "DeadCells: max remaining cells of a unit (0 = off)")
 	pigeonMax := fs.Int("pigeonhole-max", observers.DefaultConfig.PigeonholeMaxK, "Pigeonhole: max units checked at once after an assumed star (0 = off)")
 	anySubset := fs.Bool("non-contiguous", observers.DefaultConfig.ConfinementAnySubset, "Confinement k≥2: any subset of rows/columns instead of only adjacent ones")
-	return func(p *puzzle.Puzzle) (solver.Result, error) {
-		opts := solver.Options{Run: solver.RunConcurrent}
-		switch *runner {
-		case "concurrent":
-		case "sync":
-			opts.Run = solver.RunSync
-		default:
-			return solver.Result{}, fmt.Errorf("unknown runner %q", *runner)
+	return func(mode string) func(p *puzzle.Puzzle) (solver.Result, error) {
+		return func(p *puzzle.Puzzle) (solver.Result, error) {
+			m := mode
+			if m == "" {
+				m = *search
+			}
+			opts := solver.Options{Run: solver.RunConcurrent}
+			switch *runner {
+			case "concurrent":
+			case "sync":
+				opts.Run = solver.RunSync
+			default:
+				return solver.Result{}, fmt.Errorf("unknown runner %q", *runner)
+			}
+			switch m {
+			case "full":
+				opts.Lookahead, opts.Backtrack = true, true
+			case "lookahead":
+				opts.Lookahead = true
+			case "none":
+			default:
+				return solver.Result{}, fmt.Errorf("unknown search %q", m)
+			}
+			cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax, ConfinementAnySubset: *anySubset, PigeonholeMaxK: *pigeonMax}
+			return solver.Solve(board.New(p), observers.AllWith(p, cfg), opts), nil
 		}
-		switch *search {
-		case "full":
-			opts.Lookahead, opts.Backtrack = true, true
-		case "lookahead":
-			opts.Lookahead = true
-		case "none":
-		default:
-			return solver.Result{}, fmt.Errorf("unknown search %q", *search)
-		}
-		cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax, ConfinementAnySubset: *anySubset, PigeonholeMaxK: *pigeonMax}
-		return solver.Solve(board.New(p), observers.AllWith(p, cfg), opts), nil
 	}
 }
 
@@ -338,8 +351,12 @@ func cmdDesign(args []string) error {
 	fs := flag.NewFlagSet("design", flag.ExitOnError)
 	addr := fs.String("addr", "localhost:6370", "listen address")
 	dir := fs.String("dir", "designs", "directory for saved puzzles")
-	solve := solverFlags(fs, "sync")
+	solveWith := solverFlagsSearch(fs, "sync")
 	fs.Parse(args)
+	// The designer's search allocates on every core at once; collecting
+	// garbage less often doubles its attempts per second (decision 29). The
+	// heap it keeps is a few MB.
+	debug.SetGCPercent(400)
 
 	syms, err := web.LoadSymbols(starbattle.Symbols, "symbols")
 	if err != nil {
@@ -349,7 +366,7 @@ func cmdDesign(args []string) error {
 	defer stop()
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           designer.Handler(*dir, solve, syms),
+		Handler:           designer.Handler(*dir, solveWith(""), solveWith("none"), syms),
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

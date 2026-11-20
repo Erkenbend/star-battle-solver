@@ -43,6 +43,11 @@ type Options struct {
 	// start, running ones give up, and the call fails unless an attempt has
 	// already succeeded.
 	Done <-chan struct{}
+	// Tried, if not nil, is called after every attempt that ran, whether it
+	// found a puzzle or not (also one that gave up because of Done). It is
+	// called from several goroutines at once unless Workers is 1. It does
+	// not change the result; the designer counts attempts with it.
+	Tried func()
 }
 
 // DefaultMinRegionSize is the MinRegionSize the CLI and the web server use for
@@ -130,6 +135,9 @@ func run(rng *rand.Rand, o Options, attempt attemptFunc) (*puzzle.Puzzle, []int,
 			defer func() { <-cpuSlots; <-slots }()
 			stop := func() bool { return int64(i) > best.Load() || cancelled(o.Done) }
 			p, sol, ok := attempt(arng, k, minSize, stop)
+			if o.Tried != nil {
+				o.Tried()
+			}
 			if !ok || smallestRegion(p) < minSize {
 				return
 			}

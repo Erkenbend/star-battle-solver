@@ -1,5 +1,6 @@
 // Designer page (starbattle design): draw a pattern, check it on the server
-// while drawing, let the server complete it in several ways, pick one, save it.
+// while drawing, let the server complete it again and again and show the
+// hardest completions, pick one, save it.
 (function designer() {
   const L = Logic;
   const cfg = JSON.parse(document.getElementById("data").textContent);
@@ -18,10 +19,11 @@
   let n = 8;
   let pattern = [];  // n×n, region or FREE
   let color = 0;     // current color, FREE = eraser
-  let cands = [];    // completions of the last request
+  let cands = [];    // completions of the last request, hardest first
   let candPattern = null; // the pattern they were computed for
   let candStrict = false; // and the mode
   let chosen = null;  // the selected candidate
+  let picked = false; // chosen by a click, not just the hardest so far
   let problem = null; // cells with a problem, as "r,c"
   let valid = false;  // the last check found no problem
 
@@ -53,7 +55,7 @@
 
   // ---- controls ----
   for (let k = cfg.minN; k <= cfg.maxN; k++) $("size").append(new Option(`${k}×${k}`, k));
-  for (let k = 1; k <= cfg.maxCandidates; k++) $("count").append(new Option(k, k));
+  for (const k of cfg.choices) $("count").append(new Option(k, k));
   $("count").value = cfg.candidates;
 
   $("size").addEventListener("change", () => {
@@ -225,10 +227,17 @@
     }
   }
 
-  // Candidates arrive one by one (NDJSON, see designer.go) while the others
-  // are still being computed, so one can be inspected and saved early.
+  // The server searches until its budget of attempts is used up or the page
+  // stops it. Candidates arrive one by one (NDJSON, see designer.go) as
+  // soon as they are among the k hardest so far, so one can be inspected
+  // and saved early; later ones can push them out again.
   let genCtl = null;
-  const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+  const plural = (k, one, many) => `${k.toLocaleString("de-DE")} ${k === 1 ? one : many}`;
+  const num = (k) => k.toLocaleString("de-DE");
+  // Hardest first, as harder in designer.go: the library collects puzzles
+  // the rules alone cannot solve. Of equally hard ones, the one that came
+  // first; so the first k here are the server's k hardest.
+  const harder = (a, b) => b.rulesFree - a.rulesFree || b.stats.lookahead - a.stats.lookahead || a.entered - b.entered;
   $("go").addEventListener("click", async () => {
     if (genCtl) return;
     const ctl = (genCtl = new AbortController());
@@ -238,25 +247,26 @@
     cands = [];
     candPattern = snapshot;
     candStrict = strict;
+    picked = false;
     showCands(null);
     markStale();
     $("go").disabled = true;
     $("stop").hidden = false;
     const t0 = performance.now();
-    const secs = () => ((performance.now() - t0) / 1000).toFixed(1);
-    let finished = 0, failed = 0, dups = 0;
+    const secs = () => ((performance.now() - t0) / 1000).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    let counts = { tried: 0, accepted: 0, duplicates: 0 };
+    const counters = (limit) => `angenommen/versucht: ${num(counts.accepted)}/${num(counts.tried)}` +
+      (limit ? ` von höchstens ${num(cfg.maxTries)}` : "") +
+      (counts.duplicates ? ` · ${num(counts.duplicates)} doppelt` : "");
     const progress = () => {
-      $("info").textContent = `${finished} von ${k} fertig, ${plural(cands.length, "Vorschlag", "Vorschläge")} (${secs()} s) …` +
-        (n >= 13 ? " Bei dieser Größe kann das dauern; fertige Vorschläge lassen sich schon speichern." : "");
+      $("info").textContent = `Suche läuft seit ${secs()} s · ${counters(true)} · ` +
+        `${plural(cands.length, "Vorschlag", "Vorschläge")}. Fertige Vorschläge lassen sich schon speichern.`;
     };
     progress();
     const timer = setInterval(progress, 500);
-    const summary = (prefix) => {
-      let msg = `${prefix} ${plural(cands.length, "Vorschlag", "Vorschläge")} in ${secs()} s, schwerste zuerst.`;
-      if (failed) msg += ` ${plural(failed, "Versuch", "Versuche")} ohne Ergebnis.`;
-      if (dups) msg += ` ${plural(dups, "Vorschlag", "Vorschläge")} doppelt.`;
-      return msg;
-    };
+    const summary = (prefix) => cands.length
+      ? `${prefix} ${secs()} s: ${plural(cands.length, "Vorschlag", "Vorschläge")}, schwerste zuerst · ${counters()}.`
+      : `${prefix} ${secs()} s: kein Vorschlag · ${counters()}.`;
     const handle = (ev) => {
       if (ev.problem) {
         setProblem(ev.problem);
@@ -265,25 +275,30 @@
         $("info").textContent = "Das Muster ist ungültig, siehe links.";
         return;
       }
+      if (ev.progress) {
+        counts = ev.progress;
+        return;
+      }
       if (ev.candidate) {
-        finished++;
         cands.push(ev.candidate);
-        // Hardest first: the library collects puzzles the rules alone cannot solve.
-        cands.sort((a, b) => b.rulesFree - a.rulesFree || b.stats.lookahead - a.stats.lookahead || a.seed - b.seed);
-        showCands(chosen ? chosen.seed : ev.candidate.seed);
+        cands.sort(harder);
+        // A candidate the user picked stays, even when it is pushed out.
+        const keep = cands.slice(0, k);
+        if (picked && chosen && !keep.includes(chosen)) keep.push(chosen);
+        cands = keep;
+        showCands(picked && chosen ? chosen.seed : cands[0].seed);
         progress();
         return;
       }
       if (ev.done) {
-        failed = ev.done.failed;
-        dups = ev.done.duplicates;
+        counts = ev.done;
         $("info").textContent = cands.length
-          ? summary("Fertig:")
-          : `Kein Vorschlag gefunden (${secs()} s). Der Generator schafft dieses Muster nicht; etwas weniger oder anders zeichnen hilft meist.` +
+          ? summary("Fertig nach")
+          : `Kein Vorschlag gefunden (${secs()} s, ${counters()}). Der Generator schafft dieses Muster nicht; etwas weniger oder anders zeichnen hilft meist.` +
             (strict ? " Im strengen Modus bleibt ihm oft zu wenig Spielraum, etwa wenn kleine freie Flächen ringsum eingeschlossen sind; ohne „Streng“ klappt es eher." : "");
       }
     };
-    try {
+  try {
       const res = await fetch("/api/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -305,7 +320,7 @@
         }
       }
     } catch (e) {
-      $("info").textContent = e.name === "AbortError" ? summary("Abgebrochen:") : "Fehler: " + e.message;
+      $("info").textContent = e.name === "AbortError" ? summary("Angehalten nach") : "Fehler: " + e.message;
     } finally {
       clearInterval(timer);
       genCtl = null;
@@ -400,7 +415,10 @@
       const m = el("div", "meta");
       m.innerHTML = difficulty(c); // numbers only
       b.append(m);
-      b.addEventListener("click", () => showCands(c.seed));
+      b.addEventListener("click", () => {
+        picked = true;
+        showCands(c.seed);
+      });
       box.append(b);
     });
     if (next !== chosen) {

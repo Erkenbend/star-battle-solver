@@ -185,8 +185,11 @@ every command that solves. `render` draws boards in the terminal.
 | web app (`install.go`) | manifest, icons (files drawn by `internal/icon`) and the head tags that make the served site installable; the `html` page gets none of them ([decision 26](decisions/26-installable-web-app.md)). |
 
 `designer` is the developer tool behind `starbattle design`, deliberately not
-part of `serve`: draw a pattern, let the generator complete it, save the
-result to a collection. Its page is built like the site's pages
+part of `serve`: draw a pattern, let the generator complete it again and
+again on all cores but one until a budget of attempts, keep the hardest
+completions (rated by the rules, searched only where that matters, see
+[decision 29](decisions/29-designer-searches-longer.md)), save one to a
+collection. Its page is built like the site's pages
 (`web.ServePage`, with the shared style and `logic.js`) from its own assets, and
 it reuses `web`'s play page for "try it".
 
