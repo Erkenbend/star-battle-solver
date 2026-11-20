@@ -1,0 +1,25 @@
+# name: Herz
+# designer: generator.Complete(pattern, rand.NewPCG(186069, 11), Strict), 2026-11-20
+# pattern (. = free):
+#   ...........
+#   ...........
+#   ..AAA.AAA..
+#   .AAHAAAHAA.
+#   .AAHHAHHAA.
+#   ..AHHHHHA..
+#   ..AAHHHAA..
+#   ...AAHAA...
+#   ....AAA....
+#   .....A.....
+#   ...........
+JJJJJJJJJEE
+JJKKKIIEEEE
+JJAAAIAAAEE
+JAAHAAAHAAE
+JAAHHAHHAAE
+JJAHHHHHAGD
+CJAAHHHAAGD
+CJCAAHAAGGD
+CCCBAAAGGDD
+CCCBFAFFGGD
+CCCBFFFFGGD

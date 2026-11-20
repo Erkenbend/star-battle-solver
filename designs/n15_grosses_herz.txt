@@ -1,0 +1,33 @@
+# name: Großes Herz
+# designer: generator.Complete(pattern, rand.NewPCG(902937, 15), Strict), 2026-11-20
+# pattern (. = free):
+#   ...............
+#   ...............
+#   ...CCC...CCC...
+#   ..CC.CC.CC.CC..
+#   .CC...CCC...CC.
+#   .C.....C.....C.
+#   .C...........C.
+#   .C...........C.
+#   .CC.........CC.
+#   ..CC.......CC..
+#   ...CC.....CC...
+#   ....CC...CC....
+#   .....CC.CC.....
+#   ......CCC......
+#   ...............
+JJJJJJJJJHHHHHO
+JJJJJJJJHHHHHHO
+JJJCCCJHHCCCHHO
+JJCCDCCHCCDCCOO
+JCCDDDCCCDDDCCO
+JCDDDEECDDDDDCI
+JCDDDDDDDDDDDCI
+JCBBDDDDDDDDDCM
+FCCDDDDDDDDDCCM
+FFCCDDDDDNDCCMM
+KFKCCDDNNNCCMMM
+KKKKCCLLNCCMMMM
+KKKKKCCLCCAAMMM
+KKKKKKCCCAAAAAA
+KKKKKKAAAAAAGGG
