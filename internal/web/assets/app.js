@@ -175,9 +175,9 @@ function boot() {
     if (!shift) return;
     window.scrollBy(0, shift);
     const left = boardEl.getBoundingClientRect().top - before;
-    if (left > 1) { // the end of the page: room below it
+    if (left > 1) { // the end of the page: room below it, as much as the scroll needs (more than left on a page shorter than the screen)
       const pad = parseFloat(document.body.style.paddingBottom) || 0;
-      document.body.style.paddingBottom = pad + left + "px";
+      document.body.style.paddingBottom = pad + Math.max(0, window.scrollY + left + innerHeight - document.body.offsetHeight) + "px";
       window.scrollBy(0, left);
     } else if (left < -1 && height && !above.hidden) above.style.minHeight = height + "px";
   }

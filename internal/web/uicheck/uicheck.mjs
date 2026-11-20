@@ -512,6 +512,16 @@ const scenarios = {
   // "Neues Puzzle": one size, or a random one of several ("Mehrere Größen"),
   // remembered on this device. New puzzles have random seeds, so only their
   // size is recorded.
+  // A solo puzzle on a phone, shorter than the screen: the banner of the
+  // solve must not push the board down (the page cannot scroll by itself).
+  async short() {
+    await fresh();
+    await go("/?n=6&seed=3");
+    const d = await data();
+    await solveBy(d.solution, d.n);
+    await obs("solved");
+  },
+
   async sizes() {
     await fresh();
     await go("/?n=8&seed=42");
@@ -885,9 +895,9 @@ const scenarios = {
   },
 };
 
-// Where people play on a phone: the party and the tutorial; and the other
-// pages under the phone's tab bar.
-const PHONE_SCENARIOS = new Set(["tutorial", "versus", "lives", "coop", "race", "pages"]);
+// Where people play on a phone: the party, the tutorial and a short solo
+// page; and the other pages under the phone's tab bar.
+const PHONE_SCENARIOS = new Set(["tutorial", "short", "versus", "lives", "coop", "race", "pages"]);
 for (const [name, f] of Object.entries(scenarios)) {
   if (ONLY.length && !ONLY.includes(name)) continue;
   scenario = name;
