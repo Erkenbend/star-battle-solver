@@ -373,7 +373,7 @@ button svg.flip { transform: scaleX(-1); }
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
   }
   .actionbar button, .actionbar .speed {
-    flex: 1 1 0; min-width: 0; max-width: 92px;
+    flex: 1 1 auto; min-width: 0; max-width: 92px; /* from its word's width: long words ("Widerspruch") fit beside short ones */
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     padding: 6px 2px; border: 0; background: transparent; border-radius: 10px;
     font-size: 11.5px; line-height: 1.2; color: var(--fg);
@@ -382,9 +382,6 @@ button svg.flip { transform: scaleX(-1); }
   .actionbar button svg, .actionbar .speed svg { display: block; width: 22px; height: 22px; margin: 0; }
   .actionbar button[aria-pressed="true"] { color: var(--accent-fg); background: var(--accent); }
   .actionbar .hyp-btn { color: var(--hyp); }
-  .actionbar #play { flex-grow: 1.4; } /* "Abspielen", the longest word */
-  .actionbar #giveup { flex-grow: 1.2; } /* "Aufgeben" among five others in a party */
-  .actionbar #hyp-contra { flex-grow: 1.4; } /* "Widerspruch" beside "Aufgeben" */
   .actionbar button { position: relative; }
   .actionbar .badge { position: absolute; top: 1px; left: calc(50% + 6px); margin: 0; }
   /* The speed: the word under the icon is the select itself. */

@@ -129,8 +129,16 @@ the UI check caught it.
 Variant B, after the first review: the room kept below the pages for the
 tab bar did not apply, because each page's own `padding` rule comes later
 in `style.css` and won; the end of the library, settings and party pages
-lay under the tab bar. Only the screenshots showed it: the UI check runs
-these pages at desktop size.
+lay under the tab bar. Only the screenshots showed it: the UI check ran
+these pages at desktop size. Now its phone scenario `pages` scrolls them to
+their end and records whether it lies above the tab bar (it reports
+"under the tab bar" with the old rule).
+
+Words cut off in the action bar ("Aufgeb…", "Widerspr…") also showed only
+in screenshots. The UI check now records them on the phone; at once it found
+"Annahme" cut off in a party's six buttons, squeezed by the extra width
+given to "Aufgeben". Instead of a width per button, each button now starts
+from its word's width (`flex-basis: auto`) and shares the rest of the bar.
 
 ## Alternatives
 

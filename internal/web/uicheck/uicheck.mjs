@@ -268,6 +268,11 @@ async function obs(label, { random = false } = {}) {
     const r = b.getBoundingClientRect(), top = nav && !nav.hidden ? nav.getBoundingClientRect().top : innerHeight;
     return r.bottom <= top + 1 || r.top >= innerHeight ? "not covered" : "under the tab bar";
   })()`);
+  // Words of the action bar cut off ("Aufgeb…"): only recorded when there are any.
+  if (phone) {
+    const cut = await js(`[...document.querySelectorAll(".actionbar button span")].filter((e) => e.offsetParent && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent).join(",")`);
+    if (cut) o.cut = cut;
+  }
   if (party) { // a random puzzle: which classes occur, not where, and no rule violations
     o.cells = [...new Set(o.cells.flatMap((c) => c.split("+")))].filter((c) => c !== "." && c !== "bad").sort();
     delete o.steps;
@@ -836,10 +841,29 @@ const scenarios = {
     await obs("skipped to 3");
     await server(p, "after skip", (me) => me.puzzle === 3);
   },
+
+  // The pages besides the puzzle, scrolled to their end: on a phone their
+  // last part must end above the site's tab bar, not under it.
+  async pages() {
+    await fresh();
+    for (const url of ["/bibliothek", "/bibliothek#schwer", "/einstellungen", "/party"]) {
+      await go(url);
+      await js(`window.scrollTo(0, document.documentElement.scrollHeight)`);
+      await sleep(150);
+      const end = await js(`(() => {
+        const main = document.querySelector("main"), nav = document.querySelector(".site-nav");
+        const last = [...main.querySelectorAll("*")].filter((e) => e.getClientRects().length).map((e) => e.getBoundingClientRect().bottom);
+        const top = nav ? nav.getBoundingClientRect().top : innerHeight;
+        return Math.max(...last) <= top + 1 ? "above the tab bar" : "under the tab bar";
+      })()`);
+      record({ label: url, end });
+    }
+  },
 };
 
-// Where people play on a phone: the party and the tutorial.
-const PHONE_SCENARIOS = new Set(["tutorial", "versus", "lives", "coop", "race"]);
+// Where people play on a phone: the party and the tutorial; and the other
+// pages under the phone's tab bar.
+const PHONE_SCENARIOS = new Set(["tutorial", "versus", "lives", "coop", "race", "pages"]);
 for (const [name, f] of Object.entries(scenarios)) {
   if (ONLY.length && !ONLY.includes(name)) continue;
   scenario = name;
