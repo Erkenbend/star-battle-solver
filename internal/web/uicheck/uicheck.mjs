@@ -517,14 +517,12 @@ const scenarios = {
     await obs("opened with #weg");
   },
 
-  // A solo puzzle on a phone, shorter than the screen: the banner of the
-  // solve must not push the board down (the page cannot scroll by itself).
-  async short() {
-    await fresh();
-    await go("/?n=6&seed=3");
-    const d = await data();
-    await solveBy(d.solution, d.n);
-    await obs("solved");
+  // The same on a phone, where the page is shorter than the screen: what
+  // comes above the board (a hint, a check, the banner of the solve) must
+  // not move it under a tap, and the action bar must neither lie under the
+  // tab bar nor cut its words.
+  async solophone() {
+    await scenarios.solo();
   },
 
   // "/" (Solo, the start page, the installed app's start) leads back to
@@ -932,10 +930,10 @@ const scenarios = {
   },
 };
 
-// Where people play on a phone: the party, the tutorial, a short solo page
-// and coming back to a puzzle through the tab bar; and the other pages
-// under the phone's tab bar.
-const PHONE_SCENARIOS = new Set(["tutorial", "short", "resume", "versus", "lives", "coop", "race", "pages"]);
+// Where people play on a phone: solo, the party, the tutorial and coming
+// back to a puzzle through the tab bar; and the other pages under the
+// phone's tab bar.
+const PHONE_SCENARIOS = new Set(["tutorial", "solophone", "resume", "versus", "lives", "coop", "race", "pages"]);
 for (const [name, f] of Object.entries(scenarios)) {
   if (ONLY.length && !ONLY.includes(name)) continue;
   scenario = name;
@@ -961,9 +959,10 @@ const keep = (lines) => lines.filter((l) => ran.has(JSON.parse(l).scenario));
 fs.writeFileSync(OUTFILE, observed.join("\n") + "\n");
 
 if (UPDATE) {
-  // The scenarios run replace theirs, the others stay, in scenario order.
+  // The scenarios run replace theirs, the others stay, in scenario order;
+  // those of a scenario that is gone go too.
   const order = Object.keys(scenarios);
-  const all = [...old.filter((l) => !ran.has(JSON.parse(l).scenario)), ...observed];
+  const all = [...old.filter((l) => !ran.has(JSON.parse(l).scenario) && order.includes(JSON.parse(l).scenario)), ...observed];
   all.sort((a, b) => order.indexOf(JSON.parse(a).scenario) - order.indexOf(JSON.parse(b).scenario));
   fs.writeFileSync(EXPECTED, all.join("\n") + "\n");
   console.log(`expected.jsonl: ${observed.length} observations of ${[...ran].join(", ")} written`);

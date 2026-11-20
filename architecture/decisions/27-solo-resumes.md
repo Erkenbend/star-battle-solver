@@ -67,4 +67,9 @@ solo page shorter than the screen (6×6 or 8×8 on a phone) the "Gelöst"
 banner pushed the board down by 96 px on the solving tap. `keepBoard` gave
 the page room below by exactly the shift, which is enough only at the end
 of a page longer than the screen. Fixed in its own commit (`c09b609`), with
-a phone scenario `short` that solves a 6×6.
+a phone scenario `short` that solves a 6×6. That scenario was replaced by
+`solophone`, the whole `solo` scenario at phone size, which reports the same
+move with the old code and also found that a tap on a step of the solving
+path hit the tab bar: `scrollIntoView` (the UI check's taps, the tour's
+targets) stopped right under it. The page now has `scroll-padding-bottom`
+for the tab bar.
