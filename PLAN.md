@@ -66,7 +66,7 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Als Nächstes
 
-Nichts Bestimmtes, siehe „Später“.
+1. **Designer: Farben tauschen:** Nach der Auswahl eines Vorschlags die Farben der Regionen untereinander tauschen können, damit das Bild schöner aussieht (z. B. passende Farben für Motiv und Hintergrund). Noch nicht geplant.
 
 ### Erledigt / verworfen
 
