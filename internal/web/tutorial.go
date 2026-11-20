@@ -79,7 +79,7 @@ var tutorial = Tutorial{
 	Tour: []TourStop{
 		{"star-tool", "★ Tippen: Ist das an, setzt schon ein Tipp einen Stern. Ziehen kreuzt weiterhin."},
 		{"hyp", "Annahme: Steckst du fest, setz probehalber einen Stern und schau, ob er zu einem Widerspruch führt."},
-		{"more", "Mehr: neues Puzzle, neu beginnen und Spielhilfen wie Nachbarn automatisch kreuzen."},
+		{"more", "Mehr: Größe neuer Puzzles, neu beginnen und Spielhilfen wie Nachbarn automatisch kreuzen. „Neues Puzzle“ steht beim Solo-Spiel neben dem Titel."},
 		{"info-btn", "Regeln, Bedienung und was die Farben auf dem Brett bedeuten."},
 		{"tab-watch", "Lösungsweg: Der Solver zeigt Schritt für Schritt, wie er das Puzzle löst, mit Begründung."},
 		{"nav-party", "Zusammen spielen: Partys mit anderen, gegeneinander, miteinander oder gegen die Uhr."},
