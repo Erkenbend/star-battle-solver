@@ -206,7 +206,15 @@ for party rounds, with `coop.js` and `race.js` for their modes. `boot()` in
 `app.js` creates each part with the page object `P`, through which the parts
 read and change the play state; the core calls back into them (`H.change`,
 `party.controls`, …). The library, settings, party and designer pages have
-their own small scripts instead. Some board
+their own small scripts instead.
+
+Three rules of the puzzle page that bugs found on phones broke:
+`renderPlay` runs after every change, also from party events and timers,
+and draws board and banner only in the play tab (the solving path draws its
+own); a party page changes pages only through `Party.goTo`, as setting
+`location` again while a page loads starts the load over; and what changes
+height above the board goes through `keepBoard` (`banner()` does), which
+keeps the board where it is on screen. Some board
 logic exists twice, in Go and in JS; the comments point to the counterpart,
 and the node test checks that following the hints solves every hard puzzle.
 
@@ -291,9 +299,12 @@ designer appends for you). The workflows are in `docs/development.md`.
   Chromium over the DevTools protocol through every mode of the puzzle page
   (solo, hints, checks, hypothesis, solving path, tutorial and tour, library,
   a page saved as a file, and parties against each other (also with
-  lives), together and against the clock, with a second player via the API;
-  a few steps on a phone-sized screen or a slow connection) and records what the
-  page and the server show after each action. Values that differ between
+  lives), together and against the clock, with a second player via the API)
+  and records what the page and the server show after each action. The
+  party and tutorial scenarios run on a phone-sized screen, the party's
+  transitions (solving path, next round, next puzzle) under a stream of
+  states and on a slow connection. In every scenario a page load the page
+  aborts itself and, on the phone, the board moving under a tap are errors. Values that differ between
   runs (times, random party puzzles) are normalized. The result must equal
   `expected.jsonl`; after an intended UI change, `run.sh -update` rewrites
   it and its diff is part of the review. Not part of `go test`: run it with

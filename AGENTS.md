@@ -29,11 +29,17 @@
 
 * Locally run only `go test -short ./...` plus focused `-run` tests; the full suite is CI's job. `STARBATTLE_ALL_HARD=1` runs nowhere by default, only on request (see [decision 22](architecture/decisions/22-ci-sample-only.md))
 * After changing browser code, run the UI check (see [docs/development.md](docs/development.md#ui-prüfung)); an intended UI change updates `expected.jsonl` in the same commit
+* Reproduce a reported bug before fixing it (in the browser: a scratch script with the UI check's helpers); the fix adds an observation to the UI check or a test that fails with the old code
+* Browser code must hold up on a phone, on a slow connection and while other players' states keep arriving; the UI check covers this with `PHONE_SCENARIOS`, `underFire` and its errors in every scenario (aborted page loads, the board moving under a tap)
 
 ## Documentation
 
 * Update the docs a change affects in the same commit: the table in [architecture/README.md](architecture/README.md) section 8 says which
 * Refactoring proposals go into [architecture/refactorings.md](architecture/refactorings.md), following the conventions at its top
+
+## Learnings
+
+* When a session brings new insight (a bug fixed, an edge case found, a rule or check that was missing), propose without being asked how the tests or these instructions could catch it next time
 
 ## Miscellaneous
 
