@@ -12,8 +12,8 @@
 // runs of the same build are normalized when recorded: times, party codes,
 // the random puzzles of parties (their boards as the classes that occur, no
 // rule violations, steps or problems) and the random puzzle after the tutorial. A failed
-// step or a JavaScript error is an observation too, so it shows as a
-// difference.
+// step, a JavaScript error or a page load the page aborted itself is an
+// observation too, so it shows as a difference.
 //
 // With -update, the observations replace expected.jsonl (of the scenarios
 // run). Do that after an intended change of the page, and check its diff.
@@ -85,9 +85,16 @@ const DESKTOP = { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false 
 const PHONE = { width: 393, height: 851, deviceScaleFactor: 2.75, mobile: true };
 await send("Emulation.setDeviceMetricsOverride", DESKTOP);
 // The pages the tab went to (requested, also those aborted by a new one).
-const visited = [];
+// A load the page started itself and aborted is an error in every
+// scenario: setting location again while a load is under way starts it
+// over, and with a slow connection the page may never arrive.
+const visited = [], byScript = new Set(), aborted = [];
 listeners.push((d) => {
-  if (d.method === "Network.requestWillBeSent" && d.params.type === "Document") visited.push(d.params.request.url.replace(BASE, ""));
+  if (d.method === "Network.requestWillBeSent" && d.params.type === "Document") {
+    visited.push(d.params.request.url.replace(BASE, ""));
+    if (d.params.initiator.type === "script") byScript.add(d.params.requestId);
+  }
+  if (d.method === "Network.loadingFailed" && d.params.canceled && byScript.has(d.params.requestId)) aborted.push(d.params.requestId);
 });
 await send("Network.enable");
 
@@ -752,6 +759,7 @@ for (const [name, f] of Object.entries(scenarios)) {
     record({ label: "FAILED", error: String(e.message || e).slice(0, 300) });
   }
   if (errors.length) record({ label: "JS ERRORS", errors: errors.splice(0) });
+  if (aborted.length) record({ label: "ABORTED PAGE LOADS", count: aborted.splice(0).length });
 }
 ws.onclose = null;
 ws.close();
