@@ -96,6 +96,8 @@ something far away.
               root package `starbattle` (embed.go): embeds testdata/hard,
               designs/, symbols/
               internal/sprite (dev): draws the animated sheets in symbols/
+              internal/icon (dev): draws the web app's icons in
+              internal/web/assets/icons
               internal/concviz (dev): draws the diagrams of concurrency.md
 
  reasoning    internal/solver ◄──── internal/solver/observers
@@ -180,7 +182,7 @@ every command that solves. `render` draws boards in the terminal.
 | library (`library.go`) | the embedded collections (hard puzzles, motifs) as browsable pages; each puzzle is solved lazily in the background on first visit. |
 | parties (`party_server.go`) | HTTP and server-sent events of the party mode, and the page of a round. The game itself is `internal/party` (below). |
 | settings / symbols (`symbols.go`) | the catalog of star symbols players can pick. |
-| web app (`install.go`) | manifest, icons (drawn in Go) and the head tags that make the served site installable; the `html` page gets none of them ([decision 26](decisions/26-installable-web-app.md)). |
+| web app (`install.go`) | manifest, icons (files drawn by `internal/icon`) and the head tags that make the served site installable; the `html` page gets none of them ([decision 26](decisions/26-installable-web-app.md)). |
 
 `designer` is the developer tool behind `starbattle design`, deliberately not
 part of `serve`: draw a pattern, let the generator complete it, save the
@@ -283,6 +285,10 @@ because `go:embed` cannot reach parent directories.
   drawn by `internal/sprite`; its test keeps the checked-in files and their
   `frames` and `clips` in `symbols.json` in step with the code.
 
+The icons of the web app (`internal/web/assets/icons`) work the same way:
+`internal/icon` draws them, its test keeps the PNG files in step, and `web`
+embeds the files, so the server never draws.
+
 `testdata/hard` and `designs` share one on-disk format, owned by
 `internal/collection`: the index, file names (`nNN_STEM.txt`), header lines
 (`# rating:`, `# name:`), the region-based ID, duplicate checks, and creating
@@ -365,5 +371,6 @@ browser code. The full suite with every hard puzzle is CI's job.
 | a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German |
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/`; animated ones in `internal/sprite` | see `symbols/README.md`; rewrite the sheets with `go test ./internal/sprite -update` |
+| the app icon | `internal/icon` | rewrite the files with `go test ./internal/icon -update`; look at them at 32 px too |
 | a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |
 | goroutines or channels anywhere | the section of the place in `architecture/concurrency.md` | update that file; run `go test -race` on the package; `go test ./internal/concviz` names the claims of the section's story that no longer hold: fix the story in `internal/concviz`, then `go test ./internal/concviz -update`; a new place gets a section and a story |

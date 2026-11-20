@@ -10,8 +10,6 @@ import (
 	"testing"
 
 	starbattle "starbattle"
-	"starbattle/internal/bruteforce"
-	"starbattle/internal/puzzle"
 )
 
 const manifestLink = `<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">`
@@ -90,21 +88,5 @@ func TestManifest(t *testing.T) {
 		if b := img.Bounds(); sizes(b.Dx()) != size || b.Dx() != b.Dy() {
 			t.Errorf("%s: %v, want %s", u, b, size)
 		}
-	}
-}
-
-// The icon shows a real puzzle and its only solution.
-func TestIconPuzzle(t *testing.T) {
-	regions := make([][]int, len(iconRegions))
-	for r := range iconRegions {
-		regions[r] = iconRegions[r][:]
-	}
-	p, err := puzzle.New(regions)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sols := bruteforce.Solve(p, 2)
-	if len(sols) != 1 || !slices.Equal(sols[0], iconStars[:]) {
-		t.Fatalf("solutions %v, the icon shows %v", sols, iconStars)
 	}
 }
