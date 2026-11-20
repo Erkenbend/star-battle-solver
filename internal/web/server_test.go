@@ -170,3 +170,38 @@ func TestPool(t *testing.T) {
 		t.Fatalf("unpooled size: %q", loc)
 	}
 }
+
+// "/" leads back to the solo puzzle of the cookie; anything else in the
+// cookie is ignored, and a URL with a query is never redirected by it.
+func TestSoloCookie(t *testing.T) {
+	h := Handler(testSolve, nil, nil, nil, nil)
+	at := func(path, cookie string) string {
+		req := httptest.NewRequest("GET", path, nil)
+		req.AddCookie(&http.Cookie{Name: SoloCookie, Value: cookie})
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Header().Get("Location")
+	}
+	esc := url.QueryEscape
+	for cookie, want := range map[string]string{
+		esc("/?n=6&seed=3"):                          "/?n=6&seed=3",
+		esc("/?seed=3&n=6"):                          "/?n=6&seed=3",
+		esc("/play?p=AABBB/ACCBB/CCCDB/EEDDB/EEEEE"): "/play?p=AABBB%2FACCBB%2FCCCDB%2FEEDDB%2FEEEEE",
+	} {
+		if got := at("/", cookie); got != want {
+			t.Errorf("cookie %q: to %q, want %q", cookie, got, want)
+		}
+	}
+	for _, cookie := range []string{
+		esc("//evil.example/?n=6&seed=3"), esc("https://evil.example/?n=6&seed=3"),
+		esc("/?n=99&seed=3"), esc("/?n=6&seed=x"), esc("/?n=6&seed=3&n=7"), esc("/?n=6"),
+		esc("/play?p=AB/BA"), esc("/party"), "%zz", "",
+	} {
+		if got := at("/", cookie); !regexp.MustCompile(`^/\?n=8&seed=\d+$`).MatchString(got) {
+			t.Errorf("cookie %q: to %q, want a new puzzle", cookie, got)
+		}
+	}
+	if got := at("/?n=7", esc("/?n=6&seed=3")); !strings.HasPrefix(got, "/?n=7&seed=") {
+		t.Errorf("new puzzle with a cookie: to %q", got)
+	}
+}

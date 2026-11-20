@@ -645,6 +645,22 @@ function boot() {
     H.save(v);
     if (party) party.save(v);
     save(v);
+    rememberSolo();
+  }
+  // "/" (Solo, the start page, the installed app's start) leads back to an
+  // unsolved solo puzzle: the server reads its URL from this cookie
+  // (SoloCookie in server.go). Opened or played, a solo puzzle puts itself
+  // there; solved, it takes itself out, unless another one is there by now.
+  const soloPage = d.served && !party && !lib && !tut;
+  const SOLO_COOKIE = "starbattle.solo";
+  const soloHere = SOLO_COOKIE + "=" + encodeURIComponent(location.pathname + location.search);
+  function rememberSolo() {
+    if (!soloPage) return;
+    try {
+      const mine = document.cookie.split("; ").includes(soloHere);
+      if (!done && !mine) document.cookie = soloHere + "; path=/; max-age=7776000; samesite=lax"; // 90 days
+      else if (done && mine) document.cookie = SOLO_COOKIE + "=; path=/; max-age=0; samesite=lax";
+    } catch { /* cookies blocked */ }
   }
 
   function message(...nodes) {

@@ -217,6 +217,14 @@ const bannerHas = (t) => `document.getElementById("banner").textContent.includes
 async function fresh() {
   await go("/party"); // any page of the origin
   await js(`localStorage.clear(); localStorage.setItem("starbattle.tutorial", "1")`); // no tutorial first
+  await js(`document.cookie = "starbattle.solo=; path=/; max-age=0"`); // "/" gives a new puzzle
+}
+// Taps sel, a link or submit button, and waits for the page it leads to.
+async function follow(sel) {
+  const loaded = once("Page.loadEventFired");
+  await click(sel);
+  await loaded;
+  await sleep(250);
 }
 async function api(p, body) {
   const r = await fetch(BASE + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -509,9 +517,6 @@ const scenarios = {
     await obs("opened with #weg");
   },
 
-  // "Neues Puzzle": one size, or a random one of several ("Mehrere Größen"),
-  // remembered on this device. New puzzles have random seeds, so only their
-  // size is recorded.
   // A solo puzzle on a phone, shorter than the screen: the banner of the
   // solve must not push the board down (the page cannot scroll by itself).
   async short() {
@@ -522,6 +527,38 @@ const scenarios = {
     await obs("solved");
   },
 
+  // "/" (Solo, the start page, the installed app's start) leads back to
+  // the unsolved solo puzzle, with its marks; a new one comes from "Neues
+  // Puzzle", or from "/" once the last one is solved.
+  async resume() {
+    await fresh();
+    await go("/?n=6&seed=3");
+    await click(cell(0));
+    await tapDone();
+    await obs("started");
+    await go("/einstellungen");
+    await follow(`.site-nav a[href="/"]:not(.home)`);
+    await obs("Solo from the settings");
+    await go("/");
+    await obs("start page");
+    await follow("#newgame-go");
+    const b = await js("location.pathname + location.search");
+    record({ label: "Neues Puzzle", newPuzzle: b !== "/?n=6&seed=3" });
+    await go("/bibliothek");
+    await follow(`.site-nav a[href="/"]:not(.home)`);
+    record({ label: "Solo from the library", samePuzzle: (await js("location.pathname + location.search")) === b });
+    const d = await data();
+    await solveBy(d.solution, d.n);
+    await obs("solved", { random: true });
+    await go("/einstellungen");
+    await follow(`.site-nav a[href="/"]:not(.home)`);
+    const c = await js("location.pathname + location.search");
+    record({ label: "Solo after solving", newPuzzle: c !== b && c !== "/?n=6&seed=3" });
+  },
+
+  // "Neues Puzzle": one size, or a random one of several ("Mehrere Größen"),
+  // remembered on this device. New puzzles have random seeds, so only their
+  // size is recorded.
   async sizes() {
     await fresh();
     await go("/?n=8&seed=42");
@@ -895,9 +932,10 @@ const scenarios = {
   },
 };
 
-// Where people play on a phone: the party, the tutorial and a short solo
-// page; and the other pages under the phone's tab bar.
-const PHONE_SCENARIOS = new Set(["tutorial", "short", "versus", "lives", "coop", "race", "pages"]);
+// Where people play on a phone: the party, the tutorial, a short solo page
+// and coming back to a puzzle through the tab bar; and the other pages
+// under the phone's tab bar.
+const PHONE_SCENARIOS = new Set(["tutorial", "short", "resume", "versus", "lives", "coop", "race", "pages"]);
 for (const [name, f] of Object.entries(scenarios)) {
   if (ONLY.length && !ONLY.includes(name)) continue;
   scenario = name;

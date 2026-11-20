@@ -247,6 +247,7 @@ explains most of the design:
 | Solver results | computed per request; cached in memory for the pool, the library and party rounds | process lifetime |
 | Parties, players, rounds, the shared coop board | server memory behind one mutex | expire after inactivity; lost on restart |
 | A player's progress, timer, solved library puzzles, preferences, chosen symbol, party token | the browser's `localStorage` | per device |
+| The unsolved solo puzzle `/` leads back to | a cookie (`starbattle.solo`), set and cleared by the page, read by the server ([decision 27](decisions/27-solo-resumes.md)) | per device, 90 days |
 
 Consequences worth knowing:
 

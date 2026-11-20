@@ -36,6 +36,7 @@ and open ideas.
 | [24](24-concurrency-animations.md) | Diagrams and a step-through player for `concurrency.md`, checked against the code | done |
 | [25](25-mobile-first-page.md) | Puzzle page laid out for phones first (variant B) | done |
 | [26](26-installable-web-app.md) | The site can be installed as a web app (manifest, icons, no offline play) | done |
+| [27](27-solo-resumes.md) | "/" leads back to the unsolved solo puzzle | done |
 
 ## Adding a decision
 

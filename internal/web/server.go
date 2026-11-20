@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -32,6 +33,8 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 // via the page's local storage, the progress):
 //
 //	/?n=8&seed=42   generated puzzle (same seeding as `starbattle generate`)
+//	/               the unsolved solo puzzle of the cookie SoloCookie, else
+//	                as /?n=8
 //	/?n=8           new seed, redirects to the URL above
 //	/?n=6&n=8&n=10  a random one of these sizes, then as /?n=8
 //	/play?p=AAB...  puzzle in the text format, e.g. from the designer (rows
@@ -58,6 +61,12 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 	tutorialRoutes(mux, solve)
 	installRoutes(mux)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery == "" {
+			if u := soloURL(r); u != "" {
+				http.Redirect(w, r, u, http.StatusFound)
+				return
+			}
+		}
 		q := r.URL.Query()
 		sizes := []int{}
 		for _, s := range q["n"] {
@@ -105,13 +114,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 		page(w, solve, title, p, sol)
 	})
 	mux.HandleFunc("GET /play", func(w http.ResponseWriter, r *http.Request) {
-		text := r.URL.Query().Get("p")
-		text = strings.NewReplacer("/", "\n", ",", "\n", ";", "\n").Replace(text)
-		p, err := puzzle.Parse(strings.NewReader(text))
-		if err == nil && (p.N < MinN || p.N > MaxN) {
-			//lint:ignore ST1005 German noun, shown to the user
-			err = fmt.Errorf("Größe %d×%d, erlaubt sind %d bis %d", p.N, p.N, MinN, MaxN)
-		}
+		p, err := parsePlay(r.URL.Query().Get("p"))
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "Puzzle nicht lesbar: "+err.Error())
 			return
@@ -128,6 +131,61 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 		page(w, solve, fmt.Sprintf("Star Battle %d×%d · eigenes Puzzle", p.N, p.N), p, sol)
 	})
 	return mux
+}
+
+// parsePlay reads the puzzle of /play?p=…: the text format, rows separated
+// by newlines, '/', ',' or ';'.
+func parsePlay(text string) (*puzzle.Puzzle, error) {
+	text = strings.NewReplacer("/", "\n", ",", "\n", ";", "\n").Replace(text)
+	p, err := puzzle.Parse(strings.NewReader(text))
+	if err == nil && (p.N < MinN || p.N > MaxN) {
+		//lint:ignore ST1005 German noun, shown to the user
+		err = fmt.Errorf("Größe %d×%d, erlaubt sind %d bis %d", p.N, p.N, MinN, MaxN)
+	}
+	return p, err
+}
+
+// SoloCookie holds the URL of the solo puzzle "/" leads back to: Solo in the
+// navigation, the start page, the start of the installed app (decision 27).
+// The puzzle page sets it to its own URL while unsolved and removes it once
+// solved (app.js); library puzzles, party rounds and the tutorial leave it.
+const SoloCookie = "starbattle.solo"
+
+// soloURL is the puzzle of the request's SoloCookie, "" if there is none.
+// Only a puzzle URL of this site counts, rebuilt from its parts, so the
+// cookie cannot send anyone to another site.
+func soloURL(r *http.Request) string {
+	c, err := r.Cookie(SoloCookie)
+	if err != nil {
+		return ""
+	}
+	v, err := url.QueryUnescape(c.Value)
+	if err != nil {
+		return ""
+	}
+	u, err := url.Parse(v)
+	if err != nil || u.Scheme != "" || u.Host != "" {
+		return ""
+	}
+	q := u.Query()
+	switch {
+	case u.Path == "/" && len(q) == 2 && len(q["n"]) == 1 && len(q["seed"]) == 1:
+		n, err := strconv.Atoi(q.Get("n"))
+		if err != nil || n < MinN || n > MaxN {
+			return ""
+		}
+		seed, err := strconv.ParseUint(q.Get("seed"), 10, 64)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/?n=%d&seed=%d", n, seed)
+	case u.Path == "/play" && len(q) == 1 && len(q["p"]) == 1:
+		if _, err := parsePlay(q.Get("p")); err != nil {
+			return ""
+		}
+		return "/play?" + url.Values{"p": q["p"]}.Encode()
+	}
+	return ""
 }
 
 // newSeed returns a random seed, short enough for the title and never 0 (the

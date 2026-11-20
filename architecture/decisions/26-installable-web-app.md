@@ -108,7 +108,8 @@ the PNG encoder, the five files add 42 kB.
   back button. The tab bar reaches every page, but "Solo" always starts a
   new puzzle (`/`), so going from a puzzle to the settings and back loses
   your place (the progress stays in local storage, under the puzzle's URL).
-  The fix: "Solo" goes back to the last unfinished solo puzzle.
+  The fix: "Solo" goes back to the last unfinished solo puzzle. Done in
+  [decision 27](27-solo-resumes.md).
 - **Not tried on a device yet:** installing on Android and iOS, the icon
   under the launcher's mask, and basic auth in an installed app on iOS
   (which may ask for the password again).
