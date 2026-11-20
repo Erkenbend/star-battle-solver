@@ -43,27 +43,30 @@
     return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
   };
 
-  // Regions as colored squares with thick walls between them.
+  // Regions as colored areas with thick walls between them: one path per
+  // region, not one rect per cell, since the tab "Schwer" alone has some 190
+  // puzzles of up to 15×15. Each is drawn once and kept.
+  const previews = new Map();
   function preview(e) {
+    if (previews.has(e.id)) return previews.get(e.id);
     const n = e.n;
     const svg = document.createElementNS(SVG, "svg");
     svg.setAttribute("viewBox", `0 0 ${n} ${n}`);
     svg.setAttribute("aria-hidden", "true");
+    // Cells slightly larger than 1: no seams between those of one region.
+    const cells = new Map();
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
-        const rect = document.createElementNS(SVG, "rect");
-        rect.setAttribute("x", c);
-        rect.setAttribute("y", r);
-        rect.setAttribute("width", 1.02);
-        rect.setAttribute("height", 1.02);
-        const [h, s, l] = L.regionHSL(n, e.regions[r][c]);
-        rect.style.setProperty("--h", h);
-        rect.style.setProperty("--s", s + "%");
-        rect.style.setProperty("--l", l + "%");
-        rect.style.setProperty("--ds", Math.round(s * 0.62) + "%");
-        rect.style.setProperty("--dl", Math.round(22 + (l - 60) * 0.75) + "%");
-        svg.append(rect);
+        const g = e.regions[r][c];
+        cells.set(g, (cells.get(g) || "") + `M${c} ${r}h1.02v1.02h-1.02z`);
       }
+    }
+    for (const [g, d] of cells) {
+      const path = document.createElementNS(SVG, "path");
+      path.setAttribute("d", d);
+      const [h, s, l] = L.regionHSL(n, g);
+      path.setAttribute("style", `--h:${h};--s:${s}%;--l:${l}%;--ds:${Math.round(s * 0.62)}%;--dl:${Math.round(22 + (l - 60) * 0.75)}%`);
+      svg.append(path);
     }
     let p = "";
     for (let r = 0; r < n; r++) {
@@ -76,6 +79,7 @@
     path.setAttribute("class", "thick");
     path.setAttribute("d", p);
     svg.append(path);
+    previews.set(e.id, svg);
     return svg;
   }
 
@@ -143,7 +147,9 @@
     render();
   };
   // Coming back from a solved puzzle (bfcache) shows the new check mark.
-  window.addEventListener("pageshow", () => {
+  // On the first load pageshow fires too, after the render below.
+  window.addEventListener("pageshow", (ev) => {
+    if (!ev.persisted) return;
     try { solved = JSON.parse(localStorage.getItem("starbattle:library:solved") || "{}") || {}; } catch { /* ignore */ }
     render();
   });

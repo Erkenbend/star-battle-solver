@@ -675,6 +675,16 @@ const scenarios = {
     const parts = await js(`JSON.parse(document.getElementById("data").textContent).parts`);
     const hard = parts.find((p) => p.kind === "schwer").entries[0];
     const motif = parts.find((p) => p.kind === "motive").entries[0];
+    // The tab "Schwer" has some 190 previews: with a shape per cell (31,000
+    // in all) switching to it took a second on a desktop, 3 s on a phone.
+    // One shape per region (n of them) and the walls keep it fast.
+    await click("#tab-schwer");
+    record({
+      label: "library tab schwer",
+      selected: await js(`document.querySelector(".lib-tabs [aria-selected=true]").id`),
+      tilesAll: await js(`document.querySelectorAll(".lib-tile").length === ${parts.find((p) => p.kind === "schwer").entries.length}`),
+      shapesPerRegion: await js(`[...document.querySelectorAll(".lib-tile svg")].every((s) => s.childElementCount <= s.viewBox.baseVal.width + 1)`),
+    });
     await go("/bibliothek?id=" + encodeURIComponent(hard.id));
     await obs("hard start");
     const t = await (await fetch(`${BASE}/bibliothek/weg?id=${encodeURIComponent(hard.id)}`)).json();

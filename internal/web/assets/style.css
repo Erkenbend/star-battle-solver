@@ -653,11 +653,11 @@ details.opt > p { margin: 8px 0 0; }
 .lib-tile .rating ~ .done { flex-basis: 100%; } /* below name and rating */
 .lib-tile.solved svg { opacity: 0.55; }
 .lib-tile .sub { font-size: 12px; color: var(--muted); }
-.lib-tile rect { fill: hsl(var(--h) var(--s) var(--l)); }
+.lib-tile path:not(.thick) { fill: hsl(var(--h) var(--s) var(--l)); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .lib-tile rect { fill: hsl(var(--h) var(--ds) var(--dl)); }
+  :root:not([data-theme="light"]) .lib-tile path:not(.thick) { fill: hsl(var(--h) var(--ds) var(--dl)); }
 }
-:root[data-theme="dark"] .lib-tile rect { fill: hsl(var(--h) var(--ds) var(--dl)); }
+:root[data-theme="dark"] .lib-tile path:not(.thick) { fill: hsl(var(--h) var(--ds) var(--dl)); }
 
 /* Library: the solver's way can still be on its way (app.js loadTrace). */
 #trace-wait { display: none; }
