@@ -35,6 +35,7 @@ and open ideas.
 | [23](23-size-15.md) | Size 15 in the game and the library | done |
 | [24](24-concurrency-animations.md) | Diagrams and a step-through player for `concurrency.md`, checked against the code | done |
 | [25](25-mobile-first-page.md) | Puzzle page laid out for phones first (variant B) | done |
+| [26](26-installable-web-app.md) | The site can be installed as a web app (manifest, icons, no offline play) | done |
 
 ## Adding a decision
 

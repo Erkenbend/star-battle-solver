@@ -180,6 +180,7 @@ every command that solves. `render` draws boards in the terminal.
 | library (`library.go`) | the embedded collections (hard puzzles, motifs) as browsable pages; each puzzle is solved lazily in the background on first visit. |
 | parties (`party_server.go`) | HTTP and server-sent events of the party mode, and the page of a round. The game itself is `internal/party` (below). |
 | settings / symbols (`symbols.go`) | the catalog of star symbols players can pick. |
+| web app (`install.go`) | manifest, icons (drawn in Go) and the head tags that make the served site installable; the `html` page gets none of them ([decision 26](decisions/26-installable-web-app.md)). |
 
 `designer` is the developer tool behind `starbattle design`, deliberately not
 part of `serve`: draw a pattern, let the generator complete it, save the
@@ -349,7 +350,8 @@ browser code. The full suite with every hard puzzle is CI's job.
 - **Deployment** (`deploy/`): a script cross-compiles for a Raspberry Pi,
   copies the binary and installs it as a systemd service. TLS and access
   control (the public instance uses basic auth) belong to a reverse proxy in
-  front, not to the binary.
+  front, not to the binary. Browsers install the site as an app only over
+  HTTPS.
 
 ## 8. Where to start for typical changes
 

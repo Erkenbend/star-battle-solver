@@ -151,4 +151,5 @@ from its word's width (`flex-basis: auto`) and shares the rest of the bar.
 - A help sheet instead of the inline ⓘ card: an overlay hides the board the
   legend talks about.
 
-Open: with a web-app manifest the page could later be installed.
+Open: with a web-app manifest the page could later be installed. Done in
+[decision 26](26-installable-web-app.md).

@@ -139,3 +139,11 @@
 {"scenario":"pages","label":"/bibliothek#schwer","end":"above the tab bar"}
 {"scenario":"pages","label":"/einstellungen","end":"above the tab bar"}
 {"scenario":"pages","label":"/party","end":"above the tab bar"}
+{"scenario":"install","label":"/?n=6&seed=3","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
+{"scenario":"install","label":"/anleitung","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
+{"scenario":"install","label":"/bibliothek","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
+{"scenario":"install","label":"/einstellungen","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
+{"scenario":"install","label":"/party","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
+{"scenario":"install","label":"/?n=99","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
+{"scenario":"install","label":"manifest","name":"Star Battle","start":"/","display":"standalone","icons":"/icon-192.png 192x192 any | /icon-512.png 512x512 any | /icon-maskable-512.png 512x512 maskable"}
+{"scenario":"install","label":"file page","manifest":"none","installable":"not-from-secure-origin,no-manifest"}

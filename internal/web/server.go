@@ -43,6 +43,7 @@ type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
 // With libraries (may be none), /bibliothek serves them (library.go). With a
 // symbol catalog (may be nil), /einstellungen lets players choose the symbol
 // of their stars (symbols.go). /anleitung is the tutorial (tutorial.go).
+// /manifest.webmanifest and the icons make the site installable (install.go).
 func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Library, syms *Symbols) http.Handler {
 	mux := http.NewServeMux()
 	if parties != nil {
@@ -55,6 +56,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 		symbolRoutes(mux, syms)
 	}
 	tutorialRoutes(mux, solve)
+	installRoutes(mux)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		sizes := []int{}

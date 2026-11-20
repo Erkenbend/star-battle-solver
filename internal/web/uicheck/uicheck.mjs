@@ -859,6 +859,30 @@ const scenarios = {
       record({ label: url, end });
     }
   },
+
+  // Installing the site as an app (decision 26): Chrome's own verdict on
+  // each kind of page (it fetches the manifest and an icon for that), and
+  // what it reads from the manifest. A page saved with `starbattle html`
+  // has no manifest.
+  async install() {
+    await fresh();
+    for (const url of ["/?n=6&seed=3", "/anleitung", "/bibliothek", "/einstellungen", "/party", "/?n=99"]) {
+      await go(url);
+      const { installabilityErrors } = await send("Page.getInstallabilityErrors");
+      const { url: manifest, errors: manifestErrors } = await send("Page.getAppManifest");
+      record({
+        label: url, manifest: manifest.replace(BASE, ""),
+        installable: installabilityErrors.length ? installabilityErrors.map((e) => e.errorId).join(",") : "yes",
+        manifestErrors: manifestErrors.map((e) => e.message).join(" | "),
+      });
+    }
+    const { data } = await send("Page.getAppManifest");
+    const m = JSON.parse(data);
+    record({ label: "manifest", name: m.name, start: m.start_url, display: m.display, icons: m.icons.map((i) => `${i.src} ${i.sizes} ${i.purpose}`).join(" | ") });
+    await go("file://" + HTMLFILE);
+    const { installabilityErrors } = await send("Page.getInstallabilityErrors");
+    record({ label: "file page", manifest: (await send("Page.getAppManifest")).url || "none", installable: installabilityErrors.map((e) => e.errorId).join(",") });
+  },
 };
 
 // Where people play on a phone: the party and the tutorial; and the other

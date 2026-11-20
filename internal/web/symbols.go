@@ -207,7 +207,7 @@ type SettingsPage struct {
 
 // WriteSettings renders the settings page for d to w.
 func WriteSettings(w io.Writer, d SettingsPage) error {
-	return render(w, settingsHTML, "Star Battle · Einstellungen", d, logicJS, settingsJS)
+	return render(w, settingsHTML, "Star Battle · Einstellungen", d, logicJS, settingsJS, appHead)
 }
 
 // symbolRoutes adds the settings and the symbol catalog to mux:

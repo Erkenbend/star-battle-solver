@@ -191,13 +191,18 @@ func steps(trace []solver.Step) []Step {
 	return out
 }
 
-// Write renders the page for d to w. Party rounds get the party script too.
+// Write renders the page for d to w. Party rounds get the party script too,
+// served pages the links of the web app (install.go).
 func Write(w io.Writer, d Data) error {
 	party := ""
 	if d.Party != nil {
 		party = partyJS
 	}
-	return render(w, pageHTML, d.Title, d, logicJS+"\n"+pageJS, party)
+	head := ""
+	if d.Served {
+		head = appHead
+	}
+	return render(w, pageHTML, d.Title, d, logicJS+"\n"+pageJS, party, head)
 }
 
 // PartyPage is the data of the party page: creating or joining a party
@@ -215,7 +220,7 @@ func WriteParty(w io.Writer, d PartyPage) error {
 	if d.Code != "" {
 		title = "Star Battle · Party " + d.Code
 	}
-	return render(w, partyHTML, title, d, "", partyJS)
+	return render(w, partyHTML, title, d, "", partyJS, appHead)
 }
 
 // Link is a further way out of an error page, next to the start page.
@@ -230,6 +235,7 @@ func WriteError(w io.Writer, title, msg string, links ...Link) error {
 	}
 	_, err := strings.NewReplacer(
 		"{{TITLE}}", html.EscapeString(title),
+		"<!--{{APP}}-->", appHead,
 		"/*{{STYLE}}*/", styleCSS,
 		"{{MESSAGE}}", html.EscapeString(msg),
 		"{{LINKS}}", lb.String(),
@@ -238,22 +244,25 @@ func WriteError(w io.Writer, title, msg string, links ...Link) error {
 }
 
 // ServePage sends a page of the site built from tmpl, a template like
-// assets/library.html: with the site's style, d as its data, logic.js and
-// script (the page's own, e.g. the designer's).
+// assets/library.html: with the site's style, the links of the web app if it
+// has their placeholder, d as its data, logic.js and script (the page's own,
+// e.g. the designer's).
 func ServePage(w http.ResponseWriter, tmpl, title string, d any, script string) {
-	writeHTML(w, http.StatusOK, func(b io.Writer) error { return render(b, tmpl, title, d, logicJS, script) })
+	writeHTML(w, http.StatusOK, func(b io.Writer) error { return render(b, tmpl, title, d, logicJS, script, appHead) })
 }
 
-// render fills tmpl: the title, the style, d as JSON, and the scripts: shared
+// render fills tmpl: the title, the style, the head tags of the web app
+// (appHead on served pages, else empty), d as JSON, and the scripts: shared
 // (logic.js, plus app.js on the puzzle page) and the page's own script. The
 // template decides their order (the puzzle page runs party.js first).
-func render(w io.Writer, tmpl, title string, d any, shared, script string) error {
+func render(w io.Writer, tmpl, title string, d any, shared, script, head string) error {
 	data, err := json.Marshal(d) // escapes <, > and &, so it is safe inside <script>
 	if err != nil {
 		return err
 	}
 	page := strings.NewReplacer(
 		"{{TITLE}}", html.EscapeString(title),
+		"<!--{{APP}}-->", head,
 		"/*{{STYLE}}*/", styleCSS,
 		"/*{{DATA}}*/null", string(data),
 		"/*{{SCRIPT}}*/", script,

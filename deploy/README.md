@@ -65,4 +65,6 @@ sudo rm /usr/local/bin/starbattle /etc/systemd/system/starbattle.service   # uni
 - There is no login and no HTTPS. Fine for the home network; to expose it to
   the internet, put a reverse proxy with TLS in front (e.g. Caddy:
   `caddy reverse-proxy --from puzzles.example.org --to localhost:6369`) and
-  change `STARBATTLE_ADDR` to `localhost:6369`.
+  change `STARBATTLE_ADDR` to `localhost:6369`. HTTPS is also what lets
+  phones install the site as an app (decision 26); over plain HTTP they
+  offer only a bookmark.

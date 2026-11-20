@@ -76,3 +76,9 @@ Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen, 
 Die Schalter für die Spielhilfen stehen auch auf der Spielseite unter „Mehr“, mit einem Link hierher; beide sind dieselben Einstellungen. Eine offene Spielseite übernimmt Änderungen sofort.
 
 In einer mit `starbattle html` gespeicherten Datei gibt es keine Einstellungsseite, dort gibt es die Schalter nur unter „Mehr“. Symbole mit Bilddatei lädt die Seite vom Server; in der Datei erscheint stattdessen der Stern, und „Zufällig“ wählt nur unter den Symbolen ohne Bilddatei.
+
+## Als App installieren
+
+Die Seite lässt sich wie eine App auf den Startbildschirm legen: in Chrome auf Android über „App installieren“ bzw. „Zum Startbildschirm hinzufügen“ im Menü, in Safari auf dem iPhone über „Teilen“ → „Zum Home-Bildschirm“, in Chrome und Edge am Rechner über das Installieren-Symbol in der Adressleiste. Sie öffnet sich dann mit eigenem Symbol in einem eigenen Fenster ohne Adressleiste und startet mit einem neuen Puzzle; die Leiste unten führt zu allen Bereichen.
+
+Das geht nur über HTTPS (oder auf `localhost`). Unter `http://raspberrypi.local:6369/` bieten die Browser nur ein Lesezeichen an, siehe [deploy/README.md](../deploy/README.md). Ohne Verbindung zum Server funktioniert auch die installierte App nicht: Puzzles, Bibliothek und Partys kommen vom Server.

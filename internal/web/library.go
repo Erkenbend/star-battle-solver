@@ -206,7 +206,7 @@ func (lib *Library) refs(regions bool) []LibRef {
 
 // WriteLibrary renders the overview page for d to w.
 func WriteLibrary(w io.Writer, d LibraryPage) error {
-	return render(w, libraryHTML, "Star Battle · Bibliothek", d, logicJS, libraryJS)
+	return render(w, libraryHTML, "Star Battle · Bibliothek", d, logicJS, libraryJS, appHead)
 }
 
 // libraryRoutes adds the libraries to mux, all under /bibliothek; a puzzle
