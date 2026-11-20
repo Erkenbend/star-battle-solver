@@ -369,7 +369,7 @@ browser code. The full suite with every hard puzzle is CI's job.
 | generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see decisions 8, 12, 13) and record it in `architecture/decisions` |
 | more hard puzzles | `starbattle hardsearch`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges in [decision 17](decisions/17-library-over-100-sample-tests.md) and `PLAN.md` |
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
-| a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German |
+| a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German; a new page template needs `<!--{{APP}}-->` in its head (a test checks) |
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/`; animated ones in `internal/sprite` | see `symbols/README.md`; rewrite the sheets with `go test ./internal/sprite -update` |
 | the app icon | `internal/icon` | rewrite the files with `go test ./internal/icon -update`; look at them at 32 px too |

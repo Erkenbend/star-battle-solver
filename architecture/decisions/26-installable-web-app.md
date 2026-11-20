@@ -56,7 +56,9 @@ its own without the browser's address bar.
 - `go test ./internal/web`: every kind of served page links the manifest,
   the `html` page does not. The manifest is `standalone` with an `any` and
   a `maskable` icon, and every icon it or the head names is a PNG of the
-  stated size. `go test ./internal/icon`: the files are what the code
+  stated size. Every template in `internal/web/assets` has the slot
+  `<!--{{APP}}-->` in its head, read from the directory, so a new page is
+  covered too. `go test ./internal/icon`: the files are what the code
   draws, and the icon's puzzle has one solution.
 - UI check, scenario `install`: Chrome's own verdict
   (`Page.getInstallabilityErrors`, which fetches the manifest and an icon)

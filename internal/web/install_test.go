@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"image/png"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -87,6 +89,26 @@ func TestManifest(t *testing.T) {
 		}
 		if b := img.Bounds(); sizes(b.Dx()) != size || b.Dx() != b.Dy() {
 			t.Errorf("%s: %v, want %s", u, b, size)
+		}
+	}
+}
+
+// Every page template of the site has the slot for the web app's head tags,
+// in its head: a new page without it could not be installed from and would
+// show no icon. Read from the directory, so a new template is covered too.
+func TestTemplatesHaveAppSlot(t *testing.T) {
+	files, err := filepath.Glob("assets/*.html")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no templates: %v", err)
+	}
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		head, _, ok := strings.Cut(string(b), "</head>")
+		if !ok || !strings.Contains(head, "<!--{{APP}}-->") {
+			t.Errorf("%s: no <!--{{APP}}--> in its <head>", f)
 		}
 	}
 }
