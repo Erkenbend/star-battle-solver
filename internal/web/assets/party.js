@@ -73,6 +73,20 @@ const Party = (() => {
 
   const STATUS = { solved: "gelöst", gaveup: "aufgegeben", out: "KO", playing: "spielt noch", absent: "abwesend", left: "gegangen", done: "fertig" };
 
+  // Goes to another page of the party, once. Every state that arrives while
+  // the page loads would ask for it again, and setting location anew aborts
+  // the load and starts it over: with a slow connection and a busy party the
+  // page would never arrive. replace: without an entry in the history.
+  let leaving = null;
+  function goTo(path, replace = false) {
+    if (leaving === path) return;
+    leaving = path;
+    if (replace) location.replace(path);
+    else location.href = path;
+  }
+  // Back from the history cache: whatever was under way is over.
+  if (typeof window !== "undefined") window.addEventListener("pageshow", () => { leaving = null; });
+
   // The page of the running round for the viewer: against the clock, that of
   // the puzzle they are at (or the last one prepared).
   function roundPath(snap) {
@@ -103,16 +117,19 @@ const Party = (() => {
   function live(code, container, hooks = {}) {
     let snap = null, at = 0, es = null, errText = "", busy = false, isGone = false;
 
+    // A state from the event stream or the reply to an action.
+    function take(s) {
+      snap = s;
+      at = Date.now();
+      errText = "";
+      draw();
+      if (hooks.onSnap) hooks.onSnap(snap, at);
+    }
+
     function connect() {
       if (es) es.close();
       es = new EventSource(`/party/${code}/events?token=${encodeURIComponent(token(code))}`);
-      es.onmessage = (ev) => {
-        snap = JSON.parse(ev.data);
-        at = Date.now();
-        errText = "";
-        draw();
-        if (hooks.onSnap) hooks.onSnap(snap, at);
-      };
+      es.onmessage = (ev) => take(JSON.parse(ev.data));
       const gone = () => {
         es.close();
         snap = null;
@@ -262,13 +279,13 @@ const Party = (() => {
         draw();
         try {
           const r = await post(code, "ready", { ready: !me.ready });
-          snap = r.snapshot;
-          at = Date.now();
+          busy = false;
+          take(r.snapshot); // the last one ready starts the round: on at once, not after the event
         } catch (e) {
+          busy = false;
           errText = e.message;
+          draw();
         }
-        busy = false;
-        draw();
       };
       const a = el("div", "actions");
       a.append(b);
@@ -405,7 +422,7 @@ const Party = (() => {
         $("join").hidden = !!me;
         $("leave").hidden = !me;
         // Taking part in the running round: off to its puzzle.
-        if (me && me.playing) location.href = roundPath(snap);
+        if (me && me.playing) goTo(roundPath(snap));
       },
       onGone() {
         $("join").hidden = true;
@@ -437,5 +454,5 @@ const Party = (() => {
     bootPage();
   }
 
-  return { token, setToken, name, setName, post, live, fmtTime, hintsText, copyText, el, roundPath, livesRule };
+  return { token, setToken, name, setName, post, live, goTo, fmtTime, hintsText, copyText, el, roundPath, livesRule };
 })();

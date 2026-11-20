@@ -84,6 +84,12 @@ await send("Runtime.enable");
 const DESKTOP = { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false };
 const PHONE = { width: 393, height: 851, deviceScaleFactor: 2.75, mobile: true };
 await send("Emulation.setDeviceMetricsOverride", DESKTOP);
+// The pages the tab went to (requested, also those aborted by a new one).
+const visited = [];
+listeners.push((d) => {
+  if (d.method === "Network.requestWillBeSent" && d.params.type === "Document") visited.push(d.params.request.url.replace(BASE, ""));
+});
+await send("Network.enable");
 
 async function js(expr) {
   const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true });
@@ -577,6 +583,30 @@ const scenarios = {
     await obs("round over");
     await reload();
     await obs("reloaded after round");
+    // The next round, from this page: straight to its puzzle, not through
+    // the lobby. Bob's connections coming and going while the page loads
+    // must not start the load over.
+    await waitFor(`[...document.querySelectorAll("#party-panel button")].some((b) => b.textContent === "Bereit") && !document.querySelector("#party-panel .actions .muted")`);
+    await api(`/party/${p.code}/ready`, { token: p.token, ready: true });
+    await send("Network.emulateNetworkConditions", { offline: false, latency: 600, downloadThroughput: -1, uploadThroughput: -1 });
+    let flapping = true;
+    const flap = (async () => {
+      while (flapping) {
+        const ac = new AbortController();
+        fetch(`${BASE}/party/${p.code}/events?token=${p.token}`, { signal: ac.signal }).catch(() => {});
+        await sleep(100);
+        ac.abort();
+        await sleep(100);
+      }
+    })();
+    visited.length = 0;
+    const next = once("Page.loadEventFired");
+    await js(`[...document.querySelectorAll("#party-panel button")].find((b) => b.textContent === "Bereit").click()`);
+    await next.catch(() => {});
+    flapping = false;
+    await flap;
+    await send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    record({ label: "next round: pages loaded", pages: visited.map((u) => u.replace(/\/party\/[A-Z]{4}/, "/party/CODE")) });
 
     const q = await partyStart("versus");
     await js(`window.confirm = () => true`);

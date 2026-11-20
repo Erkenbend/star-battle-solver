@@ -95,7 +95,7 @@ function Race(P, R) {
   function raceSnap(s) {
     const me = R.me();
     if (me && s.phase === "playing" && me.puzzle !== d.party.puzzle && me.puzzle <= s.clock.sizes.length) {
-      location.replace(`/party/${d.party.code}/round/${d.party.round}/${me.puzzle}`); // our puzzle now
+      Party.goTo(`/party/${d.party.code}/round/${d.party.round}/${me.puzzle}`, true); // our puzzle now
       return;
     }
     if (me && s.phase === "playing" && me.puzzle === d.party.puzzle && P.done) R.solve(); // the report got lost

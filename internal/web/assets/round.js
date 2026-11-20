@@ -201,8 +201,9 @@ function PartyRound(P) {
   function partySnap(s, at) {
     if (coop && !coop.newer(s)) return; // event stream and replies may overtake each other
     party.snap = s;
-    if (s.round !== d.party.round) { // a new round: the lobby sends us on
-      location.href = "/party/" + d.party.code;
+    if (s.round !== d.party.round) { // a new round: straight to its page if we play in it, else to the lobby
+      const pl = s.players.find((p) => p.id === s.you);
+      Party.goTo(pl && pl.playing && s.phase === "playing" ? Party.roundPath(s) : "/party/" + d.party.code);
       return;
     }
     party.startLocal = at + s.startInMs - s.elapsedMs;
