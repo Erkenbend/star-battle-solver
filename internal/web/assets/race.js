@@ -11,7 +11,7 @@
 // Race(P, R) is created by PartyRound (round.js) with the page P and the
 // round R.
 function Race(P, R) {
-  const { L, d, $ } = P;
+  const { L, d, $, el } = P;
   const party = R.state;
   const race = { sent: null, skipping: false };
   party.gaveUp = false;
@@ -62,7 +62,12 @@ function Race(P, R) {
     if (lim === 0) return;
     const me = R.me();
     const left = lim < 0 ? Infinity : lim - ((me && me.skips) || 0);
-    b.textContent = lim < 0 ? "Überspringen" : `Überspringen (${Math.max(0, left)} übrig)`;
+    // The skips left as a badge on the icon: "Überspringen (2 übrig)" does not fit in the bar.
+    b.querySelector("span").textContent = "Überspringen";
+    let badge = b.querySelector(".badge");
+    if (lim > 0 && !badge) b.append((badge = el("b", "badge")));
+    if (badge) badge.textContent = Math.max(0, left);
+    b.title = "Weiter zum nächsten Puzzle, ohne dieses zu lösen" + (lim > 0 ? ` (noch ${Math.max(0, left)}×)` : "");
     b.disabled = frozen || race.skipping || left <= 0;
   }
   function raceSkip() {

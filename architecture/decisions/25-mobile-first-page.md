@@ -1,7 +1,9 @@
 # 25. Puzzle page laid out for phones first
 
 **Status:** proposed, two variants for review: A on branch `mobile-ui-a`, B
-(this text) on branch `mobile-ui-b`, built on A; see "Variant B" below
+(this text) on branch `mobile-ui-b`, built on A; see "Variant B" below. After
+the second review only B is worked on; A stays on its branch until the
+decision
 **Date:** 2026-11-20
 
 ## Decision
@@ -90,15 +92,26 @@ navigation small at the top; B makes the navigation app-like and keeps the
 play buttons next to the board, so on a tall board or with a hint card they
 can scroll away. B is the closer step towards an installable web app.
 
+After the second review (B only):
+
+- **Aufgeben in the bar:** in a party it takes the place of "Vor" (second
+  in the bar), against the clock as "Überspringen" with a skip icon and the
+  skips left as a badge on it ("Überspringen (2 übrig)" does not fit). In
+  coop, where giving up is a vote, the button stays pressed while the vote
+  stands instead of changing its word to "Doch nicht aufgeben". "Mehr"
+  keeps only Neu beginnen / Alles löschen there.
+- **No "Vor" button** anywhere: redo is rarely needed and stays on Ctrl+Y
+  (also within a hypothesis). The UI check redoes with Ctrl+Y.
+
 ## Measurements
 
 Solo page `/?n=8&seed=42`, phone 393×760 CSS px, at load:
 
 | | before (main) | A | B |
 |---|---|---|---|
-| top of the board | 232 px | 135 px | 100 px |
+| top of the board | 232 px | 135 px | 100 px (103 px after the reviews) |
 | page height | 1104 px | 760 px (no scrolling) | 760 px (no scrolling) |
-| visible words | 148 | 43 | 44 |
+| visible words | 148 | 43 | 44 (43 after the reviews) |
 | rows of buttons | 4 | 2 (tabs, bar) | 2 (tabs, bar), plus the tab bar |
 
 ## Found on the way
@@ -123,5 +136,4 @@ these pages at desktop size.
 - A help sheet instead of the inline ⓘ card: an overlay hides the board the
   legend talks about.
 
-Open: the party, library and settings pages keep their layout; with a
-web-app manifest the page could later be installed.
+Open: with a web-app manifest the page could later be installed.

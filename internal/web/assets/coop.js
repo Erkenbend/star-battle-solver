@@ -169,8 +169,9 @@ function Coop(P, R) {
       return true;
     },
     controls() {
-      $("giveup").textContent = coop.voted ? "Doch nicht aufgeben" : "Aufgeben";
-      $("giveup").classList.toggle("voted", coop.voted);
+      // Pressed while our vote stands; another tap takes it back.
+      $("giveup").setAttribute("aria-pressed", coop.voted);
+      $("giveup").title = coop.voted ? "Du hast fürs Aufgeben gestimmt; tippen nimmt die Stimme zurück" : "Stimme fürs Aufgeben; die Runde endet, wenn alle dafür sind";
     },
   };
 }

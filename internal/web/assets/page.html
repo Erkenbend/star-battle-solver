@@ -53,7 +53,7 @@
   <section class="panel" id="panel-play">
     <div class="toolbar actionbar" id="actions">
       <button id="undo" title="Rückgängig (Strg+Z)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2 1 6.25 5.5 10.5V7.5h4a2.75 2.75 0 0 1 0 5.5H7v1.5h2.5a4.25 4.25 0 0 0 0-8.5h-4z"/></svg><span>Zurück</span></button>
-      <button id="redo" title="Wiederholen (Strg+Y)"><svg viewBox="0 0 16 16" aria-hidden="true" class="flip"><path d="M5.5 2 1 6.25 5.5 10.5V7.5h4a2.75 2.75 0 0 1 0 5.5H7v1.5h2.5a4.25 4.25 0 0 0 0-8.5h-4z"/></svg><span>Vor</span></button>
+      <button id="giveup" title="Aufgeben: die Runde ist für dich vorbei" hidden><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path d="M3.5 14.5V2M3.5 2.5h8.5l-2 3 2 3H3.5"/></svg><span>Aufgeben</span></button>
       <button id="hyp" title="Einen Stern probehalber setzen und verfolgen, wohin er führt"><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path stroke-dasharray="2 1.6" d="m8 1.6 1.9 4 4.3.5-3.2 2.9.9 4.3L8 11.1l-3.9 2.2.9-4.3L1.8 6.1l4.3-.5z"/></svg><span>Annahme</span></button>
       <button id="hyp-contra" class="hyp-btn" title="Der erste Stern der Annahme wird zum Kreuz, alles andere zurückgenommen" hidden><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path d="m4 4 8 8M12 4l-8 8"/></svg><span>Widerspruch</span></button>
       <button id="hyp-drop" class="hyp-btn" title="Zurück zum Stand vor der Annahme" hidden><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path d="M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.8 9h6.4l.8-9"/></svg><span>Verwerfen</span></button>
@@ -73,7 +73,6 @@
       </form>
       <div class="sheet-actions">
         <button id="reset">Neu beginnen</button>
-        <button id="giveup" hidden>Aufgeben</button>
       </div>
       <div id="play-options">
         <h2>Spielhilfen</h2>

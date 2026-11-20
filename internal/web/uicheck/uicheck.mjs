@@ -252,7 +252,7 @@ async function obs(label, { random = false } = {}) {
       clock: txt("clock"), legend: txt("legend"), current: txt("current"),
       steps: document.querySelectorAll("#steps .row").length, active: t(q("#steps .row.active .num")),
       tutorial: txt("tutorial"), tour: t(q(".tour-tip")), tourTarget: q(".tour-target") && q(".tour-target").id,
-      buttons: ["undo", "redo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "newgame-go", "site-nav", "party-box", "options-link", "play-options"].map(btn).join(" | "),
+      buttons: ["undo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "newgame-go", "site-nav", "party-box", "options-link", "play-options"].map(btn).join(" | "),
       pressed: [...document.querySelectorAll("[aria-pressed=true], [aria-expanded=true]")].map((e) => e.id).join(","),
       info: t(q("#info")) && (q("#info").hidden ? "[hidden]" : "shown"),
       selected: [...document.querySelectorAll("[aria-selected=true], [aria-current=page]")].map((e) => e.id).join(","),
@@ -436,7 +436,7 @@ const scenarios = {
     await obs("clicks");
     await click("#undo");
     await obs("undo");
-    await click("#redo");
+    await key("y", 2); // redo has no button
     await obs("redo");
     await key("z", 2);
     await obs("ctrl-z");
@@ -568,7 +568,7 @@ const scenarios = {
     await obs("hyp cross");
     await click("#undo");
     await obs("hyp undo");
-    await click("#redo");
+    await key("y", 2); // redo has no button
     await obs("hyp redo");
     await reload();
     await obs("hyp reloaded");
@@ -704,7 +704,7 @@ const scenarios = {
     const q = await partyStart("versus");
     await js(`window.confirm = () => true`);
     await click(cell(q.sol[0]), { shift: true });
-    await more("#giveup");
+    await click("#giveup");
     await settle(bannerHas("Aufgegeben"));
     await obs("gave up");
     await server(q, "gave up", (me) => me.status === "gaveup");
@@ -726,7 +726,7 @@ const scenarios = {
     await server(p, "one error", (me) => me.errors === 1);
     await click("#undo");
     await obs("undone");
-    await click("#redo");
+    await key("y", 2); // redo has no button
     await sleep(1200); // what must not count: time for a report to come
     await obs("redone");
     await server(p, "redo not counted");
@@ -772,12 +772,12 @@ const scenarios = {
     await settle(`!${hasClass(p.sol[0], "star")}`);
     await obs("undo own");
     await server(p, "after undo", (me, s) => !s.coop.board.includes("2") && s.coop.board[p.sol[0]] === "1");
-    await click("#redo");
+    await key("y", 2); // redo has no button
     await settle(hasClass(p.sol[0], "star"));
     await obs("redo own");
     await server(p, "after redo", (me, s) => s.coop.board.includes("2"));
     await click("#undo");
-    await click("#redo");
+    await key("y", 2); // redo has no button
     await server(p, "after undo and redo again", (me, s) => s.coop.board.includes("2"));
     await click("#hyp");
     await click(cell(2 * p.n + p.sol[2]), { shift: true });
@@ -788,8 +788,8 @@ const scenarios = {
     await obs("remote under hyp");
     await click("#hyp-drop");
     await js(`window.confirm = () => true`);
-    await more("#giveup");
-    await settle(`document.getElementById("giveup").textContent === "Doch nicht aufgeben"`);
+    await click("#giveup");
+    await settle(`document.getElementById("giveup").getAttribute("aria-pressed") === "true"`);
     await obs("voted");
     await api(`/party/${p.code}/vote`, { token: p.token, round: 1, giveUp: true });
     await settle(bannerHas("aufgegeben"));
@@ -829,7 +829,7 @@ const scenarios = {
     await reload();
     await obs("puzzle 2 reloaded");
     const loaded2 = once("Page.loadEventFired");
-    await more("#giveup");
+    await click("#giveup");
     await loaded2;
     await waitFor(`document.querySelector("#board .cell")`);
     await obs("skipped to 3");

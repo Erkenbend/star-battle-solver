@@ -504,7 +504,6 @@ function boot() {
     document.body.classList.toggle("frozen", frozen);
     if (party) party.controls(frozen);
     $("undo").disabled = frozen || (H.active ? H.undo : undoStack).length === 0;
-    $("redo").disabled = frozen || (H.active ? H.redo : redoStack).length === 0;
     $("hint").disabled = frozen || H.active; // they would judge the hypothesis by the solution
     $("check").disabled = frozen || H.active;
     H.controls(frozen);
@@ -897,7 +896,7 @@ function boot() {
   $("more").onclick = () => sheet($("more-sheet").hidden);
   $("sheet-backdrop").onclick = () => sheet(false);
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") sheet(false); });
-  for (const id of ["reset", "giveup"]) $(id).addEventListener("click", () => sheet(false));
+  $("reset").addEventListener("click", () => sheet(false));
   $("info-btn").onclick = () => {
     $("info").hidden = !$("info").hidden;
     $("info-btn").setAttribute("aria-expanded", !$("info").hidden);
@@ -913,7 +912,8 @@ function boot() {
     overlay = null;
     renderPlay();
   };
-  $("redo").onclick = () => {
+  // Redo has no button (the bar has room for one more often needed); Ctrl+Y.
+  function redo() {
     if (locked()) return;
     if (H.active) return H.redoStep();
     if (!redoStack.length) return;
@@ -922,7 +922,7 @@ function boot() {
     marks = redoStack.pop();
     overlay = null;
     renderPlay();
-  };
+  }
   $("reset").onclick = () => {
     if (party) { // only the marks: time and hints count on
       if (locked() || !marks.some((v) => v !== L.FREE)) return;
@@ -990,7 +990,7 @@ function boot() {
       }
     } else if (ev.ctrlKey || ev.metaKey) {
       if (ev.key === "z" && !ev.shiftKey) { ev.preventDefault(); $("undo").click(); }
-      if (ev.key === "y" || (ev.key === "z" && ev.shiftKey) || ev.key === "Z") { ev.preventDefault(); $("redo").click(); }
+      if (ev.key === "y" || (ev.key === "z" && ev.shiftKey) || ev.key === "Z") { ev.preventDefault(); redo(); }
     }
   });
 
