@@ -154,11 +154,24 @@ function boot() {
     }
   }
 
-  function banner(text, cls) {
+  // The banner sits above the board. When it comes, goes or wraps anew, the
+  // page scrolls by as much, so the board stays where it is on screen: on a
+  // phone the next tap would land a row or two off (a wrong star in a party
+  // round, a chain of the solving path). Where the page cannot scroll that
+  // far, the board still moves. Only once the player has touched the page:
+  // a page that opens with a banner opens at its top. extra: buttons or
+  // links after the text.
+  let touched = false;
+  for (const t of ["pointerdown", "keydown"]) document.addEventListener(t, () => { touched = true; }, { once: true, capture: true });
+  function banner(text, cls, ...extra) {
     const b = $("banner");
+    const before = boardEl.getBoundingClientRect().top;
     b.hidden = !text;
     b.replaceChildren(...rich(text || ""));
+    for (const e of extra) b.append(" ", e);
     b.className = "banner " + (cls || "");
+    const shift = boardEl.getBoundingClientRect().top - before;
+    if (shift && touched) window.scrollBy(0, shift);
   }
 
   function chip(step) {
@@ -292,6 +305,9 @@ function boot() {
   let hintCount = num(saved && saved.hints);
   let done = !!(saved && saved.done);
   let runningSince = null;
+  // The tab shown: "play" or "watch" (setMode). Declared here, as renderPlay
+  // may run before the tabs are set up.
+  let mode = "play";
   const clockMs = () => elapsed + (runningSince === null ? 0 : Math.max(0, Date.now() - runningSince));
   function clockRun(on) {
     if (party) return; // a party round runs on the server's clock (partySnap)
@@ -429,7 +445,13 @@ function boot() {
     setMarks(next);
   }
 
+  // The play state after a change, drawn when the play tab is shown. It also
+  // runs in the solving path's tab (party events, the clock, a partner's
+  // marks): there it only keeps the state (solved, lives, reports, storage)
+  // and leaves the board and banner to Watch, else both would draw by turns
+  // and the page would jump. setMode("play") draws it again.
   function renderPlay() {
+    const visible = mode === "play";
     if (party) party.mistakes(); // a wrong star may cost a life, or the round
     const eff = L.effective(d, marks, prefs.autocross);
     if (H.active && !locked() && L.solved(d, eff.cells)) return H.accept(); // a normal solve
@@ -447,7 +469,7 @@ function boot() {
     const view = { cells: shown.cells, auto: shown.auto, marks: { bad } };
     if (overlay) Object.assign(view.marks, overlay);
     H.decorate(view, shown.cells); // the marks tried out
-    drawBoard(party && party.solutionShown() ? party.solutionView() : view);
+    if (visible) drawBoard(party && party.solutionShown() ? party.solutionView() : view);
 
     const list = $("problems");
     list.replaceChildren(...probs.map((p) => elr("li", "", p.msg)));
@@ -469,31 +491,8 @@ function boot() {
       done = true;
       if (party) party.solve();
     }
-    if (solved && !race && !tut) { // against the clock, the party banner tells how it goes on; in the tutorial its card
-      if (lib) libRecord(clockMs(), bare ? 0 : hintCount);
-      const with_ = bare ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
-      banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good");
-      if (!party) {
-        const share = el("button", "share", "Ergebnis kopieren");
-        share.title = bare ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
-        share.onclick = () => copyText(shareText(with_), share);
-        $("banner").append(" ", share);
-      }
-      if (lib) {
-        const next = L.nextUnsolved(lib.entries, libSolved(), lib.id);
-        const a = el("a", "next", next ? `Weiter: ${next.name}` : "Alle gelöst: zur Bibliothek");
-        a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek#" + lib.kind;
-        $("banner").append(" ", a);
-      }
-    } else {
-      const b = party ? party.banner() : null;
-      if (b) {
-        banner(b[0], b[1]);
-        if (b[2]) $("banner").append(" ", b[2]);
-      }
-      else if (H.active) banner(H.text(), "hypothesis");
-      else banner(null);
-    }
+    if (solved && lib && !tut) libRecord(clockMs(), bare ? 0 : hintCount);
+    if (visible) playBanner(solved);
     drawClock();
     store();
     if (party) {
@@ -505,6 +504,32 @@ function boot() {
       if (done && lib.pending) loadTrace();
     }
     if (T) T.draw(eff.cells);
+  }
+
+  // The banner above the board in the play tab, once renderPlay is done.
+  function playBanner(solved) {
+    if (solved && !race && !tut) { // against the clock, the party banner tells how it goes on; in the tutorial its card
+      const with_ = bare ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
+      const extra = [];
+      if (!party) {
+        const share = el("button", "share", "Ergebnis kopieren");
+        share.title = bare ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
+        share.onclick = () => copyText(shareText(with_), share);
+        extra.push(share);
+      }
+      if (lib) {
+        const next = L.nextUnsolved(lib.entries, libSolved(), lib.id);
+        const a = el("a", "next", next ? `Weiter: ${next.name}` : "Alle gelöst: zur Bibliothek");
+        a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek#" + lib.kind;
+        extra.push(a);
+      }
+      banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good", ...extra);
+      return;
+    }
+    const b = party ? party.banner() : null;
+    if (b) banner(...b);
+    else if (H.active) banner(H.text(), "hypothesis");
+    else banner(null);
   }
 
   // A library page may come before the solver is done (lib.pending): the
@@ -879,7 +904,6 @@ function boot() {
   $("check").onclick = checkMistakes;
 
   // ---------- tabs and keys ----------
-  let mode = "play";
   function setMode(m) {
     mode = m;
     W.stop();

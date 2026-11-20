@@ -81,7 +81,9 @@ const once = (method, ms = 15000) => new Promise((r, rej) => {
 
 await send("Page.enable");
 await send("Runtime.enable");
-await send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false });
+const DESKTOP = { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false };
+const PHONE = { width: 393, height: 851, deviceScaleFactor: 2.75, mobile: true };
+await send("Emulation.setDeviceMetricsOverride", DESKTOP);
 
 async function js(expr) {
   const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true });
@@ -557,6 +559,19 @@ const scenarios = {
     await waitFor(`!document.getElementById("tab-watch").hidden`);
     await obs("solved");
     await server(p, "solved", (me) => me.status === "solved");
+    // The solving path while Bob plays on: his progress must not bring back
+    // the board and banner of the play tab.
+    await click("#tab-watch");
+    await click("#next");
+    await api(`/party/${p.code}/progress`, { token: p.token, round: 1, count: 2, hints: 0 });
+    await settle(`document.getElementById("party-panel").textContent.includes("★ 2/")`);
+    record({ // the steps depend on the random puzzle: only what tells the tabs apart
+      label: "watch while Bob plays",
+      banner: await js(`document.getElementById("banner").hidden ? "[hidden]" : document.getElementById("banner").textContent`),
+      solutionOnBoard: await js(`document.querySelectorAll("#board .cell.star").length === ${p.n}`),
+    });
+    await click("#first"); // what the next observations see of the hidden tab
+    await click("#tab-play");
     await api(`/party/${p.code}/giveup`, { token: p.token, round: 1, hints: 0 });
     await settle(bannerHas("vorbei") + " || document.querySelector('#party-panel').textContent.includes('Ergebnis')");
     await obs("round over");
@@ -583,7 +598,15 @@ const scenarios = {
     const c0 = p.sol[0];
     const wrongIn = (r) => r * p.n + [...Array(p.n).keys()].find((c) => c !== p.sol[r] && c !== c0);
     await click(cell(c0), { shift: true }); // right
+    // On a phone: the banner coming above the board must not move it.
+    await send("Emulation.setDeviceMetricsOverride", PHONE);
+    await sleep(100);
+    const boardTop = `Math.round(document.getElementById("board").getBoundingClientRect().top)`;
+    const top0 = await js(boardTop);
     await click(cell(wrongIn(2)), { shift: true }); // two rows further: no rule against it
+    record({ label: "wrong star on a phone: board stays", stays: (await js(boardTop)) === top0 });
+    await send("Emulation.setDeviceMetricsOverride", DESKTOP);
+    await sleep(100);
     await obs("wrong star");
     await server(p, "one error", (me) => me.errors === 1);
     await click("#undo");

@@ -291,7 +291,8 @@ designer appends for you). The workflows are in `docs/development.md`.
   Chromium over the DevTools protocol through every mode of the puzzle page
   (solo, hints, checks, hypothesis, solving path, tutorial and tour, library,
   a page saved as a file, and parties against each other (also with
-  lives), together and against the clock, with a second player via the API) and records what the
+  lives), together and against the clock, with a second player via the API;
+  a few steps on a phone-sized screen or a slow connection) and records what the
   page and the server show after each action. Values that differ between
   runs (times, random party puzzles) are normalized. The result must equal
   `expected.jsonl`; after an intended UI change, `run.sh -update` rewrites
