@@ -168,8 +168,8 @@ function boot() {
   function keepBoard(above, change) {
     if (!touched) return change();
     const before = boardEl.getBoundingClientRect().top;
+    const height = above.hidden ? 0 : above.offsetHeight; // as shown, a height held before included
     above.style.minHeight = "";
-    const height = above.hidden ? 0 : above.offsetHeight;
     change();
     const shift = boardEl.getBoundingClientRect().top - before;
     if (!shift) return;
