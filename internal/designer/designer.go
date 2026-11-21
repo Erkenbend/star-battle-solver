@@ -1,7 +1,8 @@
 // Package designer is the tool behind `starbattle design`, for the project's
 // developers and deliberately not part of serve: draw part of a puzzle, let
 // the generator complete it on all cores until it has several distinct
-// completions, pick one and save it to a collection of the project (see
+// completions, pick one, give its regions other colors if wanted and save it
+// to a collection of the project (see
 // package collection), usually designs/.
 //
 // The page is built like the others of internal/web (web.ServePage, with the
@@ -80,6 +81,7 @@ type designRequest struct {
 	Tries      int     `json:"tries,omitempty"`      // complete: attempts at most (default and at most MaxTries)
 	Regions    [][]int `json:"regions,omitempty"`    // save: the chosen completion
 	Seed       uint64  `json:"seed,omitempty"`       // save: its seed
+	Colors     []int   `json:"colors,omitempty"`     // save: new region of each region of the completion (a permutation), none = as generated
 	Name       string  `json:"name,omitempty"`       // save: file name (optional)
 	Strict     bool    `json:"strict,omitempty"`     // drawn colors are final (generator.Options.Strict)
 }
@@ -407,8 +409,9 @@ func freeWhenStuck(p *puzzle.Puzzle, trace []solver.Step) int {
 var designName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,40}$`)
 
 // saveDesign checks the chosen completion (valid, unique, contains the
-// pattern, and with req.Strict no drawn region larger than drawn) and writes
-// it to dir as nNN_name.txt, with its name for the library
+// pattern, and with req.Strict no drawn region larger than drawn), gives its
+// regions the colors of req.Colors if there are any, and writes it to dir as
+// nNN_name.txt, with its name for the library
 // (collection.NameKey, made from the file name), the seed and the pattern in
 // comments, and appends it to the collection's index. Without a name, the
 // next free nNN_dNNN is used. An existing file is never overwritten, and a name is used
@@ -446,7 +449,22 @@ func saveDesign(dir string, req designRequest) (string, error) {
 			}
 		}
 	}
-	p, err := puzzle.New(req.Regions)
+	regions := req.Regions
+	if req.Colors != nil {
+		if !isPermutation(req.Colors, n) {
+			return "", errors.New("Die Farben sind nicht vollständig verteilt.")
+		}
+		regions = make([][]int, n)
+		for r, row := range req.Regions {
+			for _, reg := range row {
+				if reg < 0 || reg >= n {
+					return "", fmt.Errorf("Puzzle ungültig: Region %d in Zeile %d.", reg, r)
+				}
+				regions[r] = append(regions[r], req.Colors[reg])
+			}
+		}
+	}
+	p, err := puzzle.New(regions)
 	if err != nil {
 		return "", fmt.Errorf("Puzzle ungültig: %v", err)
 	}
@@ -501,6 +519,19 @@ func saveDesign(dir string, req designRequest) (string, error) {
 		}
 		b.WriteByte('\n')
 	}
+	if req.Colors != nil {
+		// The pattern above is what the generator was given; the puzzle below
+		// has the colors chosen afterwards.
+		b.WriteString("# colors swapped afterwards: ")
+		for reg := range n {
+			b.WriteByte(puzzle.RegionLetter(reg))
+		}
+		b.WriteString(" -> ")
+		for _, to := range req.Colors {
+			b.WriteByte(puzzle.RegionLetter(to))
+		}
+		b.WriteByte('\n')
+	}
 	b.WriteString(p.String())
 
 	// Create never overwrites: two saves with the same name must not
@@ -513,6 +544,21 @@ func saveDesign(dir string, req designRequest) (string, error) {
 		return "", err
 	}
 	return file, collection.AppendIndex(dir, file, motifIndexHeader)
+}
+
+// isPermutation reports whether colors holds each of 0..n-1 exactly once.
+func isPermutation(colors []int, n int) bool {
+	if len(colors) != n {
+		return false
+	}
+	seen := make([]bool, n)
+	for _, c := range colors {
+		if c < 0 || c >= n || seen[c] {
+			return false
+		}
+		seen[c] = true
+	}
+	return true
 }
 
 // motifIndexHeader starts a new index of motifs.

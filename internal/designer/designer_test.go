@@ -226,6 +226,31 @@ func TestDesignerCompleteAndSave(t *testing.T) {
 	if rec = postDesign(t, Handler(t.TempDir(), testSolve, nil), "/api/save", save); !strings.Contains(rec.Body.String(), "n08_d001.txt") {
 		t.Fatalf("unnamed save: %s", rec.Body)
 	}
+	// With the colors swapped afterwards: the puzzle has the new colors, the
+	// comments the pattern as drawn (what the generator was given).
+	recolored := t.TempDir()
+	colored := save
+	colored.Name, colored.Colors = "bunt", []int{1, 2, 3, 4, 5, 6, 7, 0}
+	if rec = postDesign(t, Handler(recolored, testSolve, nil), "/api/save", colored); rec.Code != http.StatusOK {
+		t.Fatalf("recolored save: %d %s", rec.Code, rec.Body)
+	}
+	text, err = os.ReadFile(filepath.Join(recolored, "n08_bunt.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, err = puzzle.Parse(bytes.NewReader(text)); err != nil {
+		t.Fatal(err)
+	}
+	for r, row := range c.Regions {
+		for col, reg := range row {
+			if p.Regions[r][col] != colored.Colors[reg] {
+				t.Fatalf("cell (%d,%d): region %d, want %d\n%s", r, col, p.Regions[r][col], colored.Colors[reg], text)
+			}
+		}
+	}
+	if !strings.Contains(string(text), "#   .AA..AA.") || !strings.Contains(string(text), "# colors swapped afterwards: ABCDEFGH -> BCDEFGHA\n") {
+		t.Errorf("pattern or colors missing in the comments:\n%s", text)
+	}
 	// A name is used once across sizes: n10_herz.txt would be "Herz" too.
 	if err := os.WriteFile(filepath.Join(dir, "n10_herz.txt"), nil, 0o644); err != nil {
 		t.Fatal(err)

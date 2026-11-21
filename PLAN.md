@@ -66,7 +66,7 @@ Alle 45 schweren Puzzles werden allein mit Lookahead gelöst, Raten war nie nöt
 
 ### Als Nächstes
 
-1. **Designer: Farben tauschen:** Nach der Auswahl eines Vorschlags die Farben der Regionen untereinander tauschen können, damit das Bild schöner aussieht (z. B. passende Farben für Motiv und Hintergrund). Noch nicht geplant.
+Nichts Festes. Zuletzt erledigt: im Designer die Farben eines Vorschlags neu verteilen („Farben neu verteilen“, siehe [docs/development.md](docs/development.md#design-puzzles-entwerfen)).
 
 ### Erledigt / verworfen
 

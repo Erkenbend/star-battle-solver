@@ -65,7 +65,15 @@
 .cand .meta strong { color: var(--fg); font-weight: 600; }
 
 .big svg { width: 100%; max-width: 520px; display: block; }
+.big.painting svg rect { cursor: pointer; }
+svg .walls, svg .grid, svg .star { pointer-events: none; }
 svg rect.cell-r { fill: hsl(var(--h) var(--s) var(--l)); }
+svg rect.grey-r { fill: color-mix(in srgb, var(--fg) 13%, var(--card)); }
+.recolor { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.recolor .legend { margin: 0; }
+.palette button.used { opacity: 0.45; }
+#recolor-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+a.button[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
 svg rect.undrawn { fill-opacity: 0.38; }
 svg .walls { fill: none; stroke: var(--thick); stroke-linecap: square; }
 svg .grid { fill: none; stroke: var(--thin); }
@@ -118,9 +126,19 @@ svg .star { fill: var(--star); stroke: var(--star-edge); }
     <div class="cands" id="cands"></div>
     <div class="card" id="detail" hidden>
       <div class="big" id="big"></div>
+      <div class="recolor" id="recolor" hidden>
+        <div class="palette" id="recolor-palette" role="toolbar" aria-label="Farbe zum Malen"></div>
+        <div class="des-row">
+          <button id="recolor-rest">Rest automatisch verteilen</button>
+          <button id="recolor-reset" class="quiet">Alles grau</button>
+          <button id="recolor-done" class="quiet">Fertig</button>
+        </div>
+        <p class="legend" id="recolor-note"></p>
+      </div>
       <div class="des-row" style="margin-top:10px">
         <label><input type="checkbox" id="show-pattern" checked> Muster hervorheben</label>
         <label><input type="checkbox" id="show-solution"> Lösung zeigen</label>
+        <button id="recolor-btn" aria-pressed="false" title="Jede Zone bekommt eine Farbe, die man selbst wählt: Farbe unter dem Bild anklicken, dann die Zone im Bild.">Farben neu verteilen</button>
       </div>
       <p class="muted" id="detail-meta" style="margin-top:8px"></p>
       <div class="des-row" style="margin-top:8px">

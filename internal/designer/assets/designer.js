@@ -1,6 +1,6 @@
 // Designer page (starbattle design): draw a pattern, check it on the server
 // while drawing, let the server search for several completions, pick one,
-// save it.
+// give its regions other colors if wanted, save it.
 (function designer() {
   const L = Logic;
   const cfg = JSON.parse(document.getElementById("data").textContent);
@@ -25,9 +25,14 @@
   let chosen = null;  // the selected candidate
   let problem = null; // cells with a problem, as "r,c"
   let valid = false;  // the last check found no problem
+  // Colors chosen for a completion's regions, by seed: the color of each
+  // region, null while grey. Without an entry, the generator's colors.
+  const colorsOf = new Map();
+  let recoloring = false; // the color bar of the detail view is open
+  let paint = 0;          // the color it paints with
 
-  const setColor = (e, reg) => {
-    const [h, s, l] = L.regionHSL(n, reg);
+  const setColor = (e, reg, k = n) => {
+    const [h, s, l] = L.regionHSL(k, reg);
     e.style.setProperty("--h", h);
     e.style.setProperty("--s", s + "%");
     e.style.setProperty("--l", l + "%");
@@ -241,6 +246,8 @@
     const snapshot = pattern.map((row) => row.slice());
     const strict = $("strict").checked;
     cands = [];
+    colorsOf.clear();
+    recoloring = false;
     candPattern = snapshot;
     candStrict = strict;
     showCands(null);
@@ -330,6 +337,18 @@
   }
 
   // ---- candidates ----
+  // The color of region reg of cand, null for grey.
+  const colorOf = (cand, reg) => {
+    const m = colorsOf.get(cand.seed);
+    return m ? m[reg] : reg;
+  };
+  const allColored = (cand) => {
+    const m = colorsOf.get(cand.seed);
+    return !m || m.every((v) => v !== null);
+  };
+  // The regions of cand in their chosen colors.
+  const colored = (cand) => cand.regions.map((row) => row.map((v) => colorOf(cand, v)));
+
   function preview(cand, opts) {
     const k = cand.regions.length;
     const svg = document.createElementNS(SVG, "svg");
@@ -342,13 +361,11 @@
         rect.setAttribute("y", r);
         rect.setAttribute("width", 1.02);
         rect.setAttribute("height", 1.02);
-        rect.setAttribute("class", "cell-r" + (opts.highlight && candPattern[r][c] === FREE ? " undrawn" : ""));
-        const [h, s, l] = L.regionHSL(k, cand.regions[r][c]);
-        rect.style.setProperty("--h", h);
-        rect.style.setProperty("--s", s + "%");
-        rect.style.setProperty("--l", l + "%");
-        rect.style.setProperty("--ds", Math.round(s * 0.62) + "%");
-        rect.style.setProperty("--dl", Math.round(22 + (l - 60) * 0.75) + "%");
+        const col = colorOf(cand, cand.regions[r][c]);
+        rect.setAttribute("class", (col === null ? "grey-r" : "cell-r") + (opts.highlight && candPattern[r][c] === FREE ? " undrawn" : ""));
+        rect.dataset.r = r;
+        rect.dataset.c = c;
+        if (col !== null) setColor(rect, col, k);
         svg.append(rect);
       }
     }
@@ -410,6 +427,10 @@
       box.append(b);
     });
     if (next !== chosen) {
+      // A coloring left half done is dropped; the bar belongs to one
+      // completion.
+      if (chosen && !allColored(chosen)) colorsOf.delete(chosen.seed);
+      recoloring = false;
       chosen = next;
       showDetail();
     }
@@ -422,21 +443,114 @@
     $("save-msg").textContent = "";
     if (!c) return;
     $("big").replaceChildren(preview(c, { big: true, highlight: $("show-pattern").checked, solution: $("show-solution").checked }));
+    $("big").classList.toggle("painting", recoloring);
     $("detail-meta").innerHTML = difficulty(c);
-    const text = c.regions.map((row) => row.map((v) => LETTERS[v]).join("")).join("/");
-    $("try").href = "/play?p=" + encodeURIComponent(text);
+    showRecolor();
+    // Saved and tried in the chosen colors, once every region has one.
+    const ready = allColored(c);
+    $("save").disabled = !ready;
+    if (ready) {
+      const text = colored(c).map((row) => row.map((v) => LETTERS[v]).join("")).join("/");
+      $("try").href = "/play?p=" + encodeURIComponent(text);
+      $("try").removeAttribute("aria-disabled");
+    } else {
+      $("try").removeAttribute("href");
+      $("try").setAttribute("aria-disabled", "true");
+    }
   }
   $("show-pattern").addEventListener("change", showDetail);
   $("show-solution").addEventListener("change", showDetail);
 
+  // ---- colors ----
+  // "Farben neu verteilen" turns every region grey; then a color of the bar
+  // and a click on a region paint it. Each color is on one region at most:
+  // painting it elsewhere moves it.
+  function showRecolor() {
+    const c = chosen;
+    $("recolor").hidden = !recoloring;
+    $("recolor-btn").setAttribute("aria-pressed", String(recoloring));
+    if (!recoloring) return;
+    const k = c.regions.length;
+    const m = colorsOf.get(c.seed);
+    const pal = $("recolor-palette");
+    pal.replaceChildren();
+    for (let reg = 0; reg < k; reg++) {
+      const b = el("button", m.includes(reg) ? "used" : null);
+      b.append(LETTERS[reg], el("span", "cnt", m.includes(reg) ? "✓" : ""));
+      setColor(b, reg, k);
+      b.dataset.reg = reg;
+      b.title = "Farbe " + LETTERS[reg] + (m.includes(reg) ? " (schon vergeben, wandert mit dem nächsten Klick)" : "");
+      b.setAttribute("aria-pressed", String(reg === paint));
+      b.addEventListener("click", () => {
+        paint = reg;
+        showRecolor();
+      });
+      pal.append(b);
+    }
+    const grey = m.filter((v) => v === null).length;
+    $("recolor-rest").disabled = grey === 0;
+    $("recolor-reset").disabled = grey === k;
+    $("recolor-done").disabled = grey > 0;
+    $("recolor-note").textContent = (grey
+      ? `Noch ${grey} von ${k} Zonen grau. Speichern und Ausprobieren gehen, sobald jede Zone eine Farbe hat. `
+      : "Jede Zone hat eine Farbe; so wird das Puzzle gespeichert und ausprobiert. ") +
+      "Farbe wählen, dann eine Zone im Bild anklicken. Jede Farbe sitzt auf höchstens einer Zone (✓) und wandert mit dem nächsten Klick dorthin; ein Klick auf eine Zone in der gewählten Farbe macht sie wieder grau. " +
+      "„Rest automatisch verteilen“ gibt jeder grauen Zone ihre ursprüngliche Farbe, wenn die noch frei ist, sonst eine freie.";
+  }
+  // Redraws the candidates (their previews show the colors too) and the
+  // detail view after a change of the colors.
+  const recolored = () => {
+    showCands(chosen.seed);
+    showDetail();
+  };
+  $("recolor-btn").addEventListener("click", () => {
+    if (!chosen) return;
+    colorsOf.set(chosen.seed, new Array(chosen.regions.length).fill(null));
+    recoloring = true;
+    paint = 0;
+    $("show-pattern").checked = false;
+    recolored();
+  });
+  $("big").addEventListener("click", (e) => {
+    const t = e.target;
+    if (!recoloring || !chosen || t.tagName !== "rect") return;
+    const m = colorsOf.get(chosen.seed);
+    const reg = chosen.regions[+t.dataset.r][+t.dataset.c];
+    if (m[reg] === paint) {
+      m[reg] = null;
+    } else {
+      const was = m.indexOf(paint);
+      if (was >= 0) m[was] = null;
+      m[reg] = paint;
+    }
+    recolored();
+  });
+  $("recolor-rest").addEventListener("click", () => {
+    const m = colorsOf.get(chosen.seed);
+    for (let reg = 0; reg < m.length; reg++) if (m[reg] === null && !m.includes(reg)) m[reg] = reg;
+    const free = m.map((_, col) => col).filter((col) => !m.includes(col));
+    for (let reg = 0; reg < m.length; reg++) if (m[reg] === null) m[reg] = free.shift();
+    recolored();
+  });
+  $("recolor-reset").addEventListener("click", () => {
+    colorsOf.get(chosen.seed).fill(null);
+    recolored();
+  });
+  $("recolor-done").addEventListener("click", () => {
+    recoloring = false;
+    showDetail();
+  });
+
   $("save").addEventListener("click", async () => {
     const c = chosen;
-    if (!c) return;
+    if (!c || !allColored(c)) return;
+    const m = colorsOf.get(c.seed);
+    const colors = m && m.some((col, reg) => col !== reg) ? m : undefined;
     const msg = $("save-msg");
     msg.className = "";
     msg.textContent = "Speichere …";
     try {
-      const res = await post("/api/save", { pattern: candPattern, regions: c.regions, seed: c.seed, name: $("name").value, strict: candStrict });
+      const res = await post("/api/save", { pattern: candPattern, regions: c.regions, seed: c.seed, colors, name: $("name").value, strict: candStrict });
       msg.className = "saved";
       msg.textContent = `Gespeichert als ${cfg.dir}/${res.file}`;
     } catch (e) {

@@ -1,7 +1,8 @@
 // UI check, group designer: the page of `starbattle design` (run.sh starts
 // it with -dir designs in a temp directory). A tool for developers, used on a
 // desktop: drawing and erasing, the check while drawing, the strict mode,
-// the search with its completions, saving and trying one.
+// the search with its completions, new colors for one, saving and trying
+// one.
 import { DESIGNER, click, follow, go, js, press, pull, record, reload, send, settle, sleep, waitFor } from "../lib.mjs";
 
 export const PHONE_SCENARIOS = new Set();
@@ -48,6 +49,7 @@ async function detail() {
   return js(`(() => {
     const $ = (id) => document.getElementById(id);
     const L = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    if (!$("try").href) return { link: "none", saveMsg: $("save-msg").textContent };
     const rows = new URL($("try").href).searchParams.get("p").split("/");
     const keeps = [...$("canvas").children].every((c) => !c.textContent || rows[+c.dataset.r][+c.dataset.c] === c.textContent);
     const svg = $("big").querySelector("svg");
@@ -60,6 +62,42 @@ async function detail() {
     };
   })()`);
 }
+
+// The color bar of the selected completion: its colors ("*" chosen, "✓"
+// already on a region), which buttons are disabled (D), and the colors of
+// the regions of the two drawn colors (A at 0,0 and B at 6,5) in the big
+// picture, in the link of "Ausprobieren" and in the selected preview ("."
+// for grey). How many cells are grey depends on the random completion, so
+// only none, some or all. Colors are found by comparing a cell's hue,
+// saturation and lightness with the drawing palette's buttons.
+async function colors(label) {
+  record({ label, ...(await js(`(() => {
+    const $ = (id) => document.getElementById(id);
+    const hsl = (e) => ["--h", "--s", "--l"].map((v) => e.style.getPropertyValue(v)).join(" ");
+    const letters = new Map([...$("palette").children].filter((b) => b.dataset.reg >= 0).map((b) => [hsl(b), b.textContent.trim()[0]]));
+    const at = (svg, r, c) => {
+      const rect = svg.querySelector('rect[data-r="' + r + '"][data-c="' + c + '"]');
+      return rect.classList.contains("grey-r") ? "." : letters.get(hsl(rect)) || "?";
+    };
+    const big = $("big").querySelector("svg"), thumb = document.querySelector('#cands .cand[aria-pressed="true"] svg');
+    const rows = $("try").href ? new URL($("try").href).searchParams.get("p").split("/") : null;
+    const dis = (id) => id + ":" + ($(id).disabled ? "D" : "");
+    const open = !$("recolor").hidden;
+    return {
+      bar: open ? "shown" : "hidden",
+      pressed: $("recolor-btn").getAttribute("aria-pressed"),
+      showPattern: $("show-pattern").checked,
+      colors: open ? [...$("recolor-palette").children].map((b) => (b.getAttribute("aria-pressed") === "true" ? "*" : "") + b.textContent).join(" ") : "",
+      buttons: (open ? ["recolor-rest", "recolor-reset", "recolor-done"] : []).concat("save").map(dis).join(" | ") + " | try:" + ($("try").getAttribute("aria-disabled") ? "D" : ""),
+      big: at(big, 0, 0) + at(big, 6, 5) + ", grey: " + ((g) => (g === 0 ? "none" : g === big.querySelectorAll("rect").length ? "all" : "some"))(big.querySelectorAll("rect.grey-r").length),
+      preview: at(thumb, 0, 0) + at(thumb, 6, 5),
+      link: rows ? rows[0][0] + rows[6][5] : "none",
+      note: open ? $("recolor-note").textContent.split(". ")[0] : "",
+    };
+  })()`)) });
+}
+const zone = (r, c) => `#big rect[data-r="${r}"][data-c="${c}"]`;
+const paintWith = (k) => `#recolor-palette button[data-reg="${k}"]`;
 
 async function tick(sel) {
   await js(`document.getElementById(${JSON.stringify(sel)}).click()`);
@@ -156,6 +194,46 @@ export const scenarios = {
     await click("#save");
     await settle(`document.getElementById("save-msg").className`);
     record({ label: "other saved without a name", ...(await detail()) });
+
+    // "Farben neu verteilen": every region grey, "Muster hervorheben" off;
+    // then a color of the bar and a click paint a region. A color is on one
+    // region at most, a click on a region of the chosen color greys it.
+    await colors("colors as generated");
+    await click("#recolor-btn");
+    await colors("recolor: all grey");
+    await click(paintWith(1));
+    await click(zone(0, 0));
+    await colors("B on the region of A");
+    await click(zone(6, 5));
+    await colors("B moved to the region of B");
+    await click(zone(6, 5));
+    await colors("B greyed again");
+    await click(paintWith(2));
+    await click(zone(0, 0));
+    await click(paintWith(0));
+    await click(zone(6, 5));
+    await colors("C and A painted");
+    await click("#recolor-rest");
+    await colors("rest distributed");
+    // Other colors make no new puzzle: it is saved already.
+    await click("#save");
+    await settle(`document.getElementById("save-msg").className === "err"`);
+    record({ label: "recolored saved", ...(await detail()) });
+    await click("#recolor-done");
+    await colors("recolor done");
+    await click("#recolor-btn");
+    await click(paintWith(3));
+    await click(zone(0, 0));
+    await click("#recolor-reset");
+    await colors("all grey again");
+    await click(`#cands .cand[aria-pressed="false"]`);
+    await colors("other selected while grey");
+    await click(`#cands .cand[aria-pressed="false"]`);
+    await colors("back: the half coloring is gone");
+    await click("#recolor-btn");
+    await click("#recolor-rest");
+    await click("#recolor-done");
+    await colors("rest of all grey: the generated colors");
 
     // A change of the drawing: the completions stay, marked as earlier.
     await click(color(2));

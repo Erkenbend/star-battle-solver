@@ -107,6 +107,8 @@ func TestSaveDesignErrors(t *testing.T) {
 		{"strict grows", designRequest{Pattern: patternOf("A...", "....", "....", "...."), Regions: square, Strict: true}, "darf eine gezeichnete Farbe nicht wachsen"},
 		{"invalid puzzle", designRequest{Pattern: free4, Regions: [][]int{{0, 1, 0, 1}, {2, 2, 3, 3}, {2, 2, 3, 3}, {2, 2, 3, 3}}}, "Puzzle ungültig"},
 		{"not unique", designRequest{Pattern: free4, Regions: square}, "keine eindeutige Lösung"},
+		{"colors twice", designRequest{Pattern: free4, Regions: square, Colors: []int{0, 0, 1, 2}}, "nicht vollständig verteilt"},
+		{"colors missing", designRequest{Pattern: free4, Regions: square, Colors: []int{1, 0, 2}}, "nicht vollständig verteilt"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := saveDesign(dir, tt.req)

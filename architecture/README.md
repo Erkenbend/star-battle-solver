@@ -189,8 +189,8 @@ every command that solves. `render` draws boards in the terminal.
 part of `serve`: draw a pattern, let the generator complete it on all cores
 but one until there are the asked number of distinct puzzles (or a budget
 of attempts is used up, see
-[decision 29](decisions/29-designer-searches-longer.md)), save one to a
-collection. Its page is built like the site's pages
+[decision 29](decisions/29-designer-searches-longer.md)), give the regions of
+one other colors if wanted, save it to a collection. Its page is built like the site's pages
 (`web.ServePage`, with the shared style and `logic.js`) from its own assets, and
 it reuses `web`'s play page for "try it".
 
