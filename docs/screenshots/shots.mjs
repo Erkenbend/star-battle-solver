@@ -71,7 +71,12 @@ async function click(sel, { shift = false } = {}) {
   await sleep(80);
 }
 const cell = (i) => `#board .cell[data-i="${i}"]`;
+// The pointer leaves the page before every picture: else the element under
+// the last click (a library tile, a button) is shown in its hover state.
 async function shot(name) {
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: -1, y: -1 });
+  const hovered = await js(`[...document.querySelectorAll(":hover")].map((e) => e.tagName).join(" ")`);
+  if (hovered) throw new Error(name + ": pointer still over " + hovered);
   await sleep(250);
   const r = await send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(`${OUT}/${name}.png`, Buffer.from(r.data, "base64"));
