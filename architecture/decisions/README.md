@@ -40,6 +40,7 @@ and open ideas.
 | [28](28-news-below-the-board.md) | Banner and tutorial card below the board, `keepBoard` removed | done |
 | [29](29-designer-searches-longer.md) | Designer: search on all cores until *k* puzzles or a budget of attempts | done |
 | [30](30-ways-between-pages.md) | Ways between pages only through the tab bar, one way to the next puzzle | done |
+| [31](31-party-resumes.md) | "/party" leads back to the party one plays in, "Party verlassen" also in a round | done |
 
 ## Adding a decision
 

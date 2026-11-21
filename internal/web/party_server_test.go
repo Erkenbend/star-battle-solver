@@ -493,3 +493,35 @@ func TestLivesServer(t *testing.T) {
 		t.Fatalf("after the last life: %+v", out.Snapshot)
 	}
 }
+
+// /party leads a member back to their party's lobby (PartyCookie); anyone
+// else, a wrong token, a party that is gone, or garbage gets the page to
+// create or join one, and so does a player after leaving.
+func TestPartyCookie(t *testing.T) {
+	pm, _ := newTestParties(t)
+	h := Handler(testSolve, nil, pm, nil, nil)
+	code, err := pm.Create(party.Options{Sizes: []int{5}})
+	must(t, err)
+	tok := mustJoin(t, pm, code, "Anna")
+	at := func(path, cookie string) (int, string) {
+		req := httptest.NewRequest("GET", path, nil)
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: PartyCookie, Value: cookie})
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code, rec.Header().Get("Location")
+	}
+	if st, loc := at("/party", code+"."+tok); st != http.StatusFound || loc != "/party/"+code {
+		t.Errorf("member: %d to %q, want the lobby", st, loc)
+	}
+	for _, cookie := range []string{"", code + ".", code + ".nope", "ZZZZ." + tok, strings.ToLower(code) + "." + tok, code + tok, "%zz", "." + tok} {
+		if st, loc := at("/party", cookie); st != http.StatusOK || loc != "" {
+			t.Errorf("cookie %q: %d to %q, want the party page", cookie, st, loc)
+		}
+	}
+	must(t, pm.Leave(code, tok))
+	if st, loc := at("/party", code+"."+tok); st != http.StatusOK || loc != "" {
+		t.Errorf("after leaving: %d to %q, want the party page", st, loc)
+	}
+}

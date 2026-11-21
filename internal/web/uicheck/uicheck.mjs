@@ -17,15 +17,15 @@
 // between runs of the same build are normalized when recorded: times, party
 // codes, the random puzzles of parties (their boards as the classes that
 // occur, no rule violations, steps or problems), the random puzzle after the
-// tutorial and the designer's completions. A failed step, a JavaScript error
-// or a page load the page aborted itself is an observation too, so it shows
-// as a difference.
+// tutorial and the designer's completions. A failed step, a JavaScript error,
+// a page load the page aborted itself or a link beside the tab bar is an
+// observation too, so it shows as a difference.
 //
 // With -update, the observations replace the expected files of the groups
 // run. Do that after an intended change of the page, and check its diff.
 import fs from "node:fs";
 import path from "node:path";
-import { connect, disconnect, send, state, record, observed, errors, aborted, moves, DESKTOP, PHONE } from "./lib.mjs";
+import { connect, disconnect, send, state, record, observed, errors, aborted, moves, strayLinks, DESKTOP, PHONE } from "./lib.mjs";
 
 // Page by page, roughly in the order a visitor meets them.
 const GROUPS = ["tutorial", "solo", "library", "party", "site", "designer"];
@@ -64,6 +64,8 @@ for (const g of ran) {
     if (errors.length) record({ label: "JS ERRORS", errors: errors.splice(0) });
     if (aborted.length) record({ label: "ABORTED PAGE LOADS", count: aborted.splice(0).length });
     if (moves.length) record({ label: "BOARD MOVED", moves: moves.splice(0) });
+    if (strayLinks.size) record({ label: "LINKS BESIDE THE TAB BAR", links: [...strayLinks] });
+    strayLinks.clear();
   }
 }
 disconnect();

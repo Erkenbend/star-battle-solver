@@ -243,6 +243,8 @@ function PartyRound(P) {
   function start() {
     $("party-box").hidden = false;
     $("nav-party").href = "/party/" + d.party.code; // "Zusammen spielen" is this party's lobby (decision 30)
+    $("party-leave").hidden = false; // the lobby sends a player of the running round back here (decision 31)
+    $("party-leave").onclick = () => Party.leave(d.party.code);
     $("giveup").hidden = false;
     $("giveup").onclick = partyGiveUp;
     $("reset").textContent = "Alles löschen";
@@ -261,7 +263,10 @@ function PartyRound(P) {
     if (location.hash === "#weg") history.replaceState(null, "", location.pathname);
     partyView = Party.live(d.party.code, $("party-panel"), {
       onSnap: partySnap,
-      onGone() { $("nav-party").href = "/party"; }, // a new party then
+      onGone() { // a new party then
+        $("nav-party").href = "/party";
+        $("party-leave").hidden = true;
+      },
     });
   }
 

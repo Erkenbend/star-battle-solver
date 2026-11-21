@@ -16,6 +16,22 @@ const Party = (() => {
   const name = () => get("starbattle.name");
   const setName = (v) => put("starbattle.name", v);
 
+  // /party (the tab "Zusammen spielen") leads back to the party this browser
+  // takes part in: the server reads "CODE.TOKEN" from this cookie
+  // (PartyCookie in party_server.go) and checks that the token is still a
+  // player's. A state that shows us as a player puts the party there; one
+  // without us, the party gone or leaving it takes it out, but only if it
+  // is this party: looking at another party's lobby keeps ours.
+  const PARTY_COOKIE = "starbattle.party";
+  function rememberParty(code, member) {
+    try {
+      const now = (document.cookie.split("; ").find((c) => c.startsWith(PARTY_COOKIE + "=")) || "").slice(PARTY_COOKIE.length + 1);
+      const want = member && token(code) ? code + "." + token(code) : "";
+      if (want && now !== want) document.cookie = `${PARTY_COOKIE}=${want}; path=/; max-age=604800; samesite=lax`; // 7 days
+      else if (!want && now.split(".")[0] === code) document.cookie = PARTY_COOKIE + "=; path=/; max-age=0; samesite=lax";
+    } catch { /* cookies blocked */ }
+  }
+
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -77,15 +93,27 @@ const Party = (() => {
   // the page loads would ask for it again, and setting location anew aborts
   // the load and starts it over: with a slow connection and a busy party the
   // page would never arrive. replace: without an entry in the history.
-  let leaving = null;
+  let leaving = null, left = false;
   function goTo(path, replace = false) {
-    if (leaving === path) return;
+    if (leaving === path || left) return;
     leaving = path;
     if (replace) location.replace(path);
     else location.href = path;
   }
   // Back from the history cache: whatever was under way is over.
-  if (typeof window !== "undefined") window.addEventListener("pageshow", () => { leaving = null; });
+  if (typeof window !== "undefined") window.addEventListener("pageshow", () => { leaving = null; left = false; });
+
+  // Leaving the party for good, from its lobby or under "Mehr" in a round
+  // (the lobby sends a player of the running round back to it): then /party
+  // is free to create or join another one. No other page change after it.
+  async function leave(code) {
+    if (!confirm("Party wirklich verlassen?")) return;
+    try { await post(code, "leave", {}); } catch { /* gone anyway */ }
+    setToken(code, "");
+    rememberParty(code, false);
+    goTo("/party");
+    left = true;
+  }
 
   // The page of the running round for the viewer: against the clock, that of
   // the puzzle they are at (or the last one prepared).
@@ -121,6 +149,7 @@ const Party = (() => {
     function take(s) {
       snap = s;
       at = Date.now();
+      rememberParty(code, !!s.you);
       errText = "";
       draw();
       if (hooks.onSnap) hooks.onSnap(snap, at);
@@ -133,6 +162,7 @@ const Party = (() => {
       const gone = () => {
         es.close();
         snap = null;
+        rememberParty(code, false);
         errText = "Diese Party gibt es nicht mehr.";
         draw();
         if (hooks.onGone) hooks.onGone();
@@ -435,17 +465,12 @@ const Party = (() => {
         view.error(e.message);
       }
     });
-    $("leave").onclick = async () => {
-      if (!confirm("Party wirklich verlassen?")) return;
-      try { await post(code, "leave", {}); } catch { /* gone anyway */ }
-      setToken(code, "");
-      location.href = "/party";
-    };
+    $("leave").onclick = () => leave(code);
   }
 
   if (typeof document !== "undefined" && document.getElementById("party-panel") && document.getElementById("lobby")) {
     bootPage();
   }
 
-  return { token, setToken, name, setName, post, live, goTo, fmtTime, hintsText, copyText, el, roundPath, livesRule };
+  return { token, setToken, name, setName, post, live, goTo, leave, fmtTime, hintsText, copyText, el, roundPath, livesRule };
 })();

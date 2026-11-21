@@ -223,9 +223,10 @@ export const cell = (i) => `#board .cell[data-i="${i}"]`;
 export const hasClass = (i, c) => `document.querySelector('${cell(i)}').classList.contains("${c}")`;
 export const bannerHas = (t) => `document.getElementById("banner").textContent.includes(${JSON.stringify(t)})`;
 export async function fresh() {
-  await go("/party"); // any page of the origin
+  await go("/einstellungen"); // any page of the origin that leads nowhere by itself
   await js(`localStorage.clear(); localStorage.setItem("starbattle.tutorial", "1")`); // no tutorial first
   await js(`document.cookie = "starbattle.solo=; path=/; max-age=0"`); // "/" gives a new puzzle
+  await js(`document.cookie = "starbattle.party=; path=/; max-age=0"`); // "/party" is not the last party's
 }
 // Taps sel, a link or submit button, and waits for the page it leads to.
 export async function follow(sel, how = click) {
@@ -249,9 +250,20 @@ export function record(o) {
 }
 
 // What the page shows, normalized (see the top).
+// Pages change through the site's tab bar only (decision 30): a link or form
+// shown on a puzzle page that leads elsewhere is an error of the scenario,
+// except the way to the next puzzle (#next-go, and the form "Neues Puzzle"
+// it submits). obs collects them; uicheck.mjs records them after the scenario.
+export const strayLinks = new Set();
+const ALLOWED_WAYS = ["#next-go", "#newgame"];
+
 export async function obs(label, { random = false } = {}) {
   await sleep(120);
   await tapDone();
+  const stray = await js(`[...document.querySelectorAll("a[href], form[action]")]
+    .filter((e) => e.getClientRects().length && !e.closest(".site-nav") && !${JSON.stringify(ALLOWED_WAYS)}.some((s) => e.matches(s)))
+    .map((e) => (e.id ? "#" + e.id : e.tagName.toLowerCase()) + " " + JSON.stringify(e.textContent.trim().slice(0, 40)) + " -> " + (e.getAttribute("href") || e.getAttribute("action")))`);
+  for (const s of stray) strayLinks.add(s.replace(/\/party\/[A-Z]{4}/g, "/party/CODE"));
   const o = await js(`(() => {
     const q = (s) => document.querySelector(s);
     const t = (e) => e ? (e.hidden ? "[hidden] " : "") + e.textContent.trim().replace(/\\s+/g, " ") : null;
@@ -267,7 +279,7 @@ export async function obs(label, { random = false } = {}) {
       clock: txt("clock"), legend: txt("legend"), current: txt("current"),
       steps: document.querySelectorAll("#steps .row").length, active: t(q("#steps .row.active .num")),
       tutorial: txt("tutorial"), tour: t(q(".tour-tip")), tourTarget: q(".tour-target") && q(".tour-target").id,
-      buttons: ["undo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "next-go", "site-nav", "party-box", "play-options"].map(btn).join(" | "),
+      buttons: ["undo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "next-go", "party-leave", "site-nav", "party-box", "play-options"].map(btn).join(" | "),
       pressed: [...document.querySelectorAll("[aria-pressed=true], [aria-expanded=true]")].map((e) => e.id).join(","),
       info: t(q("#info")) && (q("#info").hidden ? "[hidden]" : "shown"),
       selected: [...document.querySelectorAll("[aria-selected=true], [aria-current=page]")].map((e) => e.id).join(","),

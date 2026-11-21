@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"starbattle/internal/party"
@@ -78,9 +79,35 @@ func errorStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
+// PartyCookie holds "CODE.TOKEN" of the party this browser takes part in,
+// so that /party (the tab "Zusammen spielen") leads back to it, as "/" does
+// to the solo puzzle (decision 31). The party's pages set it while the
+// player is a member and remove it when they leave or the party is gone
+// (party.js).
+const PartyCookie = "starbattle.party"
+
+// memberOf is the code of the party of the request's PartyCookie, "" unless
+// that party exists and the token is one of its players.
+func memberOf(r *http.Request, pm *party.Manager) string {
+	c, err := r.Cookie(PartyCookie)
+	if err != nil {
+		return ""
+	}
+	code, token, ok := strings.Cut(c.Value, ".")
+	if !ok || token == "" || party.NormalizeCode(code) != code {
+		return ""
+	}
+	s, err := pm.Snapshot(code, token)
+	if err != nil || s.You == "" {
+		return ""
+	}
+	return s.Code
+}
+
 // partyRoutes adds the party mode to mux:
 //
-//	GET  /party                    create or join a party
+//	GET  /party                    create or join a party; a member of a
+//	                               party (PartyCookie) goes to its lobby
 //	POST /party                    create one (form: n=6&n=7...&mode=coop, for
 //	                               mode=clock minutes=5&skips=2, for mode=versus
 //	                               lives=3), redirects to its lobby
@@ -93,6 +120,10 @@ func errorStatus(err error) int {
 //	GET  /party/{code}/events      the party's state as server-sent events
 func partyRoutes(mux *http.ServeMux, pm *party.Manager) {
 	mux.HandleFunc("GET /party", func(w http.ResponseWriter, r *http.Request) {
+		if code := memberOf(r, pm); code != "" {
+			http.Redirect(w, r, "/party/"+code, http.StatusFound)
+			return
+		}
 		writeParty(w, http.StatusOK, PartyPage{})
 	})
 	mux.HandleFunc("POST /party", func(w http.ResponseWriter, r *http.Request) {

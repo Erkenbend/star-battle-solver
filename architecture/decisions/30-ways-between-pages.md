@@ -57,6 +57,15 @@ under "Mehr"; `versus` records where "Zusammen spielen" leads in a round
 (`/party/CODE`). Every observation lists `next-go`; on the phone `seen`
 records that the button is on screen once solved (it is, in all 10 cases).
 
+Afterwards (on request), the UI check keeps the rule: every observation on
+a puzzle page lists the links and forms shown outside the tab bar, and any
+but `#next-go` and the form "Neues Puzzle" (`ALLOWED_WAYS` in `lib.mjs`) is
+an error of the scenario ("LINKS BESIDE THE TAB BAR"). With `#next-go`
+taken out of the allowed ones, `library` and `libraryphone` report both
+"Als nächstes" links; the removed links ("Weiter" in the banner, "Alle
+Einstellungen" with "Mehr" open, "Zur Lobby") were `a[href]` shown in
+observed states and would have been reported the same way.
+
 ## Alternatives
 
 - **The button inside the banner,** as "Weiter" was: a small link among

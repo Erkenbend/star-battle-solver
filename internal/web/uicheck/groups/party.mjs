@@ -1,6 +1,6 @@
 // UI check, group party: parties against each other (also with lives),
 // together and against the clock, Alice in the browser and Bob via the API.
-import { api, bannerHas, cell, click, data, dblclick, hasClass, js, key, more, obs, once, partyStart, record, reload, server, settle, sleep, solveBy, state, tapDone, underFire, visited, waitFor, watchShown } from "../lib.mjs";
+import { api, bannerHas, cell, click, data, dblclick, follow, go, hasClass, js, key, more, obs, once, partyStart, record, reload, server, settle, sleep, solveBy, state, tapDone, underFire, visited, waitFor, watchShown } from "../lib.mjs";
 
 // Those that run on a phone; the others run on a desktop screen.
 export const PHONE_SCENARIOS = new Set(["versus", "lives", "coop", "race"]);
@@ -70,6 +70,19 @@ export const scenarios = {
     await settle(bannerHas("Aufgegeben"));
     await obs("gave up");
     await server(q, "gave up", (me) => me.status === "gaveup");
+    // "Zusammen spielen" (/party) leads back to the party: its lobby, which
+    // sends a player of the running round on to it. Leaving it under "Mehr"
+    // frees /party for a new one (decision 31).
+    const here = async () => (await js("location.pathname")).replace(/\/party\/[A-Z]{4}/, "/party/CODE");
+    await go("/party");
+    await waitFor(`location.pathname.includes("/round/")`);
+    await sleep(250);
+    record({ label: "/party while in a party", path: await here() });
+    await js(`window.confirm = () => true`);
+    await follow("#party-leave", more);
+    record({ label: "left under Mehr", path: await here(), start: await js(`!document.getElementById("start").hidden`) });
+    await go("/party");
+    record({ label: "/party after leaving", path: await here() });
   },
 
   // Against each other with 2 lives: a star where the solution has none

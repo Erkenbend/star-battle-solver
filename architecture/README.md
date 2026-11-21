@@ -257,6 +257,7 @@ explains most of the design:
 | Parties, players, rounds, the shared coop board | server memory behind one mutex | expire after inactivity; lost on restart |
 | A player's progress, timer, solved library puzzles, preferences, chosen symbol, party token | the browser's `localStorage` | per device |
 | The unsolved solo puzzle `/` leads back to | a cookie (`starbattle.solo`), set and cleared by the page, read by the server ([decision 27](decisions/27-solo-resumes.md)) | per device, 90 days |
+| The party `/party` leads back to | a cookie (`starbattle.party`: code and the player's token), set and cleared by the party's pages, checked against the party by the server ([decision 31](decisions/31-party-resumes.md)) | per device, 7 days or until left |
 
 Consequences worth knowing:
 
@@ -337,8 +338,9 @@ designer appends for you). The workflows are in `docs/development.md`.
   group is enough. The party and tutorial scenarios run on a phone-sized
   screen, the party's transitions (solving path, next round, next puzzle)
   under a stream of states and on a slow connection. In every scenario a page
-  load the page aborts itself and, on the phone, the board moving under a tap
-  are errors (in the designer, a desktop tool, its drawing and big picture
+  load the page aborts itself, a link on a puzzle page to another page
+  beside the tab bar (other than the next puzzle) and, on the phone, the
+  board moving under a tap are errors (in the designer, a desktop tool, its drawing and big picture
   moving under a click too); on the phone every observation also records whether the action
   bar is under the tab bar. Values that differ between runs (times, random
   party puzzles, the designer's completions) are normalized. The result must
