@@ -274,6 +274,7 @@ export async function obs(label, { random = false } = {}) {
       path: location.pathname + location.search + location.hash,
       body: document.body.className, board: q("#board") && q("#board").className,
       cells: [...document.querySelectorAll("#board .cell")].map((e) => cls.filter((c) => e.classList.contains(c)).join("+") || "."),
+      strip: [...document.querySelectorAll("#colors .color")].map((e) => e.classList.contains("has-star") ? "•" : "■").join(""), // a dot: the color has a star
       tabs: !!q(".top .tabs") && getComputedStyle(q(".top .tabs")).display !== "none", // hidden with only one tab
       banner: txt("banner"), msg: txt("play-msg"), problems: txt("problems"), summary: txt("summary"),
       clock: txt("clock"), legend: txt("legend"), current: txt("current"),

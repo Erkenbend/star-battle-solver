@@ -140,6 +140,11 @@ for (const f of files) {
   d.solution.forEach((c, r) => (sol[at(r, c)] = L.STAR));
   assert.equal(L.doneCells(d, sol).size, 0);
 
+  // Stars per color: region D has the star on (0,0); two in one region count twice.
+  assert.deepEqual(L.regionStars(d, marks), [0, 0, 0, 1, 0]);
+  assert.deepEqual(L.regionStars(d, sol), [1, 1, 1, 1, 1]);
+  assert.equal(L.regionStars(d, new Uint8Array(25)).reduce((a, b) => a + b), 0);
+
   // Mistakes against the solution (row 0 has its star in column 2).
   const wrong = new Uint8Array(25);
   wrong[at(0, 0)] = L.STAR;

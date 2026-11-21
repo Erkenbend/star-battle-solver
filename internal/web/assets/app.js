@@ -91,6 +91,35 @@ function boot() {
     }
   }
 
+  // The colors of the puzzle as a strip of small tiles above the board, in
+  // the order of their letters; a color with a star becomes a dot, so on a
+  // large board the open ones are found at a glance. Its height never
+  // changes (the tile shrinks inside its slot): nothing above the board may
+  // move under a tap.
+  const colorEls = [];
+  {
+    const strip = $("colors");
+    strip.style.setProperty("--n", n);
+    for (let reg = 0; reg < n; reg++) {
+      const e = el("span", "color");
+      e.setAttribute("role", "listitem");
+      e.dataset.region = reg;
+      const tile = el("i");
+      regionColor(tile, reg);
+      e.append(tile);
+      strip.append(e);
+      colorEls.push(e);
+    }
+  }
+  function drawColors(cells) {
+    L.regionStars(d, cells).forEach((k, reg) => {
+      const e = colorEls[reg];
+      e.classList.toggle("has-star", k > 0);
+      e.title = `Farbe ${d.letters[reg]}: ` + (k > 0 ? "hat ihren Stern" : "noch offen");
+      e.setAttribute("aria-label", e.title);
+    });
+  }
+
   // Grid lines and region walls as one SVG layer over the cells, so every
   // cell has the same size (borders on the cells made those at walls smaller,
   // and their stars with them) and walls meet in clean corners: each wall is
@@ -152,6 +181,7 @@ function boot() {
       // Cells outside the units named in the explanation are dimmed.
       e.classList.toggle("dim", !!(m.ref && m.ref.size && !m.ref.has(i)));
     }
+    drawColors(view.cells);
   }
 
   // Banner and tutorial card (.news) sit below the board on phones, beside
@@ -176,23 +206,23 @@ function boot() {
     return c;
   }
 
-  // Pointing at a color swatch in a text spotlights that region on the board
-  // (tap on touch screens toggles it).
+  // Pointing at a color swatch in a text or a tile of the strip above the
+  // board spotlights that region on the board (tap on touch screens toggles it).
   function spotlight(reg) {
     boardEl.classList.toggle("spotting", reg != null);
     cellEls.forEach((e, i) => e.classList.toggle("spot", reg != null && d.regions[Math.floor(i / n)][i % n] === reg));
   }
   let spotted = null;
   document.addEventListener("pointerover", (ev) => {
-    const sw = ev.target.closest && ev.target.closest(".sw[data-region]");
+    const sw = ev.target.closest && ev.target.closest(".sw[data-region], .color[data-region]");
     if (sw && ev.pointerType === "mouse") spotlight(+sw.dataset.region);
   });
   document.addEventListener("pointerout", (ev) => {
-    const sw = ev.target.closest && ev.target.closest(".sw[data-region]");
+    const sw = ev.target.closest && ev.target.closest(".sw[data-region], .color[data-region]");
     if (sw && ev.pointerType === "mouse") spotlight(spotted);
   });
   document.addEventListener("click", (ev) => {
-    const sw = ev.target.closest && ev.target.closest(".sw[data-region]");
+    const sw = ev.target.closest && ev.target.closest(".sw[data-region], .color[data-region]");
     if (!sw) {
       if (spotted != null) spotlight((spotted = null));
       return;

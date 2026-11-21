@@ -217,7 +217,9 @@ their own small scripts instead.
 
 The puzzle page is laid out for phones and tablets first (see
 [decision 25](decisions/25-mobile-first-page.md)): below the board only the
-star tool, ⓘ and the clock; the buttons of the shown tab in an action bar
+star tool, ⓘ and the clock; above the board a strip with a tile per color
+that shrinks to a dot once the color has a star (`#colors`, drawn with the
+board, so it follows the solving path too; of fixed height, see below); the buttons of the shown tab in an action bar
 (`.actionbar`), below the board up to 860 px and next to it above; what is
 used now and then in "Mehr" (`#more-sheet`), opening in place below the bar.
 Up to 860 px the site navigation of every page is a tab bar fixed at the

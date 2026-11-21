@@ -113,6 +113,14 @@ const Logic = (() => {
     return out;
   }
 
+  // Stars per region (index = region), for the strip of colors above the
+  // board: a color with a star there shows as a dot.
+  function regionStars(d, cells) {
+    const out = new Array(d.n).fill(0);
+    for (let i = 0; i < cells.length; i++) if (cells[i] === STAR) out[d.regions[Math.floor(i / d.n)][i % d.n]]++;
+    return out;
+  }
+
   // Star column per row (-1 for a row without a star), as the party server
   // takes a solution.
   function starColumns(d, cells) {
@@ -562,7 +570,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
