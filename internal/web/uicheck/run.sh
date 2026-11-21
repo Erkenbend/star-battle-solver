@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
-# UI check: builds starbattle, starts the server and a headless Chromium, and
-# lets uicheck.mjs play every mode of the puzzle page and compare what it
-# shows with expected.jsonl. Fails (exit 1) on a difference and prints it.
+# UI check: builds starbattle, starts the server, the designer and a
+# headless Chromium, and lets uicheck.mjs play every mode of the puzzle page
+# and the designer and compare what they show with expected/. Fails (exit 1)
+# on a difference and prints it.
 #
-#   internal/web/uicheck/run.sh                  all scenarios
-#   internal/web/uicheck/run.sh coop race        only some
-#   internal/web/uicheck/run.sh -update          write expected.jsonl anew
+#   internal/web/uicheck/run.sh                  all groups
+#   internal/web/uicheck/run.sh solo designer    only these groups
+#   internal/web/uicheck/run.sh -update [group…] write their expected files anew
+#
+# The groups (see GROUPS in uicheck.mjs, one module each in groups/):
+# tutorial, solo, library, party, site, designer.
 #
 # Environment:
 #   CHROME       Chromium/Chrome (default: chromium, google-chrome or Playwright's)
-#   UICHECK_OUT  file for the observations of this run (default: a temp file,
-#                removed afterwards)
-# Needs go, node >= 22 and curl. Takes about a minute.
+#   UICHECK_OUT  directory for the observations of this run, one file per
+#                group (default: a temp directory, removed afterwards)
+# Needs go, node >= 22 and curl. All groups take about two minutes.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
 port=${UICHECK_PORT:-6397}
+designport=${UICHECK_DESIGN_PORT:-6398}
 devtools=${UICHECK_DEVTOOLS:-9337}
 
 # Google Chrome first: a chromium from snap cannot use paths in /tmp.
@@ -55,6 +60,10 @@ trap cleanup EXIT
 host=127.0.0.1
 "$tmp/starbattle" serve -addr "$host:$port" -no-pregen > "$tmp/serve.log" 2>&1 &
 pids+=($!)
+# The designer saves to designs/ in the temp directory: the page names the
+# directory as given, the same on every machine.
+(cd "$tmp" && exec ./starbattle design -addr "$host:$designport" -dir designs > design.log 2>&1) &
+pids+=($!)
 # --disable-dev-shm-usage: CI machines and containers often have a small
 # /dev/shm, on which the browser crashes. No throttling of timers in tabs
 # that look hidden: the page's clock and party reports run on timers.
@@ -67,27 +76,32 @@ pids+=($!)
 
 ready=
 for _ in $(seq 600); do
-  if curl -sf "http://$host:$port/party" > /dev/null && curl -sf "http://$host:$devtools/json/version" > /dev/null; then
+  if curl -sf "http://$host:$port/party" > /dev/null && curl -sf "http://$host:$designport/" > /dev/null &&
+    curl -sf "http://$host:$devtools/json/version" > /dev/null; then
     ready=1
     break
   fi
   sleep 0.1
 done
 if [[ -z $ready ]]; then
-  echo "server or browser did not start within 60 s" >&2
+  echo "server, designer or browser did not start within 60 s" >&2
   echo "--- server log" >&2
   tail -n 20 "$tmp/serve.log" >&2
+  echo "--- designer log" >&2
+  tail -n 20 "$tmp/design.log" >&2
   echo "--- browser log" >&2
   tail -n 40 "$tmp/chrome.log" >&2
   exit 1
 fi
 
-out=${UICHECK_OUT:-$tmp/observed.jsonl}
+out=${UICHECK_OUT:-$tmp/observed}
 status=0
-node "$here/uicheck.mjs" "http://$host:$port" "$host:$devtools" "$tmp/p.html" "$out" "$@" || status=$?
+node "$here/uicheck.mjs" "http://$host:$port" "http://$host:$designport" "$host:$devtools" "$tmp/p.html" "$out" "$@" || status=$?
 if [[ $status -ne 0 ]]; then
   echo "--- server log" >&2
   tail -n 20 "$tmp/serve.log" >&2
+  echo "--- designer log" >&2
+  tail -n 20 "$tmp/design.log" >&2
   echo "--- browser log" >&2
   tail -n 20 "$tmp/chrome.log" >&2
 fi

@@ -327,19 +327,22 @@ designer appends for you). The workflows are in `docs/development.md`.
 - **UI check** (`internal/web/uicheck`): a node script drives a headless
   Chromium over the DevTools protocol through every mode of the puzzle page
   (solo, hints, checks, hypothesis, solving path, tutorial and tour, library,
-  a page saved as a file, and parties against each other (also with
-  lives), together and against the clock, with a second player via the API)
-  and records what the page and the server show after each action. The
-  party and tutorial scenarios run on a phone-sized screen, the party's
-  transitions (solving path, next round, next puzzle) under a stream of
-  states and on a slow connection. In every scenario a page load the page
-  aborts itself and, on the phone, the board moving under a tap are errors;
-  on the phone every observation also records whether the action bar is
-  under the tab bar. Values that differ between
-  runs (times, random party puzzles) are normalized. The result must equal
-  `expected.jsonl`; after an intended UI change, `run.sh -update` rewrites
-  it and its diff is part of the review. Not part of `go test`: run it with
-  `internal/web/uicheck/run.sh` (about a minute); CI runs it as its own job.
+  a page saved as a file, and parties against each other (also with lives),
+  together and against the clock, with a second player via the API) and the
+  designer, and records what the page and the server show after each action.
+  The scenarios come in groups by page or way between pages (`groups/`, one
+  file of observations each in `expected/`): after changing one page, its
+  group is enough. The party and tutorial scenarios run on a phone-sized
+  screen, the party's transitions (solving path, next round, next puzzle)
+  under a stream of states and on a slow connection. In every scenario a page
+  load the page aborts itself and, on the phone, the board moving under a tap
+  are errors; on the phone every observation also records whether the action
+  bar is under the tab bar. Values that differ between runs (times, random
+  party puzzles, the designer's completions) are normalized. The result must
+  equal `expected/`; after an intended UI change, `run.sh -update` rewrites
+  the files of the groups run and their diff is part of the review. Not part
+  of `go test`: run it with `internal/web/uicheck/run.sh [group…]` (all groups
+  about two minutes); CI runs all of them as its own job.
 - **Concurrency diagrams:** the stories behind the diagrams and the player
   of [concurrency.md](concurrency.md) are checked against the source with
   `go/ast`, and the generated files against what the stories draw.
@@ -379,7 +382,7 @@ browser code. The full suite with every hard puzzle is CI's job.
 | generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see decisions 8, 12, 13) and record it in `architecture/decisions` |
 | more hard puzzles | `starbattle hardsearch`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges in [decision 17](decisions/17-library-over-100-sample-tests.md) and `PLAN.md` |
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
-| a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German; a new page template needs `<!--{{APP}}-->` in its head (a test checks) |
+| a page or a UI feature | `internal/web/assets`, then the matching Go file in `internal/web` | logic that can be pure goes into `Logic` in `logic.js` with a node test, UI of the puzzle page into `app.js` or the file of its part; text in German; a new page template needs `<!--{{APP}}-->` in its head (a test checks); the UI check's group of the page (`run.sh <group>`, see `GROUPS` in `uicheck.mjs`), a new page gets one |
 | party modes | `internal/party` (`party.go`: shared lifecycle, `coop.go`, `clock.go`), then `internal/web/party_server.go` (HTTP/SSE, round pages) and `assets/party.js` | state is in memory behind one mutex; tests use a fake clock |
 | a star symbol | `symbols/`; animated ones in `internal/sprite` | see `symbols/README.md`; rewrite the sheets with `go test ./internal/sprite -update` |
 | the app icon | `internal/icon` | rewrite the files with `go test ./internal/icon -update`; look at them at 32 px too |

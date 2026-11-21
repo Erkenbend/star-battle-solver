@@ -28,7 +28,7 @@
 ## Testing
 
 * Locally run only `go test -short ./...` plus focused `-run` tests; the full suite is CI's job. `STARBATTLE_ALL_HARD=1` runs nowhere by default, only on request (see [decision 22](architecture/decisions/22-ci-sample-only.md))
-* After changing browser code, run the UI check (see [docs/development.md](docs/development.md#ui-prüfung)); an intended UI change updates `expected.jsonl` in the same commit
+* After changing browser code, run the UI check's groups of the pages changed (see [docs/development.md](docs/development.md#ui-prüfung)), all of them only after changing what every page uses (`logic.js`, `style.css`, the site's tab bar); an intended UI change updates the group's file in `expected/` in the same commit
 * Moving, renaming or removing an element id: grep `docs/screenshots/shots.mjs` too, and run `docs/screenshots/take.sh` when the pictures show the change
 * Look at layout changes in screenshots at phone and desktop size; the UI check sees texts and a few positions (cut-off words in the action bar, what lies under the tab bar), not how a page looks
 * Screenshots show states a real game reaches (e.g. stars with the crosses they imply)

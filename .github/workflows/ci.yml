@@ -40,13 +40,13 @@ jobs:
       - name: go test -race
         run: go test -race -short ./...
 
-  # Plays every mode of the puzzle page in headless Chrome and compares what
-  # it shows with internal/web/uicheck/expected.jsonl (see run.sh there).
-  # The runner image has Chrome and node.
+  # Plays every mode of the puzzle page and the designer in headless Chrome,
+  # all groups, and compares what they show with internal/web/uicheck/expected
+  # (see run.sh there). The runner image has Chrome and node.
   ui:
     name: UI check
     runs-on: ubuntu-26.04
-    timeout-minutes: 10 # about a minute normally; a hang must not wait 6 h
+    timeout-minutes: 10 # about two minutes normally; a hang must not wait 6 h
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -54,15 +54,15 @@ jobs:
           go-version-file: go.mod
       - name: UI check
         env:
-          UICHECK_OUT: ${{ runner.temp }}/uicheck-observed.jsonl
+          UICHECK_OUT: ${{ runner.temp }}/uicheck-observed
         run: internal/web/uicheck/run.sh
-      # On a difference: what this run saw, to compare or to take over as
-      # expected.jsonl if the change was intended.
+      # On a difference: what this run saw, one file per group, to compare or
+      # to take over into expected/ if the change was intended.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: uicheck-observed
-          path: ${{ runner.temp }}/uicheck-observed.jsonl
+          path: ${{ runner.temp }}/uicheck-observed
           if-no-files-found: ignore
 
   # Stores the badge data as shields.io endpoint JSON on the orphan branch
