@@ -47,15 +47,16 @@ func get(h http.Handler, path string) *httptest.ResponseRecorder {
 	return rec
 }
 
-// TestDesignerPlay: the designer's "try it" opens the play page, which links
-// to the settings, so the designer serves them too.
+// TestDesignerPlay: the designer's "try it" opens the play page, which sends
+// a new visitor to the tutorial first and links to the settings, so the
+// designer serves them too.
 func TestDesignerPlay(t *testing.T) {
 	syms, err := web.LoadSymbols(starbattle.Symbols, "symbols")
 	if err != nil {
 		t.Fatal(err)
 	}
 	h := Handler(t.TempDir(), testSolve, syms)
-	paths := []string{"/play?p=DBBBB/DDBCC/DDBAA/EDDAA/EAAAA", "/einstellungen", "/symbole.json"}
+	paths := []string{"/play?p=DBBBB/DDBCC/DDBAA/EDDAA/EAAAA", "/anleitung", "/einstellungen", "/symbole.json"}
 	for _, s := range syms.List() {
 		if s.Kind == web.KindSprite {
 			paths = append(paths, s.URL)

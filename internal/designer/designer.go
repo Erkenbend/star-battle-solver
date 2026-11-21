@@ -122,12 +122,14 @@ type designCounts struct {
 }
 
 // Handler serves the designer. Saved puzzles go to dir. solve rates a
-// completion. /play shows a puzzle to try it, as in serve; with a symbol
-// catalog (may be nil), its link to /einstellungen works too.
+// completion. /play shows a puzzle to try it, as in serve, and /anleitung,
+// where /play sends a new visitor first; with a symbol catalog (may be nil),
+// its link to /einstellungen works too.
 func Handler(dir string, solve web.SolveFunc, syms *web.Symbols) http.Handler {
 	mux := http.NewServeMux()
 	play := web.Handler(solve, nil, nil, nil, syms)
 	mux.Handle("GET /play", play)
+	mux.Handle("GET /anleitung", play)
 	if syms != nil {
 		for _, p := range []string{"GET /einstellungen", "GET /symbole.json", "GET /symbole/{file}"} {
 			mux.Handle(p, play)
