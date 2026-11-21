@@ -935,6 +935,18 @@ const scenarios = {
       })()`);
       record({ label: url, end });
     }
+    // The settings close with GitHub and the version. run.sh builds without
+    // a build time, so the line shows the commit's time; whether the tree
+    // had changes depends on where the check runs.
+    await go("/einstellungen");
+    record({ label: "settings footer", ...(await js(`(() => {
+      const gh = document.getElementById("github"), a = document.querySelector("#build a");
+      return {
+        github: gh.href + " " + gh.target + " " + gh.getAttribute("aria-label"),
+        build: document.getElementById("build").textContent.replace(/[0-9a-f]{7}/, "HASH").replace(" mit Änderungen", "").replace(/\\d/g, "9"),
+        commitLink: a && /^https:\\/\\/github\\.com\\/Erkenbend\\/star-battle-solver\\/commit\\/[0-9a-f]{40}$/.test(a.href),
+      };
+    })()`)) });
   },
 
   // Installing the site as an app (decision 26): Chrome's own verdict on

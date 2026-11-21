@@ -99,6 +99,7 @@ something far away.
               internal/icon (dev): draws the web app's icons in
               internal/web/assets/icons
               internal/concviz (dev): draws the diagrams of concurrency.md
+              internal/buildinfo: commit and build time of the binary
 
  reasoning    internal/solver ◄──── internal/solver/observers
               (runners, search,     (the rules + German text)
@@ -350,7 +351,10 @@ browser code. The full suite with every hard puzzle is CI's job.
 ## 7. Build, CI and deployment
 
 - `go build ./cmd/starbattle` is the whole build. `go build` (not `go run`)
-  matters for `hardsearch`, which writes the commit into the files it creates.
+  matters for `hardsearch`, which writes the commit into the files it creates,
+  and for the settings page, which shows it. The build time is not in Go's
+  stamp: `deploy.sh` and the CI archives set it with `-ldflags -X`
+  (`internal/buildinfo`); without it the page shows the commit's time.
 - **CI** (`.github/workflows/ci.yml`) on every push: vet, the full test suite
   with all hard puzzles and coverage, a race run, cross-compiled archives for
   Linux (incl. Raspberry Pi), macOS and Windows as workflow artifacts, and on

@@ -185,6 +185,7 @@
 {"scenario":"pages","label":"/bibliothek#schwer","end":"above the tab bar"}
 {"scenario":"pages","label":"/einstellungen","end":"above the tab bar"}
 {"scenario":"pages","label":"/party","end":"above the tab bar"}
+{"scenario":"pages","label":"settings footer","github":"https://github.com/Erkenbend/star-battle-solver _blank Quelltext auf GitHub","build":"Version HASH vom 99.99.9999, 99:99","commitLink":true}
 {"scenario":"install","label":"/?n=6&seed=3","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
 {"scenario":"install","label":"/anleitung","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}
 {"scenario":"install","label":"/bibliothek","manifest":"/manifest.webmanifest","installable":"yes","manifestErrors":""}

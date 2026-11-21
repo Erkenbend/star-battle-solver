@@ -33,6 +33,7 @@ import (
 	"starbattle"
 	"starbattle/internal/board"
 	"starbattle/internal/bruteforce"
+	"starbattle/internal/buildinfo"
 	"starbattle/internal/collection"
 	"starbattle/internal/designer"
 	"starbattle/internal/generator"
@@ -396,7 +397,9 @@ func cmdHardsearch(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	commit := buildCommit()
+	// The generator's output depends on the commit; go run does not record
+	// it, go build does.
+	commit := buildinfo.Read().Short()
 	var stuck, hits int
 	var written []string
 	var firstErr error
@@ -514,29 +517,4 @@ func rateDir(dir string) error {
 	}
 	fmt.Printf("\n%d puzzles: %d with 1 star, %d with 2, %d with 3; %d files written\n", len(files), stars[1], stars[2], stars[3], changed)
 	return nil
-}
-
-// buildCommit is the commit the binary was built from, for the header of
-// files written by hard: the generator's output depends on it. go run does
-// not record it, go build does.
-func buildCommit() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "unknown"
-	}
-	var rev, dirty string
-	for _, s := range info.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			rev = s.Value
-		case "vcs.modified":
-			if s.Value == "true" {
-				dirty = "+changes"
-			}
-		}
-	}
-	if rev == "" {
-		return "unknown"
-	}
-	return rev[:min(7, len(rev))] + dirty
 }

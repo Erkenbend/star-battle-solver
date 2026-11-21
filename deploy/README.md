@@ -23,7 +23,8 @@ install (`deploy/remote-install.sh` on the Pi puts the binary in
 `/usr/local/bin/starbattle` and the unit in
 `/etc/systemd/system/starbattle.service`, restarts the service and waits until
 the page answers, otherwise it shows the last log lines and fails); done. Run it
-again after every change.
+again after every change. The settings page (`/einstellungen`) shows at the
+bottom the commit and build time of what is running.
 
 The page is then at `http://raspberrypi.local:6369/`.
 

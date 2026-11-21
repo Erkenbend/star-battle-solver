@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"starbattle/internal/buildinfo"
 )
 
 // SymbolsFile is the catalog in a symbols directory: a JSON array of Symbol.
@@ -202,7 +204,8 @@ func (s *Symbols) List() []Symbol { return s.list }
 
 // SettingsPage is the data of the settings page.
 type SettingsPage struct {
-	Symbols []Symbol `json:"symbols"`
+	Symbols []Symbol       `json:"symbols"`
+	Build   buildinfo.Info `json:"build"` // shown at the bottom
 }
 
 // WriteSettings renders the settings page for d to w.
@@ -217,8 +220,9 @@ func WriteSettings(w io.Writer, d SettingsPage) error {
 //	GET /symbole/{file}     an image file of the catalog; with ?v= its current
 //	                        hash, cached for good
 func symbolRoutes(mux *http.ServeMux, syms *Symbols) {
+	build := buildinfo.Read()
 	mux.HandleFunc("GET /einstellungen", func(w http.ResponseWriter, r *http.Request) {
-		writeHTML(w, http.StatusOK, func(b io.Writer) error { return WriteSettings(b, SettingsPage{Symbols: syms.list}) })
+		writeHTML(w, http.StatusOK, func(b io.Writer) error { return WriteSettings(b, SettingsPage{Symbols: syms.list, Build: build}) })
 	})
 	mux.HandleFunc("GET /symbole.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

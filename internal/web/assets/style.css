@@ -727,6 +727,15 @@ details.opt > p { margin: 8px 0 0; }
   .symbol-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .symbol-preview .cell { width: 33px; }
 }
+/* GitHub and the version, closing the page. */
+.settings-foot { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center; }
+.settings-foot p { margin: 0; font-size: 12.5px; }
+.settings-foot p:empty { display: none; }
+.settings-foot p span { white-space: nowrap; }
+.settings-foot p a { color: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+#github { display: flex; padding: 6px; border-radius: 999px; color: var(--muted); }
+#github:hover, #github:focus-visible { color: var(--fg); }
+#github svg { width: 28px; height: 28px; fill: currentColor; }
 .settings-status:empty { display: none; }
 .settings-status { min-height: 1.45em; margin: 0; font-size: 14px; color: var(--muted); }
 /* The notice after each change (settings.js saved), wherever the page is scrolled. */

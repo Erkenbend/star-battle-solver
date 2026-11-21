@@ -8,6 +8,7 @@ Voraussetzung ist Go (Version siehe `go.mod`). Es gibt keine weiteren Abhängigk
 
 ```sh
 go build -o starbattle ./cmd/starbattle
+go build -ldflags "-X starbattle/internal/buildinfo.Time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o starbattle ./cmd/starbattle   # mit Bauzeit für die Einstellungsseite, wie deploy.sh und die CI
 go test ./...            # dauert etwa zwei Minuten
 go test -short ./...     # überspringt einige langsame Tests, etwa 25 Sekunden
 go test -race ./...
@@ -35,7 +36,7 @@ internal/web/uicheck/run.sh coop race    # nur einige
 internal/web/uicheck/run.sh -update      # expected.jsonl neu schreiben
 ```
 
-Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit Hinweisen und Prüfen, Annahme, Lösungsweg, Anleitung mit Rundgang, Bibliothek, eine mit `html` gespeicherte Seite und Partys gegeneinander, miteinander und gegen die Uhr (Alice im Browser, Bob über die API). Partys, Anleitung, das Lösen allein (ein zweites Mal) und der Weg zurück zum ungelösten Solo-Puzzle über „Solo“ laufen in Handygröße, die Übergänge einer Party (Lösungsweg, nächste Runde, nächstes Puzzle) auf langsamer Verbindung, während Bobs Verbindungen kommen und gehen. Dazu Bibliothek, Einstellungen und Party-Seite in Handygröße, ans Ende gescrollt: Ihr letzter Teil muss über der Leiste der Seitenbereiche enden. Und ob Chromium jede Art von Seite als App installieren würde (Manifest und Icons), die mit `html` gespeicherte nicht. In jedem Szenario gelten als Fehler: ein Seitenwechsel, den die Seite selbst abbricht, und auf dem Handy ein Brett, das sich unter einem Tipp verschiebt. Auf dem Handy hält jede Beobachtung außerdem fest, ob die Knopfleiste unter der Leiste der Seitenbereiche liegt und welche ihrer Wörter abgeschnitten sind („Aufgeb…“). Nach jedem Schritt hält das Skript fest, was Seite und Server zeigen, und vergleicht es mit `internal/web/uicheck/expected.jsonl`; Abweichungen stehen in der Ausgabe. Nach einer gewollten Änderung der Oberfläche schreibt `-update` die Datei neu, ihr Diff gehört dann zum Commit. Braucht Go, node ≥ 22, curl und Chromium (`CHROME`, sonst `chromium`, `google-chrome` oder das von Playwright). Die CI führt die Prüfung als eigenen Job aus und legt bei Abweichungen die beobachtete Datei als Artefakt ab.
+Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit Hinweisen und Prüfen, Annahme, Lösungsweg, Anleitung mit Rundgang, Bibliothek, eine mit `html` gespeicherte Seite und Partys gegeneinander, miteinander und gegen die Uhr (Alice im Browser, Bob über die API). Partys, Anleitung, das Lösen allein (ein zweites Mal) und der Weg zurück zum ungelösten Solo-Puzzle über „Solo“ laufen in Handygröße, die Übergänge einer Party (Lösungsweg, nächste Runde, nächstes Puzzle) auf langsamer Verbindung, während Bobs Verbindungen kommen und gehen. Dazu Bibliothek, Einstellungen und Party-Seite in Handygröße, ans Ende gescrollt: Ihr letzter Teil muss über der Leiste der Seitenbereiche enden. Am Ende der Einstellungen stehen der Link zu GitHub und die Version mit Link auf den Commit. Und ob Chromium jede Art von Seite als App installieren würde (Manifest und Icons), die mit `html` gespeicherte nicht. In jedem Szenario gelten als Fehler: ein Seitenwechsel, den die Seite selbst abbricht, und auf dem Handy ein Brett, das sich unter einem Tipp verschiebt. Auf dem Handy hält jede Beobachtung außerdem fest, ob die Knopfleiste unter der Leiste der Seitenbereiche liegt und welche ihrer Wörter abgeschnitten sind („Aufgeb…“). Nach jedem Schritt hält das Skript fest, was Seite und Server zeigen, und vergleicht es mit `internal/web/uicheck/expected.jsonl`; Abweichungen stehen in der Ausgabe. Nach einer gewollten Änderung der Oberfläche schreibt `-update` die Datei neu, ihr Diff gehört dann zum Commit. Braucht Go, node ≥ 22, curl und Chromium (`CHROME`, sonst `chromium`, `google-chrome` oder das von Playwright). Die CI führt die Prüfung als eigenen Job aus und legt bei Abweichungen die beobachtete Datei als Artefakt ab.
 
 ## Aufbau
 
@@ -53,6 +54,7 @@ Spielt die Puzzle-Seite in einem Chromium ohne Fenster durch: allein lösen mit 
 | `internal/render` | Ausgabe im Terminal |
 | `internal/party` | Party-Modus: Partys, Runden, gegeneinander, miteinander, gegen die Uhr (ohne HTTP) |
 | `internal/web` | HTML-Seite, Server, Bibliothek, Einstellungen, HTTP des Party-Modus |
+| `internal/buildinfo` | Commit und Bauzeit des Programms (Einstellungsseite, Kopf der Dateien von `hardsearch`) |
 | `internal/designer` | das Werkzeug `starbattle design` (Seite und Speichern) |
 | `internal/concviz` | Diagramme und Abspieler in `architecture/concurrency` (Entwicklung) |
 | `symbols` | Symbole, die man statt ★ wählen kann (`symbols.json` und Bilder, siehe [symbols/README.md](../symbols/README.md)) |

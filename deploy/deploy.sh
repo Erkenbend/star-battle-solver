@@ -53,7 +53,9 @@ info "CPU: $arch → building for linux/$GOARCH${GOARM:+ (ARMv$GOARM)}"
 step 2 "Building"
 info "$(go version)"
 start=$SECONDS
-CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o "$tmp/starbattle" ./cmd/starbattle
+# The build time for the settings page (see internal/buildinfo).
+built="-X starbattle/internal/buildinfo.Time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w $built" -o "$tmp/starbattle" ./cmd/starbattle
 info "starbattle: $(du -h "$tmp/starbattle" | cut -f1) in $((SECONDS - start)) s, commit $(git rev-parse --short HEAD)$(git diff --quiet HEAD 2>/dev/null || echo ' + uncommitted changes')"
 
 step 3 "Uploading to $host:$remote"

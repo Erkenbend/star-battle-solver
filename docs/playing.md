@@ -75,6 +75,8 @@ Unter `/einstellungen` (Zahnrad oben rechts) liegen die Optionen fürs Spielen, 
 
 Die Schalter für die Spielhilfen stehen auch auf der Spielseite unter „Mehr“, mit einem Link hierher; beide sind dieselben Einstellungen. Eine offene Spielseite übernimmt Änderungen sofort.
 
+Ganz unten führt das GitHub-Logo zum Quelltext. Darunter steht, aus welchem Commit der Server gebaut ist (ein Link auf den Commit, „mit Änderungen“, wenn beim Bauen nicht alles eingecheckt war) und wann er gebaut wurde. Die Bauzeit kennen nur Programme aus `deploy/deploy.sh` und aus der CI; sonst steht dort, von wann der Commit ist.
+
 In einer mit `starbattle html` gespeicherten Datei gibt es keine Einstellungsseite, dort gibt es die Schalter nur unter „Mehr“. Symbole mit Bilddatei lädt die Seite vom Server; in der Datei erscheint stattdessen der Stern, und „Zufällig“ wählt nur unter den Symbolen ohne Bilddatei.
 
 ## Als App installieren

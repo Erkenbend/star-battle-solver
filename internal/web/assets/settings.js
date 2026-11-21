@@ -24,6 +24,28 @@
     $("info-btn").setAttribute("aria-expanded", on);
   };
 
+  // At the bottom: the commit the server was built from (a link to it on
+  // GitHub) and when it was built; without a build time, when the commit was
+  // made (see internal/buildinfo).
+  // Each part stays on one line: "Version abc1234 mit Änderungen",
+  // "gebaut am 21.11.2026, 09:31".
+  const b = d.build || {};
+  const when = (t) => new Date(t).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  const parts = [];
+  if (b.commit) {
+    const a = el("a", null, b.commit.slice(0, 7));
+    a.href = `${$("github").href}/commit/${b.commit}`;
+    a.target = "_blank";
+    a.rel = "noopener";
+    const v = el("span", null, "Version ");
+    v.append(a);
+    if (b.modified) v.append(" mit Änderungen");
+    if (!b.built && b.committed) v.append(` vom ${when(b.committed)}`);
+    parts.push(v);
+  }
+  if (b.built) parts.push(el("span", null, `${b.commit ? "g" : "G"}ebaut am ${when(b.built)}`));
+  parts.forEach((p, k) => $("build").append(...(k ? [" · ", p] : [p])));
+
   const KIND = {
     svg: "Form, färbt sich bei Fehlern rot",
     glyph: "Schriftzeichen, sieht je nach Gerät etwas anders aus",
