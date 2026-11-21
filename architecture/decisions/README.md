@@ -39,6 +39,7 @@ and open ideas.
 | [27](27-solo-resumes.md) | "/" leads back to the unsolved solo puzzle | done |
 | [28](28-news-below-the-board.md) | Banner and tutorial card below the board, `keepBoard` removed | done |
 | [29](29-designer-searches-longer.md) | Designer: search on all cores until *k* puzzles or a budget of attempts | done |
+| [30](30-ways-between-pages.md) | Ways between pages only through the tab bar, one way to the next puzzle | done |
 
 ## Adding a decision
 

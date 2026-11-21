@@ -12,6 +12,8 @@ export const scenarios = {
     state.party = true;
     const p = await partyStart("versus");
     await obs("started");
+    // The way to the lobby is the tab bar's "Zusammen spielen", not a link in the page.
+    record({ label: "Zusammen spielen in a round", href: (await js(`document.getElementById("nav-party").getAttribute("href")`)).replace(/[A-Z]{4}$/, "CODE") });
     await click(cell(p.sol[0]), { shift: true });
     await click(cell(p.n + p.sol[1]), { shift: true });
     await obs("two stars");

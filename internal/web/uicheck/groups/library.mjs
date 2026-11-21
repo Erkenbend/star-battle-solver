@@ -1,6 +1,6 @@
 // UI check, group library: the library (/bibliothek), a hard puzzle and a
 // motif.
-import { BASE, cell, click, data, fresh, go, js, obs, record, solveBy, waitFor } from "../lib.mjs";
+import { BASE, cell, click, data, follow, fresh, go, js, obs, record, solveBy, waitFor } from "../lib.mjs";
 
 // Those that run on a phone; the others run on a desktop screen.
 export const PHONE_SCENARIOS = new Set(["libraryphone"]);
@@ -43,10 +43,13 @@ export const scenarios = {
     const md = await data();
     await solveBy(md.solution, md.n);
     await obs("motif solved");
+    // The way on: the next unsolved motif, below the banner.
+    await follow("#next-go");
+    await obs("next motif");
   },
 
-  // The library on a phone: once a puzzle is solved, its banner ("Weiter:
-  // 10-4") must be on screen, and the board must not move. After library,
+  // The library on a phone: once a puzzle is solved, its banner and "Als
+  // nächstes: 10-4" below it must be on screen, and the board must not move. After library,
   // which sees the hard puzzle before the server has solved it.
   async libraryphone() {
     await scenarios.library();

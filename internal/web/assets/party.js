@@ -115,7 +115,7 @@ const Party = (() => {
   // hooks: onSnap(snap, receivedAt), onGone(). It returns {snap(), reconnect(),
   // draw(), error(text)}.
   function live(code, container, hooks = {}) {
-    let snap = null, at = 0, es = null, errText = "", busy = false, isGone = false;
+    let snap = null, at = 0, es = null, errText = "", busy = false;
 
     // A state from the event stream or the reply to an action.
     function take(s) {
@@ -133,7 +133,6 @@ const Party = (() => {
       const gone = () => {
         es.close();
         snap = null;
-        isGone = true;
         errText = "Diese Party gibt es nicht mehr.";
         draw();
         if (hooks.onGone) hooks.onGone();
@@ -293,21 +292,9 @@ const Party = (() => {
       return a;
     }
 
-    // The ways on once the party is gone.
-    function wayOut() {
-      const a = el("div", "actions");
-      const home = el("a", "button primary", "Zur Startseite");
-      home.href = "/";
-      const fresh = el("a", "button", "Neue Party");
-      fresh.href = "/party";
-      a.append(home, fresh);
-      return a;
-    }
-
     function draw() {
       const nodes = [];
       if (errText) nodes.push(el("p", "party-error", errText));
-      if (isGone) nodes.push(wayOut());
       if (snap) {
         nodes.push(el("p", "muted party-mode", snap.mode === "coop"
           ? "Miteinander: alle auf demselben Brett, ohne Hinweise."
@@ -350,10 +337,7 @@ const Party = (() => {
       $("info-btn").setAttribute("aria-expanded", on);
     };
     if (d.error) {
-      $("party-error").textContent = d.error + " ";
-      const home = el("a", "next", "Zur Startseite");
-      home.href = "/";
-      $("party-error").append(home);
+      $("party-error").textContent = d.error; // the ways on are in the tab bar
       $("party-error").hidden = false;
     }
     if (!d.code) {

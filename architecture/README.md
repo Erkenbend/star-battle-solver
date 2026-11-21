@@ -221,7 +221,9 @@ star tool, ⓘ and the clock; the buttons of the shown tab in an action bar
 (`.actionbar`), below the board up to 860 px and next to it above; what is
 used now and then in "Mehr" (`#more-sheet`), opening in place below the bar.
 Up to 860 px the site navigation of every page is a tab bar fixed at the
-bottom. Element ids
+bottom. Pages change only through it; on the page, the only way on is the
+next puzzle, below the banner once solved (`#next-puzzle`,
+[decision 30](decisions/30-ways-between-pages.md)). Element ids
 stayed what they were, so the parts and the UI check find their buttons
 wherever they now sit. The other pages share its parts, all in `style.css`:
 ⓘ beside the title (`#info-btn`) folds the page's longer text (`#info`);

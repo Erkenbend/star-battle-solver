@@ -1,7 +1,7 @@
 // UI check, group solo: the puzzle page played alone, marks, hints, checks,
 // hypothesis, the solving path, "Neues Puzzle" and a page saved with
 // `starbattle html`.
-import { HTMLFILE, cell, click, data, dblclick, drag, fresh, go, js, key, more, moreClose, obs, once, record, reload, sleep, solveBy, tapDone } from "../lib.mjs";
+import { HTMLFILE, cell, click, data, dblclick, drag, follow, fresh, go, js, key, more, moreClose, obs, once, record, reload, sleep, solveBy, tapDone } from "../lib.mjs";
 
 // Those that run on a phone; the others run on a desktop screen.
 export const PHONE_SCENARIOS = new Set(["solophone"]);
@@ -133,12 +133,12 @@ export const scenarios = {
     await choose("6");
     await go("/?n=8&seed=42");
     await look("one size again");
-    // "Neues Puzzle" beside the title: one tap, the size of the select.
-    const loaded = once("Page.loadEventFired");
-    await click("#newgame-go");
-    await loaded;
-    await sleep(250);
-    await look("new in one tap", { random: true });
+    // Solved, "Neues Puzzle" below the banner: one tap, the size of the select.
+    const sd = await data();
+    await solveBy(sd.solution, sd.n);
+    await obs("solved, next puzzle below the banner");
+    await follow("#next-go");
+    await look("new after solving", { random: true });
   },
 
   // Hypothesis mode: set, undo, reload, contradiction, discard, solve in it.

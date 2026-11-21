@@ -2,7 +2,8 @@
 
 **Status:** done with variant B (see "Variant B": the decision below plus
 its changes), on main since 2026-11-20. Variant A stays on branch
-`mobile-ui-a` for reference, B on `mobile-ui-b`  
+`mobile-ui-a` for reference, B on `mobile-ui-b`; "Neues Puzzle" beside the
+title replaced by [decision 30](30-ways-between-pages.md)  
 **Date:** 2026-11-20
 
 ## Decision

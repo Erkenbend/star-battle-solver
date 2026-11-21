@@ -1,7 +1,7 @@
 // UI check, group site: the site around the puzzles, the way back to the
 // solo puzzle through the tab bar, the ends of the other pages and
 // installing the site as an app.
-import { BASE, HTMLFILE, cell, click, data, follow, fresh, go, js, obs, once, record, send, sleep, solveBy, tapDone } from "../lib.mjs";
+import { BASE, HTMLFILE, cell, click, data, follow, fresh, go, js, more, obs, once, record, send, sleep, solveBy, tapDone } from "../lib.mjs";
 
 // Those that run on a phone; the others run on a desktop screen.
 export const PHONE_SCENARIOS = new Set(["resume", "pages"]);
@@ -9,7 +9,7 @@ export const PHONE_SCENARIOS = new Set(["resume", "pages"]);
 export const scenarios = {
   // "/" (Solo, the start page, the installed app's start) leads back to
   // the unsolved solo puzzle, with its marks; a new one comes from "Neues
-  // Puzzle", or from "/" once the last one is solved.
+  // Puzzle" under "Mehr", or from "/" once the last one is solved.
   async resume() {
     await fresh();
     await go("/?n=6&seed=3");
@@ -21,7 +21,7 @@ export const scenarios = {
     await obs("Solo from the settings");
     await go("/");
     await obs("start page");
-    await follow("#newgame-go");
+    await follow("#newgame button", more);
     const b = await js("location.pathname + location.search");
     record({ label: "Neues Puzzle", newPuzzle: b !== "/?n=6&seed=3" });
     await go("/bibliothek");

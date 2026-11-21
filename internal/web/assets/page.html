@@ -22,7 +22,6 @@
   <div class="title">
     <div class="title-row">
       <h1>{{TITLE}}</h1>
-      <button type="submit" form="newgame" id="newgame-go" class="pill" title="Neues Puzzle (Größe unter „Mehr“)" hidden><svg viewBox="0 0 16 16" aria-hidden="true" class="stroke"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M12.5 1.5v3h-3"/></svg> Neues Puzzle</button>
     </div>
     <p class="sub" id="summary"></p>
   </div>
@@ -52,6 +51,7 @@
   <div class="news">
     <div class="tutorial" id="tutorial" hidden></div>
     <div class="banner" id="banner" hidden></div>
+    <div class="next-puzzle" id="next-puzzle" hidden></div>
   </div>
 
   <section class="panel" id="panel-play">
@@ -85,14 +85,12 @@
         <label class="toggle"><input type="checkbox" id="showproblems"> Regelverstöße sofort rot markieren</label>
         <label class="toggle"><input type="checkbox" id="fadedone"> Erledigte Zeilen, Spalten und Farben blasser zeigen</label>
         <label class="toggle sub"><input type="checkbox" id="fadecolorsonly"> Nur Farben blasser zeigen</label>
-        <p class="options-link" id="options-link" hidden><a href="/einstellungen">Alle Einstellungen, eigenes Symbol statt ★</a></p>
       </div>
     </div>
     <div class="card" id="play-msg"></div>
     <ul class="problems" id="problems"></ul>
     <section class="party-box" id="party-box" hidden>
       <div class="party-panel" id="party-panel"></div>
-      <p><a id="party-lobby">Zur Lobby</a></p>
     </section>
   </section>
 

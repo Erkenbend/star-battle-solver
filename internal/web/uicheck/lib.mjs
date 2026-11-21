@@ -228,9 +228,9 @@ export async function fresh() {
   await js(`document.cookie = "starbattle.solo=; path=/; max-age=0"`); // "/" gives a new puzzle
 }
 // Taps sel, a link or submit button, and waits for the page it leads to.
-export async function follow(sel) {
+export async function follow(sel, how = click) {
   const loaded = once("Page.loadEventFired");
-  await click(sel);
+  await how(sel);
   await loaded;
   await sleep(250);
 }
@@ -267,7 +267,7 @@ export async function obs(label, { random = false } = {}) {
       clock: txt("clock"), legend: txt("legend"), current: txt("current"),
       steps: document.querySelectorAll("#steps .row").length, active: t(q("#steps .row.active .num")),
       tutorial: txt("tutorial"), tour: t(q(".tour-tip")), tourTarget: q(".tour-target") && q(".tour-target").id,
-      buttons: ["undo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "newgame-go", "site-nav", "party-box", "options-link", "play-options"].map(btn).join(" | "),
+      buttons: ["undo", "reset", "hint", "check", "hyp", "hyp-contra", "hyp-drop", "giveup", "more", "star-tool", "tab-play", "tab-watch", "first", "prev", "next", "last", "newgame", "next-go", "site-nav", "party-box", "play-options"].map(btn).join(" | "),
       pressed: [...document.querySelectorAll("[aria-pressed=true], [aria-expanded=true]")].map((e) => e.id).join(","),
       info: t(q("#info")) && (q("#info").hidden ? "[hidden]" : "shown"),
       selected: [...document.querySelectorAll("[aria-selected=true], [aria-current=page]")].map((e) => e.id).join(","),
@@ -283,13 +283,13 @@ export async function obs(label, { random = false } = {}) {
     return r.bottom <= top + 1 || r.top >= innerHeight ? "not covered" : "under the tab bar";
   })()`);
   // The banner and the tutorial's card come with a tap on the board (solved,
-  // a hypothesis, a party's news, the next step): they must be on screen
-  // then, not above it, where only scrolling back up finds them. Only
-  // recorded while one is shown.
+  // a hypothesis, a party's news, the next step), and with "solved" the way
+  // to the next puzzle: they must be on screen then, not above it, where
+  // only scrolling back up finds them. Only recorded while one is shown.
   if (state.phone) {
     const seen = await js(`(() => {
       const nav = document.getElementById("site-nav"), bottom = nav && !nav.hidden ? nav.getBoundingClientRect().top : innerHeight;
-      return ["banner", "tutorial"].map((id) => document.getElementById(id)).filter((e) => e && !e.hidden && e.offsetParent).map((e) => {
+      return ["banner", "next-puzzle", "tutorial"].map((id) => document.getElementById(id)).filter((e) => e && !e.hidden && e.offsetParent).map((e) => {
         const r = e.getBoundingClientRect();
         return e.id + ": " + (r.top < -1 ? "above the screen" : r.bottom > bottom + 1 ? "below the screen" : "on screen");
       }).join(", ");

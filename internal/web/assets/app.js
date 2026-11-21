@@ -497,6 +497,7 @@ function boot() {
     }
     if (solved && lib && !tut) libRecord(clockMs(), bare ? 0 : hintCount);
     if (visible) playBanner(solved);
+    nextPuzzle();
     drawClock();
     store();
     if (party) {
@@ -522,12 +523,8 @@ function boot() {
         share.onclick = () => copyText(shareText(with_), share);
         extra.push(share);
       }
-      if (lib) {
-        const next = L.nextUnsolved(lib.entries, libSolved(), lib.id);
-        const a = el("a", "next", next ? `Weiter: ${next.name}` : "Alle gelöst: zur Bibliothek");
-        a.href = next ? "/bibliothek?id=" + encodeURIComponent(next.id) : "/bibliothek#" + lib.kind;
-        extra.push(a);
-      }
+      const next = lib && L.nextUnsolved(lib.entries, libSolved(), lib.id);
+      if (lib && !next) extra.unshift(motif ? "Damit hast du alle Motive gelöst." : "Damit hast du alle schweren Puzzles gelöst.");
       banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good", ...extra);
       return;
     }
@@ -535,6 +532,34 @@ function boot() {
     if (b) banner(...b);
     else if (H.active) banner(H.text(), "hypothesis");
     else banner(null);
+  }
+
+  // Once solved, the way to the next puzzle, below the banner: a new one of
+  // the size chosen under "Mehr" on a solo page, the next unsolved one of
+  // its kind in the library. The only one on the page (decision 30); a party
+  // round goes on through the party. In both tabs, once solved.
+  function nextPuzzle() {
+    const box = $("next-puzzle");
+    const next = done && lib && !party && !tut ? L.nextUnsolved(lib.entries, libSolved(), lib.id) : null;
+    let b = null;
+    if (next) {
+      b = el("a", "button", `Als nächstes: ${next.name}`);
+      b.href = "/bibliothek?id=" + encodeURIComponent(next.id);
+    } else if (done && !lib && !party && !tut && d.served) {
+      b = el("button", "", "Neues Puzzle");
+      b.type = "submit";
+      b.setAttribute("form", "newgame");
+      b.title = "Ein neues Puzzle in der Größe, die unter „Mehr“ gewählt ist";
+    }
+    if (!b) {
+      box.hidden = true;
+      box.replaceChildren();
+      return;
+    }
+    b.id = "next-go";
+    if (!box.hidden && box.firstChild && box.firstChild.outerHTML === b.outerHTML) return; // renderPlay runs often; keep the node under a tap
+    box.replaceChildren(b);
+    box.hidden = false;
   }
 
   // A library page may come before the solver is done (lib.pending): the
@@ -756,7 +781,6 @@ function boot() {
   // same as on /einstellungen, which also has the star symbol. The tutorial's
   // steps rely on its own (see prefs).
   if (tut) $("play-options").hidden = true;
-  else if (d.served) $("options-link").hidden = false;
   for (const [k, id] of OPTION_IDS) {
     $(id).onchange = () => {
       prefs[k] = $(id).checked;
@@ -991,7 +1015,7 @@ function boot() {
   if (party) party.start();
 
   // The title without the game's name on phones (.brand), so that it fits
-  // in one line beside "Neues Puzzle": "8×8 · Nr. 42".
+  // in one line: "8×8 · Nr. 42".
   const h1 = document.querySelector(".top h1");
   if (h1 && /^Star Battle \d/.test(h1.textContent)) {
     h1.textContent = h1.textContent.slice(12);
@@ -1003,7 +1027,10 @@ function boot() {
     $("site-nav").hidden = false;
     $(party ? "nav-party" : lib ? "nav-library" : tut ? "nav-help" : "nav-solo").setAttribute("aria-current", "page");
   }
-  if (d.served && !party && !tut) {
+  // A new puzzle on a solo page only: under "Mehr" before it is solved, below
+  // the banner after (nextPuzzle). The library and parties have their own
+  // next puzzle, other sizes are Solo's (decision 30).
+  if (d.served && !party && !tut && !lib) {
     // One size, or "Mehrere Größen": a pool of sizes like a party's, from
     // which the server picks one at random (/?n=6&n=8). The choice and the
     // pool are a preference of this device.
@@ -1057,7 +1084,8 @@ function boot() {
       put(POOL_KEY, JSON.stringify(on));
     });
     $("newgame").hidden = false;
-    $("newgame-go").hidden = false; // one tap, with the size chosen under "Mehr"
+  } else {
+    $("more").title = "Neu beginnen, Spielhilfen";
   }
 
   W.init();
