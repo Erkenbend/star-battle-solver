@@ -1,0 +1,34 @@
+# name: Großes Herz Rot
+# designer: generator.Complete(pattern, rand.NewPCG(201341, 15), Strict), 2026-11-21
+# pattern (. = free):
+#   ...............
+#   ...............
+#   ...CCC...CCC...
+#   ..CC.CC.CC.CC..
+#   .CC...CCC...CC.
+#   .C.....C.....C.
+#   .C...........C.
+#   .C...........C.
+#   .CC.........CC.
+#   ..CC.......CC..
+#   ...CC.....CC...
+#   ....CC...CC....
+#   .....CC.CC.....
+#   ......CCC......
+#   ...............
+# colors swapped afterwards: ABCDEFGHIJKLMNO -> FBCDKIHELJMAGNO
+LLLLLJJJJJJJDDD
+LLLLLLJJJJJJJBD
+LLLCCCJJJCCCJBM
+LLCCGCCJCCECCMM
+LCCGGGCCCEEECCM
+LCGGGGICKEKKKCM
+LCGGGGIIKKKKKCM
+LCGGGIIIIIKKKCM
+HCCGGGIAIIIICCM
+HHCCGIIAIIICCMM
+HHHCCIIIIICCMMM
+HHHHCCIIICCMMMM
+OHHHNCCICCMMMFF
+OHHHNNCCCMMMMMM
+OHHHHNNNMMMMMMM
