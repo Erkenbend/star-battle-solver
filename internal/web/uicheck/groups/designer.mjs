@@ -3,7 +3,7 @@
 // desktop: drawing and erasing, the check while drawing, the strict mode,
 // the search with its completions, new colors for one, saving and trying
 // one.
-import { DESIGNER, click, follow, go, js, press, pull, record, reload, send, settle, sleep, waitFor } from "../lib.mjs";
+import { DESIGNER, click, drag, follow, go, js, record, reload, send, settle, sleep, waitFor } from "../lib.mjs";
 
 export const PHONE_SCENARIOS = new Set();
 
@@ -114,26 +114,26 @@ export const scenarios = {
 
     // Drawing: a drag paints with the chosen color; a click on a cell of
     // that color, a right click or the eraser frees it again.
-    await pull([dc(0, 0), dc(0, 1), dc(1, 1), dc(1, 0)]);
+    await drag([dc(0, 0), dc(0, 1), dc(1, 1), dc(1, 0)]);
     await checked();
     await look("drag A");
     await click(color(1));
-    await pull([dc(6, 5), dc(6, 6), dc(6, 7)]);
+    await drag([dc(6, 5), dc(6, 6), dc(6, 7)]);
     await checked();
     await look("drag B");
-    await press(dc(6, 7));
+    await click(dc(6, 7));
     await checked();
     await look("click on B erases");
-    await press(dc(1, 1), { right: true });
+    await click(dc(1, 1), { right: true });
     await checked();
     await look("right click erases");
     await click(color(-1));
-    await press(dc(1, 0));
+    await click(dc(1, 0));
     await checked();
     await look("eraser");
     await click(color(0));
-    await press(dc(1, 0));
-    await press(dc(1, 1));
+    await click(dc(1, 0));
+    await click(dc(1, 1));
     await checked();
     await reload();
     await checked();
@@ -141,27 +141,27 @@ export const scenarios = {
 
     // The check while drawing: a part of C shut in by A and D cannot reach
     // the other part.
-    await press(dc(1, 2));
+    await click(dc(1, 2));
     await click(color(3));
-    await press(dc(0, 3));
+    await click(dc(0, 3));
     await click(color(2));
-    await press(dc(0, 2));
-    await press(dc(5, 0));
+    await click(dc(0, 2));
+    await click(dc(5, 0));
     await checked();
     await look("color cut off");
-    for (const [r, c] of [[0, 2], [5, 0], [0, 3], [1, 2]]) await press(dc(r, c), { right: true });
+    for (const [r, c] of [[0, 2], [5, 0], [0, 3], [1, 2]]) await click(dc(r, c), { right: true });
     await checked();
     await look("cut off color erased");
     // Strict: a color in two parts is fine for the generator, which joins
     // them, but not when colors stay as drawn.
     await click(color(0));
-    await press(dc(3, 7));
+    await click(dc(3, 7));
     await checked();
     await look("A in two parts");
     await tick("strict");
     await look("A in two parts, strict");
     await tick("strict");
-    await press(dc(3, 7));
+    await click(dc(3, 7));
     await checked();
 
     // The search: completions arrive, the first is selected.
@@ -215,6 +215,12 @@ export const scenarios = {
     await colors("C and A painted");
     await click("#recolor-rest");
     await colors("rest distributed");
+    // The last grey region painted by hand: the note below the picture
+    // changes, the picture stays where it is.
+    await click(zone(6, 5));
+    await colors("A greyed: one region left");
+    await click(zone(6, 5));
+    await colors("last region painted by hand");
     // Other colors make no new puzzle: it is saved already.
     await click("#save");
     await settle(`document.getElementById("save-msg").className === "err"`);
@@ -237,7 +243,7 @@ export const scenarios = {
 
     // A change of the drawing: the completions stay, marked as earlier.
     await click(color(2));
-    await press(dc(4, 4));
+    await click(dc(4, 4));
     await checked();
     await look("drawn after the search");
 
@@ -289,7 +295,7 @@ export const scenarios = {
     await js(`window.confirm = () => true`);
     await size(10);
     await look("size 10");
-    await pull([dc(9, 0), dc(9, 1)]);
+    await drag([dc(9, 0), dc(9, 1)]);
     await checked();
     await js(`window.confirm = () => false`);
     await click("#clear");

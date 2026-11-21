@@ -147,17 +147,24 @@ export async function pos(sel) {
 // On a phone (the scenarios in a group's PHONE_SCENARIOS), the board must
 // stay where it is on screen when the player acts on it: what changed above
 // it (a banner, the tutorial's card, the tabs appearing) would make the next
-// tap land elsewhere, and on the solving tap the page would jump. Every move
-// is an error of the scenario.
+// tap land elsewhere, and on the solving tap the page would jump. The same
+// holds for the designer (a desktop tool) everywhere: its drawing (#canvas)
+// and the picture a color is painted on (#big). Every move is an error of
+// the scenario.
 export const moves = [];
-export const boardAt = () => js(`(() => { const b = document.getElementById("board"); return b ? location.href + " " + Math.round(b.getBoundingClientRect().top) : ""; })()`);
+const stillBoard = (sel) => {
+  const id = String(sel).match(/^#(board|canvas|big)\b/)?.[1];
+  return id === "board" && !state.phone ? null : id;
+};
+export const boardAt = (id = "board") => js(`(() => { const b = document.getElementById(${JSON.stringify(id)}); return b ? location.href + " " + Math.round(b.getBoundingClientRect().top) : ""; })()`);
 export async function boardStill(sel, act) {
-  if (!state.phone || !String(sel).startsWith("#board")) return act();
+  const id = stillBoard(sel);
+  if (!id) return act();
   await pos(sel); // scrolled to first
-  const before = await boardAt();
+  const before = await boardAt(id);
   await act();
   await tapDone();
-  const after = await boardAt();
+  const after = await boardAt(id);
   const [u0, t0] = before.split(" "), [u1, t1] = after.split(" ");
   if (before && after && u0 === u1 && Math.abs(t1 - t0) > 1) moves.push(`${sel}: ${t1 - t0} px`); // 1 px: rounding at the phone's pixel ratio
 }

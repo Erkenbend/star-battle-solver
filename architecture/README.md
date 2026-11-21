@@ -336,7 +336,8 @@ designer appends for you). The workflows are in `docs/development.md`.
   screen, the party's transitions (solving path, next round, next puzzle)
   under a stream of states and on a slow connection. In every scenario a page
   load the page aborts itself and, on the phone, the board moving under a tap
-  are errors; on the phone every observation also records whether the action
+  are errors (in the designer, a desktop tool, its drawing and big picture
+  moving under a click too); on the phone every observation also records whether the action
   bar is under the tab bar. Values that differ between runs (times, random
   party puzzles, the designer's completions) are normalized. The result must
   equal `expected/`; after an intended UI change, `run.sh -update` rewrites
