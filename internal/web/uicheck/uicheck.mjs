@@ -16,7 +16,8 @@
 // so on, or the server's view of a party ("server: …"). Values that differ
 // between runs of the same build are normalized when recorded: times, party
 // codes, the random puzzles of parties (their boards as the classes that
-// occur, no rule violations, steps or problems), the random puzzle after the
+// occur, the strip of colors as whether it agrees with them, no rule violations,
+// steps or problems), the random puzzle after the
 // tutorial and the designer's completions. A failed step, a JavaScript error,
 // a page load the page aborted itself or a link beside the tab bar is an
 // observation too, so it shows as a difference.

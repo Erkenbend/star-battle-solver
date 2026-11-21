@@ -275,6 +275,12 @@ export async function obs(label, { random = false } = {}) {
       body: document.body.className, board: q("#board") && q("#board").className,
       cells: [...document.querySelectorAll("#board .cell")].map((e) => cls.filter((c) => e.classList.contains(c)).join("+") || "."),
       strip: [...document.querySelectorAll("#colors .color")].map((e) => e.classList.contains("has-star") ? "•" : "■").join(""), // a dot: the color has a star
+      stripWant: (() => { // the strip as the board's stars make it
+        if (!q("#colors .color")) return "";
+        const d = JSON.parse(q("#data").textContent), out = new Array(d.n).fill("■");
+        document.querySelectorAll("#board .cell").forEach((e, i) => { if (e.classList.contains("star")) out[d.regions[Math.floor(i / d.n)][i % d.n]] = "•"; });
+        return out.join("");
+      })(),
       tabs: !!q(".top .tabs") && getComputedStyle(q(".top .tabs")).display !== "none", // hidden with only one tab
       banner: txt("banner"), msg: txt("play-msg"), problems: txt("problems"), summary: txt("summary"),
       clock: txt("clock"), legend: txt("legend"), current: txt("current"),
@@ -316,11 +322,15 @@ export async function obs(label, { random = false } = {}) {
   }
   if (state.party) { // a random puzzle: which classes occur, not where, and no rule violations
     o.cells = [...new Set(o.cells.flatMap((c) => c.split("+")))].filter((c) => c !== "." && c !== "bad").sort();
+    // The strip of colors: whether its dots are the colors with a star on
+    // the board, not which (a wrong star may share a color with another).
+    o.strip = o.strip === o.stripWant ? "dots on the colors with a star" : "differs from the board: " + o.strip;
     delete o.steps;
     delete o.problems;
   } else {
     o.cells = o.cells.join(" ");
   }
+  delete o.stripWant;
   if (random) { // the random puzzle after the tutorial: only where it is
     for (const k of Object.keys(o)) if (k !== "path") delete o[k];
     o.path = o.path.replace(/seed=\d+/, "seed=RANDOM");
