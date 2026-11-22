@@ -4,7 +4,7 @@
 
 * [architecture/README.md](architecture/README.md): what the parts are, the principles they rely on (section 2), where state lives and where to start for typical changes (section 8). Read it before any non-trivial change.
 * [PLAN.md](PLAN.md) and [architecture/decisions](architecture/decisions/README.md): rules, measurements and rejected ideas. Read the matching entries before changing a rule, the search or the generator.
-* [docs/development.md](docs/development.md): build, test, UI check and the dev tools `design` and `hardsearch`.
+* [docs/development.md](docs/development.md): build, test, UI check and the dev tools `design`, `hardsearch` and `stress`.
 * [grober_plan.md](grober_plan.md) is the only human-written text: never change it.
 
 ## Language
@@ -24,6 +24,7 @@
 * Keep the principles of [architecture/README.md](architecture/README.md) section 2, e.g. no third-party dependencies and no JS build step
 * Test at behaviour level: prefer a slightly slower but stable integration test to a fast but brittle unit test
 * Measure changes to rules, search or generator (on `testdata/hard`, generated puzzles) and record the numbers in a new decision, see [Adding a decision](architecture/decisions/README.md#adding-a-decision). Elsewhere, benchmark only when a problem is suspected or upon request, no scientific-grade precision needed
+* Changes to how `serve` schedules its work (solve budget, pool, cache, library, party preparation): measure under load with `starbattle stress` before and after (`-server` with a build of the previous commit), and look at the latency of a page that waits, not only at throughput; one semaphore that looked right starved the pages (decision 33)
 * `testdata/hard` and `designs` are long-lived data: index files are append-only, see [architecture/README.md](architecture/README.md) sections 4 and 5
 
 ## Testing

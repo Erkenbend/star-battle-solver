@@ -18,7 +18,7 @@ written in German. Code, comments, scripts and this directory are in English.
 Related documents:
 
 - [`README.md`](../README.md): what the project is, for players (German).
-- [`docs/development.md`](../docs/development.md): build, test, and the developer tools `design` and `hardsearch` (German).
+- [`docs/development.md`](../docs/development.md): build, test, and the developer tools `design`, `hardsearch` and `stress` (German).
 - [`PLAN.md`](../PLAN.md): the rules, their priority levels and measurements, the current state and open ideas (German). Read it, and the matching entries in [`decisions/`](decisions/README.md), before changing a rule, the generator or the search: most "why not …?" questions are answered there.
 - [`grober_plan.md`](../grober_plan.md): the original idea, the only human-written text. Keep it unchanged.
 
@@ -82,7 +82,8 @@ something far away.
 
 ```
  commands     cmd/starbattle
-              generate · show · solve · html · serve · design (dev) · hard (dev)
+              generate · show · solve · html · serve · design (dev) · hardsearch (dev)
+              · stress (dev)
 
  delivery     internal/render     internal/web ──────────► internal/party
               (terminal)          (pages, site, library,   (the party game,
@@ -91,6 +92,9 @@ something far away.
               internal/designer ───────┘      internal/hardsearch
               (`design`: draw, complete,      (`hardsearch`: find hard puzzles,
                save motifs)                    rate them)
+                                              internal/stress
+                                              (`stress`: load on serve over
+                                               HTTP: latency, CPU, memory)
 
  content      internal/collection: format of testdata/hard and designs/
               root package `starbattle` (embed.go): embeds testdata/hard,
@@ -398,4 +402,5 @@ browser code. The full suite with every hard puzzle is CI's job.
 | a star symbol | `symbols/`; animated ones in `internal/sprite` | see `symbols/README.md`; rewrite the sheets with `go test ./internal/sprite -update` |
 | the app icon | `internal/icon` | rewrite the files with `go test ./internal/icon -update`; look at them at 32 px too |
 | a CLI command | `cmd/starbattle` | document it in `docs/commands.md` |
+| how `serve` schedules its work (solve budget, pool, cache, library, party preparation) | `internal/web` | measure with `starbattle stress` against a build of the commit before (`-server`), including what a page that waits sees, not only throughput; record it in `architecture/decisions` ([decision 33](decisions/33-solve-budget.md)) |
 | goroutines or channels anywhere | the section of the place in `architecture/concurrency.md` | update that file; run `go test -race` on the package; `go test ./internal/concviz` names the claims of the section's story that no longer hold: fix the story in `internal/concviz`, then `go test ./internal/concviz -update`; a new place gets a section and a story |

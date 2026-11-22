@@ -13,6 +13,7 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -23,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
@@ -42,6 +44,7 @@ import (
 	"starbattle/internal/render"
 	"starbattle/internal/solver"
 	"starbattle/internal/solver/observers"
+	"starbattle/internal/stress"
 	"starbattle/internal/web"
 )
 
@@ -65,6 +68,8 @@ func main() {
 		err = cmdDesign(os.Args[2:])
 	case "hardsearch":
 		err = cmdHardsearch(os.Args[2:])
+	case "stress":
+		err = cmdStress(os.Args[2:])
 	default:
 		usage()
 	}
@@ -85,7 +90,9 @@ func usage() {
   starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]
   starbattle design [-addr localhost:6370] [-dir designs] [solver flags as for solve]
   starbattle hardsearch -n N [-from S] [-count C] [-min-lookahead K] [-o dir] [-workers W]
-  starbattle hardsearch -rate -o dir`)
+  starbattle hardsearch -rate -o dir
+  starbattle stress [-server binary] [-cores 4] [-addr localhost:6391] [scenario...]
+  starbattle stress -url http://host:port [-pid P] [scenario...]`)
 	os.Exit(2)
 }
 
@@ -527,4 +534,102 @@ func rateDir(dir string) error {
 	}
 	fmt.Printf("\n%d puzzles: %d with 1 star, %d with 2, %d with 3; %d files written\n", len(files), stars[1], stars[2], stars[3], changed)
 	return nil
+}
+
+// cmdStress runs the load scenarios of package stress, a tool for
+// developers (decision 33). Each scenario gets a fresh server: -server
+// (default: this binary) serve -no-pregen with GOMAXPROCS=-cores, pinned to
+// as many CPUs with taskset where there is one, so the load generator runs
+// on the others. With -url it drives a running server instead.
+func cmdStress(args []string) error {
+	fs := flag.NewFlagSet("stress", flag.ExitOnError)
+	server := fs.String("server", "", "starbattle binary to serve, e.g. a build of an older commit (default: this one)")
+	cores := fs.Int("cores", 4, "GOMAXPROCS of the server and CPUs it is pinned to (4: like a Raspberry Pi 4)")
+	addr := fs.String("addr", "localhost:6391", "address of the started server")
+	target := fs.String("url", "", "drive this running server instead of starting one")
+	pid := fs.Int("pid", 0, "with -url: the server's process, for its CPU time and memory")
+	heavy := fs.Int("heavy", 14, "size of the hard puzzles pasted into /play (and one more)")
+	fs.Parse(args)
+
+	var scenarios []stress.Scenario
+	for _, name := range fs.Args() {
+		s, ok := stress.Find(name)
+		if !ok {
+			return fmt.Errorf("unknown scenario %q", name)
+		}
+		scenarios = append(scenarios, s)
+	}
+	if len(scenarios) == 0 {
+		scenarios = stress.Scenarios
+	}
+	hard, err := collection.Load(starbattle.Hard, starbattle.HardDir)
+	if err != nil {
+		return err
+	}
+	motifs, err := collection.Load(starbattle.Designs, starbattle.DesignsDir)
+	if err != nil {
+		return err
+	}
+	c := stress.Config{URL: *target, PID: *pid, Hard: hard, Motifs: motifs, HeavyN: *heavy, Out: os.Stdout}
+	if *target != "" {
+		var errs []error
+		for _, s := range scenarios {
+			errs = append(errs, stress.Run(c, s))
+		}
+		return errors.Join(errs...)
+	}
+
+	bin := *server
+	if bin == "" {
+		if bin, err = os.Executable(); err != nil {
+			return err
+		}
+	}
+	cmd := []string{bin, "serve", "-addr", *addr, "-no-pregen"}
+	pinned := "not pinned"
+	if taskset, err := exec.LookPath("taskset"); err == nil {
+		cpus := fmt.Sprintf("0-%d", *cores-1)
+		cmd = append([]string{taskset, "-c", cpus}, cmd...) // taskset execs the server: same process
+		pinned = "pinned to CPUs " + cpus
+	}
+	fmt.Printf("server: %s, GOMAXPROCS=%d, %s\n", bin, *cores, pinned)
+	c.URL = "http://" + *addr
+	var errs []error
+	for _, s := range scenarios {
+		srv := exec.Command(cmd[0], cmd[1:]...)
+		srv.Env = append(os.Environ(), fmt.Sprintf("GOMAXPROCS=%d", *cores))
+		var log bytes.Buffer
+		srv.Stderr = &log
+		if err := srv.Start(); err != nil {
+			return err
+		}
+		c.PID = srv.Process.Pid
+		err := waitServing(c.URL, 10*time.Second)
+		if err == nil {
+			err = stress.Run(c, s)
+		}
+		srv.Process.Signal(os.Interrupt)
+		srv.Wait()
+		if err != nil {
+			err = fmt.Errorf("%w; server log:\n%s", err, log.String())
+		}
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+// waitServing waits until the server at url answers.
+func waitServing(url string, limit time.Duration) error {
+	deadline := time.Now().Add(limit)
+	for {
+		resp, err := http.Get(url + "/einstellungen")
+		if err == nil {
+			resp.Body.Close()
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("server at %s not up after %v: %w", url, limit, err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }

@@ -66,6 +66,7 @@ Partys, Anleitung, das Lösen allein (ein zweites Mal), die Bibliothek (ein zwei
 | `internal/generator` | Puzzles mit eindeutiger Lösung erzeugen, auch um ein gezeichnetes Muster herum |
 | `internal/collection` | Format der Puzzle-Sammlungen `testdata/hard` und `designs`: Index `bibliothek.idx`, Dateinamen, Kopfzeilen (`# rating:`, `# name:`), ID |
 | `internal/hardsearch` | Suche nach schweren Puzzles für `testdata/hard` (`starbattle hardsearch`) |
+| `internal/stress` | Lastszenarien gegen `serve` (`starbattle stress`) |
 | `internal/render` | Ausgabe im Terminal |
 | `internal/party` | Party-Modus: Partys, Runden, gegeneinander, miteinander, gegen die Uhr (ohne HTTP) |
 | `internal/web` | HTML-Seite, Server, Bibliothek, Einstellungen, HTTP des Party-Modus |
@@ -151,3 +152,32 @@ Jedes schwere Puzzle hat eine Bewertung von 1 bis 3 Sternen, die die Bibliothek 
 | ★☆☆ | sonst: Die Regeln allein lösen es |
 
 Die Bewertung steht in der Datei (Zeile `# rating:`), damit die Bibliothek beim Start nichts rechnen muss. Ändern sich Regeln oder Suche, schreibt `./starbattle hardsearch -rate -o testdata/hard` alle Zeilen neu (dauert ein paar Minuten); unveränderte Dateien bleiben unberührt. `TestLibraryRatings` vergleicht die Zeilen mit der heutigen Bewertung, für die Stichprobe bzw. mit `STARBATTLE_ALL_HARD=1` für alle. Motive aus `designs` werden nicht bewertet.
+
+## `stress`: den Server unter Last messen
+
+```sh
+./starbattle stress                                # alle Szenarien gegen diese Version, gut zwei Minuten
+./starbattle stress -server /tmp/alt crawl flood   # dieselben gegen eine andere Version
+./starbattle stress -url http://localhost:6369 -pid 1234 reload   # gegen einen laufenden Server
+```
+
+Spielt Lastszenarien gegen `serve` durch und misst, wie lange die Besucher warten und wie viel Rechenzeit und Speicher der Server braucht ([Entscheidung 33](../architecture/decisions/33-solve-budget.md)). Gedacht für Änderungen daran, wie der Server seine Arbeit einteilt (Budget für den Solver, vorbereitete Puzzles, Cache, Bibliothek): vorher und nachher messen, mit `-server` gegen ein Programm, das aus dem Commit davor gebaut ist (`git worktree add /tmp/alt HEAD~1 && go build -C /tmp/alt -o /tmp/alt/starbattle ./cmd/starbattle`, dann `-server /tmp/alt/starbattle`, danach `git worktree remove /tmp/alt`).
+
+Jedes Szenario bekommt einen frischen Server (`serve -no-pregen`) mit `GOMAXPROCS=4`, wie ein Raspberry Pi 4; wo es `taskset` gibt, läuft er auf den ersten vier Kernen und die Last auf den übrigen. Rechenzeit und Speicher liest `stress` unter Linux aus `/proc`, sonst steht dort `n/a`.
+
+| Szenario | Was passiert |
+|---|---|
+| `tutorial` | 200-mal `/anleitung` hintereinander |
+| `reload` | ein schweres Puzzle über `/play` zehnmal neu geladen, dann öffnen acht Spieler gleichzeitig ein anderes |
+| `abandon` | zwölf Besucher fügen schwere Puzzles ein und gehen nach 300 ms wieder: Rechnet der Server danach weiter? |
+| `flood` | zwölf Besucher fügen gleichzeitig schwere Puzzles ein und warten |
+| `crawl` | ein Crawler öffnet alle schweren Puzzles der Bibliothek, während ein Spieler alle 300 ms ein neues 10×10 will und danach drei Motive geöffnet werden; dauert auf vier Kernen etwa eine Minute |
+
+| Option | Bedeutung |
+|---|---|
+| `-server` | Programm, das als Server läuft (Standard: dieses) |
+| `-cores` | `GOMAXPROCS` des Servers und Kerne, auf die er gelegt wird (Standard 4) |
+| `-addr` | Adresse des gestarteten Servers (Standard `localhost:6391`) |
+| `-url` | statt einen zu starten: diesen laufenden Server nehmen |
+| `-pid` | mit `-url`: sein Prozess, für Rechenzeit und Speicher |
+| `-heavy` | Größe der schweren Puzzles für `/play` (und eine mehr; Standard 14) |

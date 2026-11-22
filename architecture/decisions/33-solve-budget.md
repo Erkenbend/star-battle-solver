@@ -40,7 +40,9 @@ an older `/?n=…&seed=…` solved again.
 
 ## Measurements
 
-`serve -no-pregen` pinned to 4 cores (`taskset -c 0-3`, `GOMAXPROCS=4`,
+`starbattle stress` repeats these scenarios (added after these
+measurements; its `flood` and `abandon` pick other hard puzzles, so their
+numbers differ). Here: `serve -no-pregen` pinned to 4 cores (`taskset -c 0-3`, `GOMAXPROCS=4`,
 like a Raspberry Pi 4, but each core several times faster) on a Ryzen 7
 5800X3D; a load generator in Go on the other cores, a fresh server per
 scenario, one run each. "CPU" is the server's user + system time.

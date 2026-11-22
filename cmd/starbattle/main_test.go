@@ -1,10 +1,14 @@
 package main
 
 import (
+	"flag"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"starbattle/internal/web"
 )
 
 // Smoke tests for the commands: they run in-process with os.Stdin, os.Stdout
@@ -283,5 +287,23 @@ func TestHardsearchRate(t *testing.T) {
 	}
 	if _, _, err := run(t, cmdHardsearch, "", "-rate", "-o", t.TempDir()); err == nil {
 		t.Error("-rate on an empty directory: expected error")
+	}
+}
+
+// TestStress drives a server in this process with -url: starting one
+// needs a starbattle binary, which a test does not have.
+func TestStress(t *testing.T) {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	solve := solverFlags(fs, "sync")
+	fs.Parse(nil)
+	srv := httptest.NewServer(web.Handler(solve, nil, nil, nil, nil))
+	defer srv.Close()
+	out, _, err := run(t, cmdStress, "", "-url", srv.URL, "tutorial")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "stress", out, "== tutorial", "200 × /anleitung", "RSS n/a")
+	if _, _, err := run(t, cmdStress, "", "nope"); err == nil || !strings.Contains(err.Error(), `unknown scenario "nope"`) {
+		t.Errorf("unknown scenario: %v", err)
 	}
 }
