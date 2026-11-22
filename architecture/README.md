@@ -187,6 +187,7 @@ every command that solves. `render` draws boards in the terminal.
 |---|---|
 | page rendering (`web.go`, `assets/`) | turns a puzzle + solution + trace into **one self-contained HTML page**: template, CSS, JS and the data as inline JSON. `html` writes it to a file, `serve` sends it. |
 | site (`server.go`, `pool.go`, `tutorial.go`) | the routes of `serve`: generated puzzles under stable URLs, pasted puzzles, the tutorial. The pool keeps one solved puzzle per size ready so "new puzzle" is instant. Every solve of `serve` goes through one budget (`Budget`), which keeps a slot for pages and lets a page's solve end when its visitor leaves. |
+| compression (`gzip.go`) | wraps all routes of `serve`: pages and JSON go out gzipped to browsers that accept it (about a third of the size, [decision 34](decisions/34-gzip.md)); the event stream and the icons as they are. Handlers don't know about it. |
 | library (`library.go`) | the embedded collections (hard puzzles, motifs) as browsable pages; each puzzle is solved lazily in the background on first visit. |
 | parties (`party_server.go`) | HTTP and server-sent events of the party mode, and the page of a round. The game itself is `internal/party` (below). |
 | settings / symbols (`symbols.go`) | the catalog of star symbols players can pick. |
