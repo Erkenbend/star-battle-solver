@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -125,7 +126,9 @@ func (lib *Library) start(e *libEntry) {
 				return
 			}
 			e.sol = sols[0]
-			e.res, e.err = lib.solve(e.p)
+			// Not the request's context: the result waits for whoever
+			// comes next, also when this visitor has left.
+			e.res, e.err = lib.solve(context.Background(), e.p)
 			log.Printf("Bibliothek %s gelöst (%.1f s)", e.name(), time.Since(t).Seconds())
 		}()
 	})

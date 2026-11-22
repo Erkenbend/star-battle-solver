@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,14 +29,14 @@ func partyPuzzle(solve SolveFunc, pool *Pool) func(n int) (*party.Puzzle, error)
 			return &party.Puzzle{N: n, Seed: e.seed, P: e.p, Solution: e.sol, Res: e.res}, nil
 		}
 		seed := newSeed()
-		p, sol, err := generate(n, seed)
+		p, sol, err := generate(nil, n, seed)
 		if err != nil {
 			return nil, err
 		}
 		if sol == nil {
 			return nil, fmt.Errorf("%d×%d Nr. %d: keine eindeutige Lösung", n, n, seed)
 		}
-		res, err := solve(p)
+		res, err := solve(context.Background(), p) // a party's preparation goes on without a request
 		if err != nil {
 			return nil, err
 		}

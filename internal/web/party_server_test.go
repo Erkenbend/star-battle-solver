@@ -50,11 +50,11 @@ func testPuzzle(t *testing.T, n int) *party.Puzzle {
 		return rp
 	}
 	for seed := uint64(1); ; seed++ {
-		p, sol, err := generate(n, seed)
+		p, sol, err := generate(nil, n, seed)
 		if err != nil || sol == nil {
 			continue
 		}
-		res, _ := testSolve(p)
+		res, _ := testSolve(context.Background(), p)
 		rp := &party.Puzzle{N: n, Seed: seed, P: p, Solution: sol, Res: res}
 		testPuzzles[n] = rp
 		return rp
@@ -130,7 +130,7 @@ func TestPartyPuzzle(t *testing.T) {
 	if err != nil || rp.P.N != 5 || len(rp.Solution) != 5 || rp.Res.Status != solver.Solved {
 		t.Fatalf("got %+v, %v", rp, err)
 	}
-	failing := func(*puzzle.Puzzle) (solver.Result, error) { return solver.Result{}, errors.New("kaputt") }
+	failing := func(context.Context, *puzzle.Puzzle) (solver.Result, error) { return solver.Result{}, errors.New("kaputt") }
 	if _, err := partyPuzzle(failing, nil)(5); err == nil || err.Error() != "kaputt" {
 		t.Fatalf("solve error: got %v", err)
 	}

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,8 +19,12 @@ import (
 	"starbattle/internal/solver/observers"
 )
 
-func testSolve(p *puzzle.Puzzle) (solver.Result, error) {
-	return solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true}), nil
+func testSolve(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error) {
+	res := solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true, Done: ctx.Done()})
+	if res.Status == solver.Cancelled {
+		return res, ctx.Err()
+	}
+	return res, nil
 }
 
 // get requests path from h and returns the response.
@@ -130,9 +135,9 @@ func waitReady(t *testing.T, pl *Pool, n int) {
 func TestPool(t *testing.T) {
 	var onRequest atomic.Int32 // solver calls by the handler itself
 	pl := NewPool(testSolve, []int{5, 6})
-	h := Handler(func(p *puzzle.Puzzle) (solver.Result, error) {
+	h := Handler(func(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error) {
 		onRequest.Add(1)
-		return testSolve(p)
+		return testSolve(ctx, p)
 	}, pl, nil, nil, nil)
 	plain := Handler(testSolve, nil, nil, nil, nil)
 

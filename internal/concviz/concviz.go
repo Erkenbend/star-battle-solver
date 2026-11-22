@@ -28,5 +28,5 @@ package concviz
 
 // Stories builds all stories, in the order of architecture/concurrency.md.
 func Stories() []*Story {
-	return []*Story{runnerStory(), lookaheadStory(), generatorStory(), hardsearchStory(), designerStory(), poolStory(), prepStory(), libraryStory(), eventsStory(), lifecycleStory()}
+	return []*Story{runnerStory(), lookaheadStory(), generatorStory(), hardsearchStory(), designerStory(), poolStory(), prepStory(), libraryStory(), eventsStory(), lifecycleStory(), budgetStory()}
 }

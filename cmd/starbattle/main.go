@@ -164,15 +164,16 @@ func readPuzzle(fs *flag.FlagSet) (*puzzle.Puzzle, error) {
 
 // solverFlags registers the flags that configure the solver and returns a
 // function that runs it on p with those settings (call after fs.Parse).
-func solverFlags(fs *flag.FlagSet, defaultRunner string) func(p *puzzle.Puzzle) (solver.Result, error) {
+// Cancelling ctx cancels the solve, which then returns ctx's error.
+func solverFlags(fs *flag.FlagSet, defaultRunner string) web.SolveFunc {
 	runner := fs.String("runner", defaultRunner, "concurrent (one goroutine per observer) or sync")
 	search := fs.String("search", "full", "when the rules get stuck: full (lookahead + backtracking), lookahead, or none")
 	partnerDepth := fs.Int("partner-depth", observers.DefaultConfig.PartnerDepth, "ForcedPartner: max forced stars in a row (0 = off)")
 	deadMax := fs.Int("dead-max", observers.DefaultConfig.DeadCellsMax, "DeadCells: max remaining cells of a unit (0 = off)")
 	pigeonMax := fs.Int("pigeonhole-max", observers.DefaultConfig.PigeonholeMaxK, "Pigeonhole: max units checked at once after an assumed star (0 = off)")
 	anySubset := fs.Bool("non-contiguous", observers.DefaultConfig.ConfinementAnySubset, "Confinement k≥2: any subset of rows/columns instead of only adjacent ones")
-	return func(p *puzzle.Puzzle) (solver.Result, error) {
-		opts := solver.Options{Run: solver.RunConcurrent}
+	return func(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error) {
+		opts := solver.Options{Run: solver.RunConcurrent, Done: ctx.Done()}
 		switch *runner {
 		case "concurrent":
 		case "sync":
@@ -190,7 +191,11 @@ func solverFlags(fs *flag.FlagSet, defaultRunner string) func(p *puzzle.Puzzle) 
 			return solver.Result{}, fmt.Errorf("unknown search %q", *search)
 		}
 		cfg := observers.Config{PartnerDepth: *partnerDepth, DeadCellsMax: *deadMax, ConfinementAnySubset: *anySubset, PigeonholeMaxK: *pigeonMax}
-		return solver.Solve(board.New(p), observers.AllWith(p, cfg), opts), nil
+		res := solver.Solve(board.New(p), observers.AllWith(p, cfg), opts)
+		if res.Status == solver.Cancelled {
+			return res, ctx.Err()
+		}
+		return res, nil
 	}
 }
 
@@ -209,7 +214,7 @@ func cmdSolve(args []string) error {
 	o := render.Options{NoColor: *noColor}
 	fmt.Print(render.Puzzle(p, o))
 
-	res, err := solve(p)
+	res, err := solve(context.Background(), p)
 	if err != nil {
 		return err
 	}
@@ -245,7 +250,7 @@ func cmdHTML(args []string) error {
 	if err != nil {
 		return err
 	}
-	res, err := solve(p)
+	res, err := solve(context.Background(), p)
 	if err != nil {
 		return err
 	}
@@ -286,6 +291,11 @@ func cmdServe(args []string) error {
 	noPregen := fs.Bool("no-pregen", false, "do not keep a generated puzzle of every size ready")
 	solve := solverFlags(fs, "sync") // sync: reproducible explanations, as for html
 	fs.Parse(args)
+	// One budget for every solve of the server (suggestion 6 of
+	// architecture/refactorings.md); background solves leave a slot for
+	// the pages.
+	budget := web.NewBudget(web.SolveSlots())
+	solve, background := budget.Limit(solve), budget.Background(solve)
 
 	var pool *web.Pool
 	if !*noPregen {
@@ -293,7 +303,7 @@ func cmdServe(args []string) error {
 		for n := web.MinN; n <= web.MaxN; n++ {
 			sizes = append(sizes, n)
 		}
-		pool = web.NewPool(solve, sizes)
+		pool = web.NewPool(background, sizes)
 	}
 	// Ctrl-C or SIGTERM (systemd stop) cancels ctx. Request contexts derive
 	// from it, so open event streams end too and Shutdown does not hang.
@@ -303,7 +313,7 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	hard, err := web.LoadLibrary(starbattle.Hard, starbattle.HardDir, solve)
+	hard, err := web.LoadLibrary(starbattle.Hard, starbattle.HardDir, background) // pages come before the solve
 	if err != nil {
 		return err
 	}
@@ -311,7 +321,7 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	parties := web.NewParties(solve, pool)
+	parties := web.NewParties(background, pool)
 	go parties.Run(5*time.Second, ctx.Done())
 	srv := &http.Server{
 		Addr:              *addr,

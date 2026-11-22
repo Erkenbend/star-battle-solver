@@ -1,13 +1,14 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
 )
 
 func TestTutorialContent(t *testing.T) {
-	d, err := tutorialData(testSolve)
+	d, err := tutorialData(context.Background(), testSolve)
 	if err != nil {
 		t.Fatal(err)
 	}

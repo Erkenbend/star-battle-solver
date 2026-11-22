@@ -100,6 +100,8 @@ Dieselbe Seite wie bei `html`, dazu „Neues Puzzle“ unter „Mehr“ und nach
 
 Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `generate -n 8 -seed 42`.
 
+Der Server löst höchstens so viele Puzzles gleichzeitig, wie er Kerne hat, einen weniger (auf einem Raspberry Pi 4 also drei). Was niemand gerade erwartet (vorbereitete Puzzles, die nächsten Puzzles einer Party, schwere Puzzles der Bibliothek) belegt davon nie alle, sodass eine Seite, die auf ihre Lösung wartet, immer sofort drankommt. Verlässt jemand eine Seite, bevor sie fertig ist, hört der Solver auf.
+
 | Option | Bedeutung |
 |---|---|
 | `-addr` | Adresse (Standard `localhost:6369`) |

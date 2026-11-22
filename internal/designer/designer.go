@@ -333,7 +333,8 @@ func (s *search) work(ctx context.Context, out chan<- *Candidate) {
 			continue // no puzzle from this seed, or cancelled, a duplicate, or k found already
 		}
 		c := &Candidate{Seed: seed, Regions: p.Regions, Solution: sol, Millis: time.Since(start).Milliseconds()}
-		if res, err := s.solve(p); err == nil {
+		// Not ctx: the k-th puzzle cancels it, and its rating is wanted.
+		if res, err := s.solve(context.Background(), p); err == nil {
 			c.Status = res.Status.String()
 			c.Steps = len(res.Trace)
 			c.Stats = web.Stats{Lookahead: res.Stats.Lookahead, Guesses: res.Stats.Guesses}

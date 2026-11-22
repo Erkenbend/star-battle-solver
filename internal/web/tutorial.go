@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -90,7 +91,7 @@ var tutorial = Tutorial{
 }
 
 // tutorialData builds the page data of the tutorial.
-func tutorialData(solve SolveFunc) (Data, error) {
+func tutorialData(ctx context.Context, solve SolveFunc) (Data, error) {
 	p, err := puzzle.Parse(strings.NewReader(tutorialPuzzle))
 	if err != nil {
 		return Data{}, err
@@ -99,7 +100,7 @@ func tutorialData(solve SolveFunc) (Data, error) {
 	if len(sols) != 1 {
 		return Data{}, fmt.Errorf("web: tutorial puzzle has %d solutions, want 1", len(sols))
 	}
-	res, err := solve(p)
+	res, err := solve(ctx, p)
 	if err != nil {
 		return Data{}, err
 	}
@@ -111,7 +112,10 @@ func tutorialData(solve SolveFunc) (Data, error) {
 
 func tutorialRoutes(mux *http.ServeMux, solve SolveFunc) {
 	mux.HandleFunc("GET /anleitung", func(w http.ResponseWriter, r *http.Request) {
-		d, err := tutorialData(solve)
+		d, err := tutorialData(r.Context(), solve)
+		if r.Context().Err() != nil {
+			return
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

@@ -2,11 +2,13 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,8 +27,65 @@ const (
 	DefaultN = 8
 )
 
-// SolveFunc runs the solver on a puzzle.
-type SolveFunc func(p *puzzle.Puzzle) (solver.Result, error)
+// SolveFunc runs the solver on a puzzle. Cancelling ctx cancels the solve
+// (solver.Options.Done); the error is then ctx's.
+type SolveFunc func(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error)
+
+// Budget limits how many solves run at once across everything of serve
+// that solves: pages, the pool, the library and parties. The solver uses
+// every core for its lookahead, so without a limit a crawler opening the
+// library starts a solve per page at once.
+//
+// Solves nobody waits for yet (Background) take at most all slots but
+// one, so a page that waits for its solve finds a slot even while a
+// crawler has queued the whole library.
+//
+// A solve waits for its slots or for its ctx. Never solve while holding a
+// slot of generator.cpuSlots, nor generate while holding a slot of the
+// budget: generate first, then solve.
+type Budget struct {
+	slots      chan struct{} // every solve
+	background chan struct{} // solves nobody waits for: one fewer, at least 1
+}
+
+// NewBudget returns a budget of n solves at once.
+func NewBudget(n int) *Budget {
+	return &Budget{slots: make(chan struct{}, n), background: make(chan struct{}, max(1, n-1))}
+}
+
+// SolveSlots is the n of NewBudget for serve: as many solves as the
+// generator runs attempts at once (generator.cpuSlots), one core left for
+// the rest.
+func SolveSlots() int { return max(1, runtime.GOMAXPROCS(0)-1) }
+
+// Limit returns solve within b, for solves a request waits for.
+func (b *Budget) Limit(solve SolveFunc) SolveFunc {
+	return func(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error) {
+		select {
+		case b.slots <- struct{}{}:
+		case <-ctx.Done():
+			return solver.Result{}, ctx.Err()
+		}
+		defer func() { <-b.slots }()
+		return solve(ctx, p)
+	}
+}
+
+// Background returns solve within b, for solves nobody waits for yet: the
+// pool, a party's next puzzles, a hard library puzzle (its page comes
+// without the result). It takes a background slot first, then a slot.
+func (b *Budget) Background(solve SolveFunc) SolveFunc {
+	limited := b.Limit(solve)
+	return func(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error) {
+		select {
+		case b.background <- struct{}{}:
+		case <-ctx.Done():
+			return solver.Result{}, ctx.Err()
+		}
+		defer func() { <-b.background }()
+		return limited(ctx, p)
+	}
+}
 
 // Handler serves the interactive page with a form to generate new puzzles.
 // Every page has a stable URL, so reloading keeps the puzzle (and,
@@ -106,12 +165,14 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 			write(w, title, e.p, e.sol, e.res)
 			return
 		}
-		p, sol, err := generate(n, seed)
+		p, sol, err := generate(r.Context().Done(), n, seed)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			if r.Context().Err() == nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+			}
 			return
 		}
-		page(w, solve, title, p, sol)
+		page(w, r, solve, title, p, sol)
 	})
 	mux.HandleFunc("GET /play", func(w http.ResponseWriter, r *http.Request) {
 		p, err := parsePlay(r.URL.Query().Get("p"))
@@ -128,7 +189,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 		case 1:
 			sol = sols[0]
 		}
-		page(w, solve, fmt.Sprintf("Star Battle %d×%d · eigenes Puzzle", p.N, p.N), p, sol)
+		page(w, r, solve, fmt.Sprintf("Star Battle %d×%d · eigenes Puzzle", p.N, p.N), p, sol)
 	})
 	return mux
 }
@@ -193,13 +254,17 @@ func soloURL(r *http.Request) string {
 func newSeed() uint64 { return uint64(rand.IntN(999_999) + 1) }
 
 // generate gives the puzzle of /?n=n&seed=seed (same as `starbattle generate`).
-func generate(n int, seed uint64) (*puzzle.Puzzle, []int, error) {
-	return generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n)})
+// Closing done (may be nil) cancels it.
+func generate(done <-chan struct{}, n int, seed uint64) (*puzzle.Puzzle, []int, error) {
+	return generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n), Done: done})
 }
 
-// page solves p and writes the page.
-func page(w http.ResponseWriter, solve SolveFunc, title string, p *puzzle.Puzzle, sol []int) {
-	res, err := solve(p)
+// page solves p for request r and writes the page; nothing if r is gone.
+func page(w http.ResponseWriter, r *http.Request, solve SolveFunc, title string, p *puzzle.Puzzle, sol []int) {
+	res, err := solve(r.Context(), p)
+	if r.Context().Err() != nil {
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

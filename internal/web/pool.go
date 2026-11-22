@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"log"
 	"sync"
 	"time"
@@ -70,11 +71,11 @@ func (pl *Pool) fill() {
 
 func (pl *Pool) make(n int) (*pooled, error) {
 	seed := newSeed()
-	p, sol, err := generate(n, seed)
+	p, sol, err := generate(nil, n, seed)
 	if err != nil {
 		return nil, err
 	}
-	res, err := pl.solve(p)
+	res, err := pl.solve(context.Background(), p)
 	if err != nil {
 		return nil, err
 	}

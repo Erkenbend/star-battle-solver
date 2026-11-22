@@ -42,6 +42,7 @@ and open ideas.
 | [30](30-ways-between-pages.md) | Ways between pages only through the tab bar, one way to the next puzzle | done |
 | [31](31-party-resumes.md) | "/party" leads back to the party one plays in, "Party verlassen" also in a round | done |
 | [32](32-board-geometry.md) | Precomputed geometry for `board`, built by `New`, shared by clones | done |
+| [33](33-solve-budget.md) | One solve budget in `serve`: cancel, limit with a slot kept for pages, cache | partly done |
 
 ## Adding a decision
 

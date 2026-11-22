@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -138,7 +139,7 @@ func TestJSLogic(t *testing.T) {
 		args = append(args, out)
 	}
 	// The tutorial's puzzle, with its steps.
-	td, err := tutorialData(testSolve)
+	td, err := tutorialData(context.Background(), testSolve)
 	if err != nil {
 		t.Fatal(err)
 	}

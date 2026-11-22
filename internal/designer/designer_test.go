@@ -2,6 +2,7 @@ package designer
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -36,8 +37,12 @@ func patternOf(rows ...string) [][]int {
 	return out
 }
 
-func testSolve(p *puzzle.Puzzle) (solver.Result, error) {
-	return solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true}), nil
+func testSolve(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error) {
+	res := solver.Solve(board.New(p), observers.All(p), solver.Options{Lookahead: true, Backtrack: true, Done: ctx.Done()})
+	if res.Status == solver.Cancelled {
+		return res, ctx.Err()
+	}
+	return res, nil
 }
 
 // get requests path from h and returns the response.
