@@ -43,7 +43,7 @@ code does not depend on any of them.
 | # | Where | Pattern | Channels used for |
 |---|---|---|---|
 | 1 | `solver.RunConcurrent` | actors with mailboxes, fan-in, quiescence detection | messages, wake-ups, shutdown broadcast |
-| 2 | `solver.lookahead` | worker pool, results by index | job distribution |
+| 2 | `solver.lookahead` | worker pool, results by index, atomic minimum to stop losing trials | job distribution |
 | 3 | `generator.run` | bounded speculative parallelism, deterministic winner | semaphores (local and process-wide), cancellation |
 | 4 | `hardsearch.Search` | ordered pipeline with reorder buffer, resumable | jobs, results, cancellation via `context` |
 | 5 | `designer.search.run` | worker loops until *k* results or a budget, stream results and progress | results channel closed by a waiter, a ticker, cancellation via `context` |
@@ -147,14 +147,14 @@ the refutation that is easiest to follow.
 Step through the scene in the [player](https://erkenbend.github.io/star-battle-solver/#02-lookahead-pool) (or open [`concurrency/player.html`](concurrency/player.html#02-lookahead-pool) from a clone).
 
 1. The rules are stuck; four free cells c0 to c3 are candidates. lookahead makes hyps with one slot each and an unbuffered jobs channel, and starts GOMAXPROCS workers (two here).
-2. It sends the indices one by one. Each send is a handoff: index 0 to worker 1, index 1 to worker 2. Each tries a star on its cell, on its own copy of the board.
+2. It sends the indices one by one. Each send is a handoff: index 0 to worker 1, index 1 to worker 2. Each tries a star on its cell, on its own copy of the board; after every step, runSync reads best.
 3. Both workers are busy, so the send of index 2 blocks until one of them comes back to its range loop.
-4. The star on c1 leads to a contradiction in 5 steps. Worker 2 writes the chain into hyps[1]: its own slot, so no lock and no channel.
+4. The star on c1 leads to a contradiction in 5 steps. Worker 2 writes the chain into hyps[1]: its own slot, so no lock and no channel. Then it lowers best to 5 with a compare-and-swap loop.
 5. Worker 2 takes index 2, which releases the caller. Its send of index 3 blocks again.
-6. The star on c0 leads to no contradiction: hyps[0] stays nil. Worker 1 takes index 3, and the caller closes jobs and waits.
-7. c2 and c3 both lead to a contradiction in 3 steps. Each worker writes its slot, and its range ends on the closed, empty jobs: it returns.
+6. The chain of c0 reaches 6 steps without a contradiction. Longer than best, it can no longer be chosen: runSync gives up and hyps[0] stays nil. Worker 1 takes index 3, and the caller closes jobs and waits.
+7. c2 and c3 both lead to a contradiction in 3 steps. Each worker writes its slot (worker 2 lowers best to 3, for worker 1 it is already 3), and its range ends on the closed, empty jobs: it returns.
 8. wg.Wait returns: every write to hyps happened before it, so the caller can read them all without a lock.
-9. The best chain is picked in index order with a strict comparison: c2 beats c1, and the tie with c3 keeps the earlier c2. Which worker finished first never matters.
+9. The chain is picked in index order with a strict comparison: c2 beats c1, and the tie with c3 keeps the earlier c2. Which worker finished first never matters, and no chain as short as the shortest is ever given up: stopping trials changes how much is computed, not the choice.
 
 <!-- /concviz -->
 
@@ -167,7 +167,15 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
 - **Determinism despite scheduling.** The best hypothesis is picked after
   all are done, by a strict comparison in index order, so ties keep the
   earlier candidate. Which worker finished first never matters. Inside a
-  trial the deterministic `RunSync` is used, for the same reason.
+  trial the deterministic `RunSync` is used (as `runSync`, see below), for
+  the same reason.
+- **An atomic minimum stops trials that cannot win**, as in the generator
+  (section 3): `best`, an `atomic.Int32`, holds the length of the shortest
+  refutation so far, lowered with a compare-and-swap loop. `runSync` reads
+  it after every step and gives up once the chain is longer. Which trials
+  are cut short depends on scheduling, the choice does not: `best` never
+  drops below the shortest chain of all, so no chain of that length is ever
+  given up ([decision 36](decisions/36-lookahead-stops-trials.md)).
 - **Cancellation by a `Done <-chan struct{}`** in `solver.Options`, as in
   the generator (section 3): once it is closed, the workers skip the
   trials still to come (`cancelled`, a `select` with `default`) and `Solve`
@@ -571,6 +579,7 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
 | `<-chan struct{}` for cancellation in lower packages, `context` at the edges | solver, generator, hardsearch, designer, `web.SolveFunc` |
 | waiter goroutine `wg.Wait(); close(out)` so the consumer can `range` (or select until closed) | (4), (5) |
 | results written by index instead of sent | `hyps` (2), `results` (3) |
+| atomic minimum (compare-and-swap loop) to skip or stop work that cannot win | `best` (2, 3) |
 | `sync.WaitGroup.Go` (Go 1.25) instead of `Add`/`Done` | (1), (2), (3), (4), (5) |
 | no channel at all: mutex + generation number | (7) |
 | no lock at all: read-only data built before the goroutines start | the geometry shared by board clones (1), (2) |
@@ -589,6 +598,9 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
   solver's `Done` at points in the search (counted calls of the rules, not
   times): before the start, in lookahead trials and inside nested guesses,
   and checks that what a cancelled solve returns is still sound.
+  `TestRunSyncStepLimit` (`internal/solver`) checks where a lookahead trial
+  is given up, `TestTraceGolden` (`internal/web`) that the chosen
+  refutations stay the same.
 - `TestSearch` (`internal/hardsearch`) checks seed-ordered emission with
   three workers and the return value of a cancelled search.
 - `TestDesignerCompleteAndSave`, `TestDesignerBudget` and

@@ -1,10 +1,12 @@
 package solver
 
 import (
+	"fmt"
 	"testing"
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
+	"starbattle/internal/words"
 )
 
 var p5 = puzzle.MustParse(`
@@ -62,5 +64,40 @@ func TestRunSyncDetectsContradiction(t *testing.T) {
 	res := RunSync(board.New(p5), []Observer{scripted{bad, &fired}})
 	if res.Status != Contradiction {
 		t.Fatalf("status %v, want contradiction", res.Status)
+	}
+}
+
+// rowCrosser is a fake observer that crosses the first free cell of row 0,
+// one step per call: after 5 steps p5's row 0 has no room for its star.
+type rowCrosser struct{}
+
+func (rowCrosser) Name() string           { return "rowCrosser" }
+func (rowCrosser) Done(*board.State) bool { return false }
+func (rowCrosser) Deduce(s *board.State) []Mark {
+	for c := range s.P.N {
+		if s.At(0, c) == board.Free {
+			text := fmt.Sprintf("cross %d", c) // a reason of its own: a step of its own
+			return []Mark{Cross(puzzle.Pos{Row: 0, Col: c}, "").Why(func(*words.Namer) string { return text })}
+		}
+	}
+	return nil
+}
+
+// TestRunSyncStepLimit: a run within the limit is the same as RunSync's, a
+// run longer than the limit is given up as soon as it exceeds it.
+func TestRunSyncStepLimit(t *testing.T) {
+	obs := []Observer{rowCrosser{}}
+	full := RunSync(board.New(p5), obs)
+	if full.Status != Contradiction || len(full.Trace) != 5 {
+		t.Fatalf("RunSync: status %v with %d steps, want contradiction with 5", full.Status, len(full.Trace))
+	}
+	limit := func(n int) func() int { return func() int { return n } }
+	if res := runSync(board.New(p5), obs, limit(5)); res.Status != Contradiction || len(res.Trace) != 5 || res.Err.Error() != full.Err.Error() {
+		t.Errorf("limit 5: status %v with %d steps (%v), want RunSync's result", res.Status, len(res.Trace), res.Err)
+	}
+	for _, n := range []int{4, 2, 0} {
+		if res := runSync(board.New(p5), obs, limit(n)); res.Status != Stuck || len(res.Trace) != n+1 {
+			t.Errorf("limit %d: status %v with %d steps, want stuck after %d", n, res.Status, len(res.Trace), n+1)
+		}
 	}
 }

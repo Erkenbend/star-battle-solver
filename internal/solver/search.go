@@ -4,9 +4,11 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"math"
 	"runtime"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
@@ -218,12 +220,22 @@ func assumedStep(p *puzzle.Puzzle, pos puzzle.Pos, delta []Mark) Step {
 // concurrent runner's step order (hence chain length) varies between runs,
 // which would make the chosen explanation non-deterministic.
 //
+// A trial stops once its chain is longer than the shortest refutation found
+// so far (best, shared by the workers): it can no longer be chosen. That
+// does not change which one is: best never drops below the shortest chain
+// of all, so no chain of that length is stopped, and the choice among them
+// is made as before. Only how much is computed depends on scheduling.
+//
 // Once done is closed, the workers skip the remaining trials; the caller
 // then must not use the result.
 func lookahead(s *board.State, observers []Observer, done <-chan struct{}) (refutation, bool) {
 	cells := candidates(s)
 	hyps := make([]*Hypothesis, len(cells))
 	jobs := make(chan int)
+	var best atomic.Int32 // steps of the shortest refutation so far
+	best.Store(math.MaxInt32)
+	// The assumed star is the chain's first step, the trial's trace the rest.
+	maxSteps := func() int { return int(best.Load() - 1) }
 	var wg sync.WaitGroup
 	for range runtime.GOMAXPROCS(0) {
 		wg.Go(func() {
@@ -235,13 +247,19 @@ func lookahead(s *board.State, observers []Observer, done <-chan struct{}) (refu
 				delta, err := Apply(trial, Star(cells[i], HypothesisSource))
 				steps := []Step{assumedStep(s.P, cells[i], delta)}
 				if err == nil {
-					if res := RunSync(trial, observers); res.Status == Contradiction {
+					if res := runSync(trial, observers, maxSteps); res.Status == Contradiction {
 						err = res.Err
 						steps = append(steps, res.Trace...)
 					}
 				}
 				if err != nil {
 					hyps[i] = &Hypothesis{Steps: steps, Contradiction: err}
+					for n := int32(len(steps)); ; {
+						cur := best.Load()
+						if n >= cur || best.CompareAndSwap(cur, n) {
+							break
+						}
+					}
 				}
 			}
 		})
@@ -252,16 +270,16 @@ func lookahead(s *board.State, observers []Observer, done <-chan struct{}) (refu
 	close(jobs)
 	wg.Wait()
 
-	best := -1
+	pick := -1
 	for i, h := range hyps {
-		if h != nil && (best < 0 || simpler(h, hyps[best])) {
-			best = i // strict comparison: ties keep the earlier candidate
+		if h != nil && (pick < 0 || simpler(h, hyps[pick])) {
+			pick = i // strict comparison: ties keep the earlier candidate
 		}
 	}
-	if best < 0 {
+	if pick < 0 {
 		return refutation{}, false
 	}
-	return refutation{cells[best], hyps[best]}, true
+	return refutation{cells[pick], hyps[pick]}, true
 }
 
 // simpler reports whether chain a is easier to follow than b: fewer steps,
