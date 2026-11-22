@@ -2,338 +2,427 @@ status: solved, lookahead 6, guesses 0
 
 1. Confinement[k=1 region→col] (level 2)
 Farbe L liegt nur noch in Spalte 0 → alle anderen Felder der Spalte 0 X
+refs: cols 0 · regions L
 X(0,0) X(1,0) X(2,0) X(3,0) X(4,0) X(5,0) X(8,0) X(9,0) X(10,0) X(11,0) X(12,0)
 
 2. Elimination[row 2] (level 3)
 Ein Stern auf einem der markierten Felder würde alle freien Felder von Zeile 2 streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X
+refs: rows 2
 X(3,10) X(3,11)
 
 3. Elimination[row 3] (level 3)
 Ein Stern auf einem der markierten Felder würde alle freien Felder von Zeile 3 streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X
+refs: rows 3
 X(0,8) X(1,8) X(2,7) X(2,8) X(2,9)
 
 4. Elimination[col 0] (level 3)
 Die markierten Felder berühren jeweils alle freien Felder von Spalte 0 → X
+refs: cols 0
 X(6,1) X(7,1)
 
 5. Elimination[region I] (level 3)
 Die markierten Felder berühren jeweils alle freien Felder von Farbe I → X
+refs: regions I
 X(1,11)
 
 6. Elimination[region K] (level 3)
 Die markierten Felder berühren jeweils alle freien Felder von Farbe K → X
+refs: regions K
 X(1,6)
 
 7. Elimination[region M] (level 3)
 Ein Stern auf einem der markierten Felder würde alle freien Felder von Farbe M streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X
+refs: regions M
 X(7,2)
 
 8. Confinement[k=2 region→row] (level 4)
 Farben I und K liegen nur noch in Zeilen 0 und 1 → alle anderen Felder der Zeilen 0 und 1 X
+refs: rows 0 1 · regions I K
 X(0,1) X(0,2) X(0,3) X(0,4) X(0,9) X(0,10) X(1,1) X(1,2) X(1,3) X(1,4) X(1,5) X(1,9) X(1,10)
 
 9. Confinement[k=1 region→row] (level 2)
 Farbe B liegt nur noch in Zeile 2 → alle anderen Felder der Zeile 2 X
+refs: rows 2 · regions B
 X(2,1) X(2,2) X(2,3) X(2,4) X(2,5) X(2,6) X(2,12)
 
 10. Confinement[k=3 row→region] (level 4)
 Zeilen 3 bis 5 haben nur noch freie Felder der Farben E, G und J → alle anderen Felder der Farben E, G und J X
+refs: rows 3 4 5 · regions E G J
 X(6,2) X(6,3) X(6,4) X(6,5) X(6,6) X(6,7) X(6,8) X(6,11) X(7,3) X(7,4) X(7,5) X(7,6) X(7,7) X(7,8) X(7,9) X(7,11) X(8,4) X(8,5) X(9,4) X(9,5) X(10,4) X(10,5)
 
 11. Elimination[region E] (level 3)
 Ein Stern auf einem der markierten Felder würde alle freien Felder von Farbe E streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X
+refs: regions E
 X(5,5)
 
 12. Confinement[k=2 row→region] (level 4)
 Zeilen 6 und 7 haben nur noch freie Felder der Farben H und L → alle anderen Felder der Farben H und L X
+refs: rows 6 7 · regions H L
 X(8,6) X(8,7) X(8,8) X(8,9) X(8,10) X(8,11) X(8,12) X(9,7) X(9,8) X(9,9) X(9,10) X(9,11) X(9,12) X(10,8) X(10,9) X(10,11) X(10,12) X(11,11) X(11,12) X(12,11) X(12,12)
 
 13. Confinement[k=1 row→region] (level 2)
 Zeile 8 hat nur noch freie Felder der Farbe M → alle anderen Felder der Farbe M X
+refs: rows 8 · regions M
 X(9,2) X(10,2)
 
 14. Confinement[k=4 col→region] (level 4)
 Spalten 1 bis 4 haben nur noch freie Felder der Farben A, D, G und M → alle anderen Felder der Farben A, D, G und M X
+refs: cols 1 2 3 4 · regions A D G M
 X(3,5) X(3,6) X(3,7) X(3,9) X(3,12) X(4,5) X(4,11) X(4,12) X(11,5)
 
 15. ForcedPartner[(4,7) d=1] (level 5)
 Ein Stern auf (4,7) ließe in Zeile 1 nur (1,12) übrig. Beide Sterne zusammen würden Spalte 11 komplett streichen → X
+refs: cells (4,7) (1,12) · rows 1 · cols 11
 X(4,7)
 
 16. ForcedPartner[(5,7) d=1] (level 5)
 Ein Stern auf (5,7) ließe in Zeile 1 nur (1,12) übrig. Beide Sterne zusammen würden Spalte 11 komplett streichen → X
+refs: cells (5,7) (1,12) · rows 1 · cols 11
 X(5,7)
 
 17. ForcedPartner[(0,6) d=1] (level 5)
 Ein Stern auf (0,6) ließe in Spalte 5 nur (12,5) übrig. Beide Sterne zusammen würden Spalte 7 komplett streichen → X
+refs: cells (0,6) (12,5) · cols 5 7
 X(0,6)
 
 18. ForcedPartner[(11,6) d=1] (level 5)
 Ein Stern auf (11,6) ließe in Spalte 5 nur (0,5) übrig. Beide Sterne zusammen würden Spalte 7 komplett streichen → X
+refs: cells (11,6) (0,5) · cols 5 7
 X(11,6)
 
 19. ForcedPartner[(12,6) d=1] (level 5)
 Ein Stern auf (12,6) ließe in Spalte 5 nur (0,5) übrig. Beide Sterne zusammen würden Spalte 7 komplett streichen → X
+refs: cells (12,6) (0,5) · cols 5 7
 X(12,6)
 
 20. DeadCells[(5,1) max=2] (level 6)
 Nach einem Stern auf (5,1) bleiben in Zeile 9 nur (9,3) und (9,6). Ein Stern auf (9,3) würde Zeile 8 streichen, einer auf (9,6) würde Farbe E streichen → X
+refs: cells (5,1) (9,3) (9,6) · rows 9 8 · regions E
 X(5,1)
 
 21. DeadCells[(5,3) max=2] (level 6)
 Nach einem Stern auf (5,3) bleiben in Zeile 9 nur (9,1) und (9,6). Ein Stern auf (9,1) würde Zeile 8 streichen, einer auf (9,6) würde Farbe E streichen → X
+refs: cells (5,3) (9,1) (9,6) · rows 9 8 · regions E
 X(5,3)
 
 22. DeadCells[(5,10) max=2] (level 6)
 Nach einem Stern auf (5,10) bleiben in Spalte 8 nur (11,8) und (12,8). Ein Stern auf (11,8) oder (12,8) würde Spalte 9 streichen → X
+refs: cells (5,10) (11,8) (12,8) · cols 8 9
 X(5,10)
 
 23. DeadCells[(12,10) max=2] (level 6)
 Nach einem Stern auf (12,10) bleiben in Zeile 1 nur (1,7) und (1,12). Ein Stern auf (1,7) würde Spalte 5 streichen, einer auf (1,12) würde Zeile 2 streichen → X
+refs: cells (12,10) (1,7) (1,12) · rows 1 2 · cols 5
 X(12,10)
 
 24. Hypothesis (level 100)
 Annahme: Stern auf (12,9) führt zu einem Widerspruch → X
+refs: cells (12,9)
 X(12,9)
 │
 │ 24.1. Hypothesis (level 100)
 │ Angenommen, auf (12,9) ist ein Stern → X in Zeile 12, Spalte 9, Farbe F und Nachbarschaft
+│ refs: cells (12,9) · rows 12 · cols 9 · regions F
 │ M(12,9) X(12,1) X(12,2) X(12,3) X(12,4) X(4,9) X(12,5) X(5,9) X(6,9) X(12,7) X(12,8) X(11,9) X(10,10) X(11,8) X(11,10)
 │
 │ 24.2. UnitFinish[col 5] (level 1)
 │ In Spalte 5 ist nur noch das Feld (0,5) frei → Stern
+│ refs: cells (0,5) · cols 5
 │ M(0,5) X(0,7) X(0,11) X(0,12) X(1,7)
 │
 │ 24.3. UnitFinish[row 1] (level 1)
 │ In Zeile 1 ist nur noch das Feld (1,12) frei → Stern
+│ refs: cells (1,12) · rows 1
 │ M(1,12) X(5,12) X(6,12) X(7,12) X(2,11)
 │
 │ 24.4. UnitFinish[row 2] (level 1)
 │ In Zeile 2 ist nur noch das Feld (2,10) frei → Stern
+│ refs: cells (2,10) · rows 2
 │ M(2,10) X(4,10) X(6,10) X(7,10)
 │ ⇒ Farbe H hätte keinen Stern und kein freies Feld mehr: (6,9) (6,10) (6,12) (7,10) (7,12) (8,6) (8,7) (8,8) (8,9) (8,10) (8,11) (8,12) (9,7) (9,8) (9,9) (9,10) (9,11) (9,12) (10,8) (10,9) (10,11) (10,12) (11,11) (11,12) (12,11) (12,12)
+│   refs: regions H
 
 25. DeadCells[(11,7) max=2] (level 6)
 Nach einem Stern auf (11,7) bleiben in Zeile 2 nur (2,10) und (2,11). Ein Stern auf (2,10) würde Farbe F streichen, einer auf (2,11) würde Zeile 1 streichen → X
+refs: cells (11,7) (2,10) (2,11) · rows 2 1 · regions F
 X(11,7)
 
 26. Hypothesis (level 100)
 Annahme: Stern auf (5,9) führt zu einem Widerspruch → X
+refs: cells (5,9)
 X(5,9)
 │
 │ 26.1. Hypothesis (level 100)
 │ Angenommen, auf (5,9) ist ein Stern → X in Zeile 5, Spalte 9, Farbe E und Nachbarschaft
+│ refs: cells (5,9) · rows 5 · cols 9 · regions E
 │ M(5,9) X(5,2) X(5,4) X(4,9) X(5,6) X(6,9) X(5,8) X(5,11) X(11,9) X(5,12) X(4,6) X(4,8) X(4,10) X(6,10)
 │
 │ 26.2. UnitFinish[region J] (level 1)
 │ In Farbe J ist nur noch das Feld (3,8) frei → Stern
+│ refs: cells (3,8) · regions J
 │ M(3,8) X(3,1) X(3,2) X(3,3) X(3,4) X(11,8) X(12,8)
 │
 │ 26.3. Confinement[k=1 col→region] (level 2)
 │ Spalte 6 hat nur noch freie Felder der Farbe C → alle anderen Felder der Farbe C X
+│ refs: cols 6 · regions C
 │ X(10,7) X(12,5)
 │
 │ 26.4. UnitFinish[col 5] (level 1)
 │ In Spalte 5 ist nur noch das Feld (0,5) frei → Stern
+│ refs: cells (0,5) · cols 5
 │ M(0,5) X(0,7) X(0,11) X(0,12) X(1,7)
 │
 │ 26.5. UnitFinish[row 1] (level 1)
 │ In Zeile 1 ist nur noch das Feld (1,12) frei → Stern
+│ refs: cells (1,12) · rows 1
 │ M(1,12) X(6,12) X(7,12) X(2,11)
 │ ⇒ Spalte 11 hätte keinen Stern und kein freies Feld mehr: (0,11) (1,11) (2,11) (3,11) (4,11) (5,11) (6,11) (7,11) (8,11) (9,11) (10,11) (11,11) (12,11)
+│   refs: cols 11
 
 27. Hypothesis (level 100)
 Annahme: Stern auf (4,3) führt zu einem Widerspruch → X
+refs: cells (4,3)
 X(4,3)
 │
 │ 27.1. Hypothesis (level 100)
 │ Angenommen, auf (4,3) ist ein Stern → X in Zeile 4, Spalte 3, Farbe G und Nachbarschaft
+│ refs: cells (4,3) · rows 4 · cols 3 · regions G
 │ M(4,3) X(4,1) X(4,2) X(3,3) X(4,4) X(4,6) X(4,8) X(8,3) X(4,9) X(9,3) X(4,10) X(10,3) X(11,3) X(12,3) X(3,1) X(3,2) X(3,4) X(5,2) X(5,4)
 │
 │ 27.2. UnitFinish[row 3] (level 1)
 │ In Zeile 3 ist nur noch das Feld (3,8) frei → Stern
+│ refs: cells (3,8) · rows 3
 │ M(3,8) X(5,8) X(11,8) X(12,8) X(5,11) X(5,12)
 │
 │ 27.3. UnitFinish[row 5] (level 1)
 │ In Zeile 5 ist nur noch das Feld (5,6) frei → Stern
+│ refs: cells (5,6) · rows 5
 │ M(5,6) X(9,6) X(10,6)
 │
 │ 27.4. UnitFinish[row 9] (level 1)
 │ In Zeile 9 ist nur noch das Feld (9,1) frei → Stern
+│ refs: cells (9,1) · rows 9
 │ M(9,1) X(8,1) X(10,1) X(11,1) X(12,1) X(11,2) X(8,2)
 │ ⇒ Zeile 8 hätte keinen Stern und kein freies Feld mehr: (8,0) (8,1) (8,2) (8,3) (8,4) (8,5) (8,6) (8,7) (8,8) (8,9) (8,10) (8,11) (8,12)
+│   refs: rows 8
 
 28. Hypothesis (level 100)
 Annahme: Stern auf (4,1) führt zu einem Widerspruch → X
+refs: cells (4,1)
 X(4,1)
 │
 │ 28.1. Hypothesis (level 100)
 │ Angenommen, auf (4,1) ist ein Stern → X in Zeile 4, Spalte 1, Farbe G und Nachbarschaft
+│ refs: cells (4,1) · rows 4 · cols 1 · regions G
 │ M(4,1) X(4,2) X(3,1) X(4,4) X(4,6) X(4,8) X(8,1) X(4,9) X(9,1) X(4,10) X(10,1) X(11,1) X(12,1) X(3,2) X(3,3) X(3,4) X(5,2) X(5,4)
 │
 │ 28.2. UnitFinish[row 3] (level 1)
 │ In Zeile 3 ist nur noch das Feld (3,8) frei → Stern
+│ refs: cells (3,8) · rows 3
 │ M(3,8) X(5,8) X(11,8) X(12,8) X(5,11) X(5,12)
 │
 │ 28.3. UnitFinish[row 5] (level 1)
 │ In Zeile 5 ist nur noch das Feld (5,6) frei → Stern
+│ refs: cells (5,6) · rows 5
 │ M(5,6) X(9,6) X(10,6)
 │
 │ 28.4. UnitFinish[row 9] (level 1)
 │ In Zeile 9 ist nur noch das Feld (9,3) frei → Stern
+│ refs: cells (9,3) · rows 9
 │ M(9,3) X(8,3) X(10,3) X(11,3) X(12,3) X(11,4) X(12,2) X(12,4) X(8,2)
 │ ⇒ Zeile 8 hätte keinen Stern und kein freies Feld mehr: (8,0) (8,1) (8,2) (8,3) (8,4) (8,5) (8,6) (8,7) (8,8) (8,9) (8,10) (8,11) (8,12)
+│   refs: rows 8
 
 29. Hypothesis (level 100)
 Annahme: Stern auf (9,6) führt zu einem Widerspruch → X
+refs: cells (9,6)
 X(9,6)
 │
 │ 29.1. Hypothesis (level 100)
 │ Angenommen, auf (9,6) ist ein Stern → X in Zeile 9, Spalte 6, Farbe C und Nachbarschaft
+│ refs: cells (9,6) · rows 9 · cols 6 · regions C
 │ M(9,6) X(9,1) X(9,3) X(4,6) X(5,6) X(10,6) X(10,7) X(12,5)
 │
 │ 29.2. UnitFinish[col 5] (level 1)
 │ In Spalte 5 ist nur noch das Feld (0,5) frei → Stern
+│ refs: cells (0,5) · cols 5
 │ M(0,5) X(0,7) X(0,11) X(0,12) X(1,7)
 │
 │ 29.3. UnitFinish[row 1] (level 1)
 │ In Zeile 1 ist nur noch das Feld (1,12) frei → Stern
+│ refs: cells (1,12) · rows 1
 │ M(1,12) X(5,12) X(6,12) X(7,12) X(2,11)
 │
 │ 29.4. UnitFinish[row 2] (level 1)
 │ In Zeile 2 ist nur noch das Feld (2,10) frei → Stern
+│ refs: cells (2,10) · rows 2
 │ M(2,10) X(4,10) X(6,10) X(7,10) X(10,10) X(11,10)
 │
 │ 29.5. UnitFinish[row 7] (level 1)
 │ In Zeile 7 ist nur noch das Feld (7,0) frei → Stern
+│ refs: cells (7,0) · rows 7
 │ M(7,0) X(6,0) X(8,1)
 │
 │ 29.6. UnitFinish[row 6] (level 1)
 │ In Zeile 6 ist nur noch das Feld (6,9) frei → Stern
+│ refs: cells (6,9) · rows 6
 │ M(6,9) X(4,9) X(11,9) X(5,8)
 │ ⇒ Farbe E hätte keinen Stern und kein freies Feld mehr: (4,6) (5,6) (5,7) (5,8) (5,9) (6,3) (6,4) (6,5) (6,6) (6,7) (6,8) (7,2) (7,3) (7,4) (7,5) (7,6) (7,7) (7,8) (7,9) (8,4) (8,5) (9,4) (9,5) (10,4) (10,5)
+│   refs: regions E
 
 30. Elimination[row 9] (level 3)
 Die markierten Felder berühren jeweils alle freien Felder von Zeile 9 → X
+refs: rows 9
 X(8,2)
 
 31. Confinement[k=2 row→col] (level 4)
 Zeilen 8 und 9 haben nur noch freie Felder in Spalten 1 und 3 → alle anderen Felder der Spalten 1 und 3 X
+refs: rows 8 9 · cols 1 3
 X(3,1) X(3,3) X(10,1) X(10,3) X(11,1) X(11,3) X(12,1) X(12,3)
 
 32. ForcedPartner[(11,8) d=1] (level 5)
 Ein Stern auf (11,8) ließe in Zeile 10 nur (10,6) übrig. Beide Sterne zusammen würden Farbe E komplett streichen → X
+refs: cells (11,8) (10,6) · rows 10 · regions E
 X(11,8)
 
 33. DeadCells[(5,12) max=2] (level 6)
 Nach einem Stern auf (5,12) bleiben in Spalte 5 nur (0,5) und (12,5). Ein Stern auf (0,5) würde Zeile 1 streichen, einer auf (12,5) würde Spalte 8 streichen → X
+refs: cells (5,12) (0,5) (12,5) · rows 1 · cols 5 8
 X(5,12)
 
 34. Hypothesis (level 100)
 Annahme: Stern auf (0,11) führt zu einem Widerspruch → X
+refs: cells (0,11)
 X(0,11)
 │
 │ 34.1. Hypothesis (level 100)
 │ Angenommen, auf (0,11) ist ein Stern → X in Zeile 0, Spalte 11, Farbe I und Nachbarschaft
+│ refs: cells (0,11) · rows 0 · cols 11 · regions I
 │ M(0,11) X(2,11) X(0,5) X(5,11) X(0,7) X(0,12) X(1,12)
 │
 │ 34.2. UnitFinish[row 1] (level 1)
 │ In Zeile 1 ist nur noch das Feld (1,7) frei → Stern
+│ refs: cells (1,7) · rows 1
 │ M(1,7) X(10,7) X(12,7)
 │
 │ 34.3. UnitFinish[row 2] (level 1)
 │ In Zeile 2 ist nur noch das Feld (2,10) frei → Stern
+│ refs: cells (2,10) · rows 2
 │ M(2,10) X(4,10) X(6,10) X(7,10) X(10,10) X(11,10)
 │
 │ 34.4. UnitFinish[row 10] (level 1)
 │ In Zeile 10 ist nur noch das Feld (10,6) frei → Stern
+│ refs: cells (10,6) · rows 10
 │ M(10,6) X(4,6) X(5,6) X(12,5)
 │ ⇒ Spalte 5 hätte keinen Stern und kein freies Feld mehr: (0,5) (1,5) (2,5) (3,5) (4,5) (5,5) (6,5) (7,5) (8,5) (9,5) (10,5) (11,5) (12,5)
+│   refs: cols 5
 
 35. Confinement[k=1 region→col] (level 2)
 Farbe I liegt nur noch in Spalte 12 → alle anderen Felder der Spalte 12 X
+refs: cols 12 · regions I
 X(6,12) X(7,12)
 
 36. ForcedPartner[(5,8) d=1] (level 5)
 Ein Stern auf (5,8) ließe in Farbe J nur (4,10) übrig. Beide Sterne zusammen würden Farbe H komplett streichen → X
+refs: cells (5,8) (4,10) · regions J H
 X(5,8)
 
 37. Confinement[k=1 region→col] (level 2)
 Farbe E liegt nur noch in Spalte 6 → alle anderen Felder der Spalte 6 X
+refs: cols 6 · regions E
 X(10,6)
 
 38. Elimination[row 10] (level 3)
 Ein Stern auf einem der markierten Felder würde alle freien Felder von Zeile 10 streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X
+refs: rows 10
 X(12,7)
 
 39. DeadCells[(0,7) max=2] (level 6)
 Nach einem Stern auf (0,7) bleiben in Zeile 2 nur (2,10) und (2,11). Ein Stern auf (2,10) würde Zeile 10 streichen, einer auf (2,11) würde Zeile 1 streichen → X
+refs: cells (0,7) (2,10) (2,11) · rows 2 10 1
 X(0,7)
 
 40. DeadCells[(4,10) max=2] (level 6)
 Nach einem Stern auf (4,10) bleiben in Zeile 1 nur (1,7) und (1,12). Ein Stern auf (1,7) würde Zeile 10 streichen, einer auf (1,12) würde Zeile 2 streichen → X
+refs: cells (4,10) (1,7) (1,12) · rows 1 10 2
 X(4,10)
 
 41. DeadCells[(6,10) max=2] (level 6)
 Nach einem Stern auf (6,10) bleiben in Zeile 1 nur (1,7) und (1,12). Ein Stern auf (1,7) würde Zeile 10 streichen, einer auf (1,12) würde Zeile 2 streichen → X
+refs: cells (6,10) (1,7) (1,12) · rows 1 10 2
 X(6,10)
 
 42. DeadCells[(7,10) max=2] (level 6)
 Nach einem Stern auf (7,10) bleiben in Zeile 1 nur (1,7) und (1,12). Ein Stern auf (1,7) würde Zeile 10 streichen, einer auf (1,12) würde Zeile 2 streichen → X
+refs: cells (7,10) (1,7) (1,12) · rows 1 10 2
 X(7,10)
 
 43. UnitFinish[row 7] (level 1)
 In Zeile 7 ist nur noch das Feld (7,0) frei → Stern
+refs: cells (7,0) · rows 7
 M(7,0) X(6,0) X(8,1)
 
 44. UnitFinish[row 6] (level 1)
 In Zeile 6 ist nur noch das Feld (6,9) frei → Stern
+refs: cells (6,9) · rows 6
 M(6,9) X(4,9) X(11,9)
 
 45. UnitFinish[row 8] (level 1)
 In Zeile 8 ist nur noch das Feld (8,3) frei → Stern
+refs: cells (8,3) · rows 8
 M(8,3) X(9,3)
 
 46. UnitFinish[row 9] (level 1)
 In Zeile 9 ist nur noch das Feld (9,1) frei → Stern
+refs: cells (9,1) · rows 9
 M(9,1) X(11,2)
 
 47. Elimination[region A] (level 3)
 Ein Stern auf einem der markierten Felder würde alle freien Felder von Farbe A streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X
+refs: regions A
 X(12,5)
 
 48. UnitFinish[col 5] (level 1)
 In Spalte 5 ist nur noch das Feld (0,5) frei → Stern
+refs: cells (0,5) · cols 5
 M(0,5) X(0,12) X(1,7)
 
 49. UnitFinish[row 1] (level 1)
 In Zeile 1 ist nur noch das Feld (1,12) frei → Stern
+refs: cells (1,12) · rows 1
 M(1,12) X(2,11)
 
 50. UnitFinish[row 2] (level 1)
 In Zeile 2 ist nur noch das Feld (2,10) frei → Stern
+refs: cells (2,10) · rows 2
 M(2,10) X(10,10) X(11,10)
 
 51. UnitFinish[row 10] (level 1)
 In Zeile 10 ist nur noch das Feld (10,7) frei → Stern
+refs: cells (10,7) · rows 10
 M(10,7)
 
 52. UnitFinish[row 11] (level 1)
 In Zeile 11 ist nur noch das Feld (11,4) frei → Stern
+refs: cells (11,4) · rows 11
 M(11,4) X(3,4) X(4,4) X(5,4) X(12,4) X(12,2)
 
 53. UnitFinish[row 12] (level 1)
 In Zeile 12 ist nur noch das Feld (12,8) frei → Stern
+refs: cells (12,8) · rows 12
 M(12,8) X(3,8) X(4,8)
 
 54. UnitFinish[row 3] (level 1)
 In Zeile 3 ist nur noch das Feld (3,2) frei → Stern
+refs: cells (3,2) · rows 3
 M(3,2) X(4,2) X(5,2)
 
 55. UnitFinish[row 4] (level 1)
 In Zeile 4 ist nur noch das Feld (4,6) frei → Stern
+refs: cells (4,6) · rows 4
 M(4,6) X(5,6)
 
 56. UnitFinish[row 5] (level 1)
 In Zeile 5 ist nur noch das Feld (5,11) frei → Stern
+refs: cells (5,11) · rows 5
 M(5,11)

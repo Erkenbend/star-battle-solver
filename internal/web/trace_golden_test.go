@@ -22,8 +22,10 @@ var update = flag.Bool("update", false, "rewrite the traces in testdata/traces")
 
 // TestTraceGolden compares the trace the pages get for each puzzle of the
 // sample (testdata/hard/sample.idx) with testdata/traces: every step's source,
-// level, reason and marks in order, the refuted chains and their
-// contradictions. A change to the search or the board that should not change
+// level, reason, what the reason names (refs, which the page highlights) and
+// marks in order, the refuted chains and their contradictions with their
+// refs. Writing the refs also checks that they come out the same on every
+// run (principle 5; map order once made them differ). A change to the search or the board that should not change
 // any explanation keeps these files as they are; one that should (a new rule,
 // different wording) rewrites them with -update and commits the diff. With
 // -short without the 3-star puzzles, which take most of the time.
@@ -87,6 +89,9 @@ func writeSteps(w io.Writer, steps []Step, prefix, indent string) {
 		if st.Reason != "" {
 			fmt.Fprintf(w, "%s%s\n", indent, st.Reason)
 		}
+		if st.Refs != nil {
+			fmt.Fprintf(w, "%srefs: %s\n", indent, refsLine(st.Refs))
+		}
 		marks := make([]string, len(st.Marks))
 		for j, m := range st.Marks {
 			marks[j] = fmt.Sprintf("%s(%d,%d)", map[int]string{0: "X", 1: "M"}[m[2]], m[0], m[1])
@@ -99,8 +104,40 @@ func writeSteps(w io.Writer, steps []Step, prefix, indent string) {
 				cells[j] = fmt.Sprintf("(%d,%d)", q[0], q[1])
 			}
 			fmt.Fprintf(w, "%s│ ⇒ %s: %s\n", indent, h.Contradiction, strings.Join(cells, " "))
+			if h.Refs != nil {
+				fmt.Fprintf(w, "%s│   refs: %s\n", indent, refsLine(h.Refs))
+			}
 		}
 	}
+}
+
+// refsLine writes refs as e.g. "cells (2,3) (4,1) · rows 2 · cols 3 · regions B C",
+// in the order they are sent.
+func refsLine(r *Refs) string {
+	var parts []string
+	add := func(name string, items []string) {
+		if len(items) > 0 {
+			parts = append(parts, name+" "+strings.Join(items, " "))
+		}
+	}
+	var cells, rows, cols, regions []string
+	for _, q := range r.Cells {
+		cells = append(cells, fmt.Sprintf("(%d,%d)", q[0], q[1]))
+	}
+	for _, i := range r.Rows {
+		rows = append(rows, fmt.Sprint(i))
+	}
+	for _, i := range r.Cols {
+		cols = append(cols, fmt.Sprint(i))
+	}
+	for _, i := range r.Regions {
+		regions = append(regions, string(puzzle.RegionLetter(i)))
+	}
+	add("cells", cells)
+	add("rows", rows)
+	add("cols", cols)
+	add("regions", regions)
+	return strings.Join(parts, " · ")
 }
 
 // firstDiff returns the number and the two versions of the first line where a and b differ.
