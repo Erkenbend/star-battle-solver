@@ -2,18 +2,19 @@ package concviz
 
 // lifecycleStory: section 10, cmd/starbattle serve. A signal context, the
 // party manager's ticker loop with a stop channel, the server in its own
-// goroutine reporting on a 1-slot error channel, and a graceful shutdown.
+// goroutine reporting on a 1-slot error channel, and a graceful shutdown
+// (serveUntilDone, shared with design).
 func lifecycleStory() *Story {
 	s := newStory("10-process-lifecycle.svg", "10. Process lifecycle: signal context, ticker loop, graceful shutdown",
 		"cmd/starbattle/main.go", 1280, 620)
 
-	serve := s.Main("serve", Pt{140, 250}, "main.cmdServe")
+	serve := s.Main("serve", Pt{140, 250}, "main.cmdServe", "main.serveUntilDone")
 	run := s.Go("parties.Run", Pt{860, 110}, "party.Manager.Run")
-	srv := s.Go("ListenAndServe", Pt{860, 280}, "main.cmdServe")
+	srv := s.Go("ListenAndServe", Pt{860, 280}, "main.serveUntilDone")
 	sig := s.Outside("Ctrl-C or SIGTERM", Pt{140, 450})
 	ticker := s.Outside("time.Ticker", Pt{1150, 250})
 
-	errc := s.Chan("errc", "error", 1, Pt{480, 250}, -1, "errc").Made("main.cmdServe", "1")
+	errc := s.Chan("errc", "error", 1, Pt{480, 250}, -1, "errc").Made("main.serveUntilDone", "1")
 	done := s.Chan("ctx.Done()", "struct{}", 0, Pt{480, 450}, +1, "ctx.Done()", "stop").Labels('b').Outside("signal.NotifyContext")
 	tick := s.Chan("t.C", "time.Time", 1, Pt{1150, 110}, -1, "t.C").Outside("time.NewTicker(5 s)")
 

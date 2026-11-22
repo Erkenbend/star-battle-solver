@@ -133,19 +133,6 @@ source and `generator.ForSeed(n, seed)` for the puzzle, used everywhere;
 a test that `generate -seed`, `/?n=&seed=` and `hardsearch` agree on one
 seed.
 
-## 13. Small server and CLI hardening
-
-- `http.Server` in `serve` and `design` sets only `ReadHeaderTimeout`; add
-  `IdleTimeout`. A `ReadTimeout` only together with
-  `rc.SetReadDeadline(time.Time{})` in the event stream, as for the write
-  deadline.
-- `cmdServe` and `cmdDesign` repeat the block that listens, waits for a
-  signal and shuts down: one helper.
-- `hardsearch -n` checks against the literal 52 instead of `puzzle.MaxN`.
-- `main.go` (520 lines) still holds `writeHard` and `rateDir`, the
-  hard search's file output (left there on purpose in 1). If `hardsearch`
-  grows, they belong next to `Search` in `internal/hardsearch`.
-
 ## 14. Lookahead: stop trials that cannot win
 
 `lookahead` runs every trial to its end and then takes the refutation with
@@ -283,3 +270,13 @@ What the review found that needs no change now, only attention later:
   The text parser `Logic.refs` is gone. Explanations are built only when
   read, which made the solver about 8 % faster; a gzipped page grows by
   0.5 to 3.5 %.
+- **13. Small server and CLI hardening** (November 2026): `serve` and
+  `design` share `serveUntilDone` (listen, wait for an error or the
+  signal, shut down), which sets an `IdleTimeout` of 2 minutes next to
+  `ReadHeaderTimeout`; `hardsearch -n` checks against `puzzle.MaxN`.
+  No `ReadTimeout`: when it passes, net/http cancels the context of every
+  handler still running (its background read of the connection fails), so
+  besides the event stream it would end the designer's search and pages
+  waiting for the solve budget; request bodies are small and limited by
+  `http.MaxBytesReader`. `writeHard` and `rateDir` stay in `main.go` until
+  `hardsearch` grows.

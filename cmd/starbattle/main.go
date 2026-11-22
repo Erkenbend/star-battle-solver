@@ -335,23 +335,8 @@ func cmdServe(args []string) error {
 	if *gz {
 		h = web.Compress(h)
 	}
-	srv := &http.Server{
-		Addr:              *addr,
-		Handler:           h,
-		ReadHeaderTimeout: 10 * time.Second,
-		BaseContext:       func(net.Listener) context.Context { return ctx },
-	}
-	errc := make(chan error, 1)
-	go func() { errc <- srv.ListenAndServe() }()
 	fmt.Fprintf(os.Stderr, "Star Battle auf http://%s/\n", *addr)
-	select {
-	case err := <-errc:
-		return err
-	case <-ctx.Done():
-	}
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	return serveUntilDone(ctx, *addr, h)
 }
 
 // cmdDesign serves the designer, a tool for developers of this project:
@@ -374,15 +359,33 @@ func cmdDesign(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	fmt.Fprintf(os.Stderr, "Designer auf http://%s/ (speichert nach %s)\n", *addr, *dir)
+	return serveUntilDone(ctx, *addr, designer.Handler(*dir, solve, syms))
+}
+
+// serveUntilDone serves h on addr until the server fails or ctx is cancelled
+// (Ctrl-C or SIGTERM in serve and design), then shuts down, waiting up to
+// 10 s for the requests still running. Request contexts derive from ctx, so
+// long-lived requests (event streams, the designer's search) end with it
+// and Shutdown does not wait for them.
+//
+// There is no ReadTimeout: net/http cancels the request context of every
+// handler still running when it passes (the background read that watches
+// for a closed connection fails with the timeout), so it would cap event
+// streams, the designer's search and pages waiting for the solve budget,
+// not just slow request bodies. Those are small and limited by
+// http.MaxBytesReader; ReadHeaderTimeout and IdleTimeout close connections
+// that send no request.
+func serveUntilDone(ctx context.Context, addr string, h http.Handler) error {
 	srv := &http.Server{
-		Addr:              *addr,
-		Handler:           designer.Handler(*dir, solve, syms),
+		Addr:              addr,
+		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute, // keep-alive connections of browsers that left
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
-	errc := make(chan error, 1)
+	errc := make(chan error, 1) // one slot: the send after Shutdown finds no reader
 	go func() { errc <- srv.ListenAndServe() }()
-	fmt.Fprintf(os.Stderr, "Designer auf http://%s/ (speichert nach %s)\n", *addr, *dir)
 	select {
 	case err := <-errc:
 		return err
@@ -413,8 +416,8 @@ func cmdHardsearch(args []string) error {
 		}
 		return rateDir(*out)
 	}
-	if *n < 4 || *n > 52 {
-		return fmt.Errorf("-n %d: must be 4 to 52", *n)
+	if *n < 4 || *n > puzzle.MaxN {
+		return fmt.Errorf("-n %d: must be 4 to %d", *n, puzzle.MaxN)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

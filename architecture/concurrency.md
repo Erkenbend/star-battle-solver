@@ -502,7 +502,8 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
 - `ListenAndServe` runs in a goroutine that sends its error on `errc`, a
   channel with **capacity 1**: after a shutdown nobody reads it any more, and
   the buffer lets the goroutine finish instead of leaking. The main goroutine
-  `select`s between that error and the context.
+  `select`s between that error and the context. `serve` and `design` share
+  this part (`serveUntilDone`).
 - `Manager.Run(interval, ctx.Done())` shows the plain "ticker + stop channel"
   loop.
 
