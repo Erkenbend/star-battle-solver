@@ -101,6 +101,14 @@ allocation-free helpers (`FreeCount`, `FirstFree`, `Open(unit)`) next to
 - It relies on a puzzle not changing once a board exists for it (see
   "Guidelines"); the generator changes `Regions` only while repairing,
   before any board exists.
+- Build the geometry eagerly in `board.New` and hand it on with the `State`
+  (`Implied` reads it from there), not lazily in a cache on the `Puzzle`:
+  many goroutines share one `*puzzle.Puzzle`, so a lazy cache would need a
+  `sync.Once` or a mutex, a new pattern for
+  [concurrency.md](concurrency.md). Built eagerly, it is written before any
+  goroutine starts and only read afterwards; the intro of concurrency.md and
+  the bullet "Private state per actor" in its section 1 then say that clones
+  share this read-only part.
 - Measure on `testdata/hard` (the whole set, not only the sample) and on a
   Raspberry Pi if possible, and record it as a decision.
 
