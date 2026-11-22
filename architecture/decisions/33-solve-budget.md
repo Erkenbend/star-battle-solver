@@ -47,6 +47,9 @@ like a Raspberry Pi 4, but each core several times faster) on a Ryzen 7
 5800X3D; a load generator in Go on the other cores, a fresh server per
 scenario, one run each. "CPU" is the server's user + system time.
 
+All of these numbers are without gzip: `serve` sent pages uncompressed
+until [decision 34](34-gzip.md), which has the same scenarios with it.
+
 **Crawler:** opens the 193 hard puzzles of the library one after another
 as fast as the pages come, then waits for every solve (`/bibliothek/weg`);
 meanwhile a player asks for a new 10×10 puzzle (not pooled) every 300 ms,
