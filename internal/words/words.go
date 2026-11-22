@@ -27,7 +27,10 @@ func Unit(kind puzzle.UnitKind, i int) string {
 // Units names a set of units, e.g. "Zeile 3", "Spalten 2 und 3", "Farben A, B und D".
 // Three or more consecutive rows or columns become a range: "Zeilen 3 bis 5".
 func Units(kind puzzle.UnitKind, idx []int) string {
-	idx = slices.Sorted(slices.Values(idx))
+	return sortedUnits(kind, slices.Sorted(slices.Values(idx)))
+}
+
+func sortedUnits(kind puzzle.UnitKind, idx []int) string {
 	if n := len(idx); kind != puzzle.Region && n >= 3 && idx[n-1]-idx[0] == n-1 {
 		return fmt.Sprintf("%s %d bis %d", unitWords[kind][1], idx[0], idx[n-1])
 	}
@@ -114,10 +117,11 @@ func (n *Namer) Unit(kind puzzle.UnitKind, i int) string {
 // Units is Units, recorded in the order of the text, not of idx: the
 // rules pass map keys.
 func (n *Namer) Units(kind puzzle.UnitKind, idx []int) string {
-	for _, i := range slices.Sorted(slices.Values(idx)) {
+	idx = slices.Sorted(slices.Values(idx))
+	for _, i := range idx {
 		n.refs.addUnit(kind, i)
 	}
-	return Units(kind, idx)
+	return sortedUnits(kind, idx)
 }
 
 // Cell is Cell, recorded.
