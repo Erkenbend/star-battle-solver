@@ -30,7 +30,8 @@ count or the first cell is needed.
 - **Same output.** `solve -runner sync -verbose -nocolor` on all 193
   puzzles of `testdata/hard`, `html` on the 29 sample puzzles and `solve`
   on 120 generated puzzles (sizes 8, 10, 12 to 15, seeds 1 to 20) are byte
-  for byte the same as before.
+  for byte the same as before. Since then `TestTraceGolden`
+  (`internal/web`) checks the traces of the sample on every test run.
 
 Measurements (Ryzen 7 5800X3D, 16 threads, one run each):
 

@@ -239,7 +239,8 @@ explanation stays the same and does not depend on scheduling. It needs
 far" read by the workers. The candidates come tightest unit first, so
 short refutations tend to be found early. Do it after 5, measure on
 `testdata/hard`, keep it only if it pays, and record it as a decision with
-the check that every trace stays byte for byte the same.
+the check that every trace stays byte for byte the same (`TestTraceGolden`
+for the sample, plus `solve -verbose` on the whole set as in 5).
 
 ## Guidelines
 

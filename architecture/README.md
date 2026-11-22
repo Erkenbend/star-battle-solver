@@ -387,8 +387,8 @@ browser code. The full suite with every hard puzzle is CI's job.
 
 | Change | Start at | Keep in mind |
 |---|---|---|
-| a new deduction rule | `internal/solver/observers` | priority level, German wording, soundness test; measure its effect on `testdata/hard`, update the rules in `PLAN.md` and record the measurement as a new file in `architecture/decisions` |
-| solver search behaviour | `internal/solver` (search) | explanations must stay reproducible; the sync runner drives trial runs |
+| a new deduction rule | `internal/solver/observers` | priority level, German wording, soundness test; rewrite the traces of the sample (`go test ./internal/web -run TestTraceGolden -update`) and review their diff; measure its effect on `testdata/hard`, update the rules in `PLAN.md` and record the measurement as a new file in `architecture/decisions` |
+| solver search behaviour | `internal/solver` (search) | explanations must stay reproducible; the sync runner drives trial runs; `TestTraceGolden` (`internal/web/testdata/traces`) shows which explanations change |
 | generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see decisions 8, 12, 13) and record it in `architecture/decisions` |
 | more hard puzzles | `starbattle hardsearch`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges in [decision 17](decisions/17-library-over-100-sample-tests.md) and `PLAN.md` |
 | the format of puzzle files or index | `internal/collection` | the files are long-lived data: stay compatible with what is in the repo |
