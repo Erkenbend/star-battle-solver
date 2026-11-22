@@ -38,7 +38,7 @@ func server(t *testing.T) (*httptest.Server, Config) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(web.Handler(b.Limit(solve), nil, nil, []*web.Library{motifLib, hardLib}, nil))
+	srv := httptest.NewServer(web.Compress(web.Handler(b.Limit(solve), nil, nil, []*web.Library{motifLib, hardLib}, nil)))
 	t.Cleanup(srv.Close)
 	hard, err := collection.Load(starbattle.Hard, starbattle.HardDir)
 	if err != nil {
@@ -68,6 +68,7 @@ func TestScenarios(t *testing.T) {
 		"abandon":  {"12 visitors gone", "+8s: server CPU since they left"},
 		"flood":    {"12 pastes at once", "latency: n=12"},
 		"crawl":    {fmt.Sprint("crawler's pages: n=", len(small)), "every library solve done", "motif pages during the crawl: n=3"},
+		"pages":    {"new 8×8, gzip false", "KB sent (none)", "tutorial, gzip true", "KB sent (gzip)", "latency: n=800 median"},
 	}
 	for _, s := range Scenarios {
 		if s.Name == "abandon" && testing.Short() {
@@ -77,7 +78,7 @@ func TestScenarios(t *testing.T) {
 			var out strings.Builder
 			cc := c
 			cc.Out = &out
-			if s.Name == "crawl" {
+			if s.Name == "crawl" || s.Name == "pages" {
 				cc.Hard = small
 			}
 			if err := Run(cc, s); err != nil {

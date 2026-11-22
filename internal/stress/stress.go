@@ -6,6 +6,8 @@
 package stress
 
 import (
+	"cmp"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -51,6 +53,7 @@ var Scenarios = []Scenario{
 	{"abandon", "12 visitors paste hard puzzles and leave after 300 ms", (*runner).abandon},
 	{"flood", "12 visitors paste hard puzzles at once and stay", (*runner).flood},
 	{"crawl", "a crawler opens every hard puzzle of the library while a player asks for new puzzles; takes about a minute on 4 cores", (*runner).crawl},
+	{"pages", "16 players load a page at once, 50 times, without and with gzip: a solved hard library page, new 8×8 puzzles, the tutorial", (*runner).pages},
 }
 
 // Find returns the scenario called name.
@@ -116,6 +119,9 @@ func (r *runner) report(label string, c0 time.Duration, t0 time.Time) {
 		label, time.Since(t0).Seconds(), (r.cpu() - c0).Seconds(), r.status("VmRSS"), r.status("VmHWM"))
 }
 
+// get requests path as a browser does: http.DefaultClient asks for gzip and
+// decodes it unseen, so every scenario measures what serve sends by
+// default. pages chooses the encoding itself (fetch).
 func (r *runner) get(ctx context.Context, path string) (int, time.Duration, error) {
 	t := time.Now()
 	req, err := http.NewRequestWithContext(ctx, "GET", r.URL+path, nil)
@@ -162,6 +168,15 @@ func (l *latencies) String() string {
 	s := slices.Clone(l.ds)
 	slices.Sort(s)
 	return fmt.Sprintf("n=%d median %.2fs slowest %.2fs", len(s), s[len(s)/2].Seconds(), s[len(s)-1].Seconds())
+}
+
+// ms is like String, in milliseconds and with the 95th percentile, for
+// requests that take less than a second.
+func (l *latencies) ms() string {
+	s := slices.Clone(l.ds)
+	slices.Sort(s)
+	ms := func(d time.Duration) float64 { return float64(d) / float64(time.Millisecond) }
+	return fmt.Sprintf("n=%d median %.1f ms, p95 %.1f ms, slowest %.1f ms", len(s), ms(s[len(s)/2]), ms(s[len(s)*95/100]), ms(s[len(s)-1]))
 }
 
 // play is the /play link of e's puzzle.
@@ -300,4 +315,109 @@ func (r *runner) crawl() {
 	wg.Wait()
 	r.report("every library solve done", c0, t0)
 	fmt.Fprintf(r.Out, "  new 10×10 during the crawl: %v\n", &player)
+}
+
+// raw sends requests as they are: no Accept-Encoding of its own, answers
+// not decoded, so fetch sees what goes over the wire.
+var raw = &http.Client{Transport: &http.Transport{DisableCompression: true, MaxIdleConnsPerHost: 64}}
+
+// fetch gets path asking for gzip or not, decodes the answer as a browser
+// would and returns the time until it is decoded, the bytes sent and their
+// encoding. Anything but 200 counts as a failure.
+func (r *runner) fetch(path string, gz bool) (time.Duration, int64, string) {
+	t := time.Now()
+	req, err := http.NewRequest("GET", r.URL+path, nil)
+	if err != nil {
+		panic(err)
+	}
+	if gz {
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd") // as Chromium
+	}
+	resp, err := raw.Do(req)
+	var sent counter
+	enc := ""
+	if err == nil {
+		enc = resp.Header.Get("Content-Encoding")
+		var body io.Reader = io.TeeReader(resp.Body, &sent)
+		if enc == "gzip" {
+			var zr *gzip.Reader
+			if zr, err = gzip.NewReader(body); err == nil {
+				body = zr
+			}
+		}
+		if err == nil {
+			_, err = io.Copy(io.Discard, body)
+		}
+		resp.Body.Close()
+		if err == nil && resp.StatusCode != http.StatusOK {
+			err = fmt.Errorf("status %d", resp.StatusCode)
+		}
+	}
+	if err != nil {
+		r.mu.Lock()
+		r.failed++
+		r.mu.Unlock()
+		fmt.Fprintf(r.Out, "  FAILED %.60s: %v\n", path, err)
+	}
+	return time.Since(t), sent.n, cmp.Or(enc, "none")
+}
+
+type counter struct{ n int64 }
+
+func (c *counter) Write(b []byte) (int, error) {
+	c.n += int64(len(b))
+	return len(b), nil
+}
+
+// pages: what gzip costs the server and saves on the wire, for pages whose
+// solve is done (a hard library page, the tutorial) and for new puzzles,
+// generated and solved per request. 16 players load at once, like a party
+// starting its next round, 50 times; once without gzip, once with.
+func (r *runner) pages() {
+	big := r.Hard[0]
+	for _, e := range r.Hard {
+		if e.Puzzle.N > big.Puzzle.N {
+			big = e
+		}
+	}
+	r.must("/bibliothek/weg?id=" + big.ID) // waits for the solve: then the page has the trace
+	seed := 800000
+	kinds := []struct {
+		name string
+		path func() string
+	}{
+		{fmt.Sprintf("hard %d×%d page", big.Puzzle.N, big.Puzzle.N), func() string { return "/bibliothek?id=" + big.ID }},
+		{"new 8×8", func() string { seed++; return fmt.Sprintf("/?n=8&seed=%d", seed) }}, // not in the cache
+		{"tutorial", func() string { return "/anleitung" }},
+	}
+	const players, rounds = 16, 50
+	for _, k := range kinds {
+		for _, gz := range []bool{false, true} {
+			c0, t0 := r.cpu(), time.Now()
+			var l latencies
+			var sent int64
+			enc := ""
+			var mu sync.Mutex
+			for range rounds {
+				var wg sync.WaitGroup
+				for range players {
+					path := k.path() // in this goroutine: seed is not shared
+					wg.Go(func() {
+						d, n, e := r.fetch(path, gz)
+						l.add(d)
+						mu.Lock()
+						sent += n
+						enc = e
+						mu.Unlock()
+					})
+				}
+				wg.Wait()
+			}
+			cpu := r.cpu() - c0
+			r.report(fmt.Sprintf("%s, gzip %v", k.name, gz), c0, t0)
+			n := players * rounds
+			fmt.Fprintf(r.Out, "  latency: %s; per page: server CPU %.2f ms, %.1f KB sent (%s)\n",
+				l.ms(), float64(cpu)/float64(n)/float64(time.Millisecond), float64(sent)/float64(n)/1000, enc)
+		}
+	}
 }

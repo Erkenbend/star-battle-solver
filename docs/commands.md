@@ -100,12 +100,13 @@ Dieselbe Seite wie bei `html`, dazu „Neues Puzzle“ unter „Mehr“ und nach
 
 Jedes Puzzle hat eine feste URL, z. B. `/?n=8&seed=42`, also dasselbe Puzzle wie `generate -n 8 -seed 42`.
 
-Der Server löst höchstens so viele Puzzles gleichzeitig, wie er Kerne hat, einen weniger (auf einem Raspberry Pi 4 also drei). Was niemand gerade erwartet (vorbereitete Puzzles, die nächsten Puzzles einer Party, schwere Puzzles der Bibliothek) belegt davon nie alle, sodass eine Seite, die auf ihre Lösung wartet, immer sofort drankommt. Verlässt jemand eine Seite, bevor sie fertig ist, hört der Solver auf. Die letzten 64 gelösten Seiten von `/?n=…&seed=…` und `/play` behält er, Neuladen und geteilte Links kosten dann nichts.
+Der Server löst höchstens so viele Puzzles gleichzeitig, wie er Kerne hat, einen weniger (auf einem Raspberry Pi 4 also drei). Was niemand gerade erwartet (vorbereitete Puzzles, die nächsten Puzzles einer Party, schwere Puzzles der Bibliothek) belegt davon nie alle, sodass eine Seite, die auf ihre Lösung wartet, immer sofort drankommt. Verlässt jemand eine Seite, bevor sie fertig ist, hört der Solver auf. Die letzten 64 gelösten Seiten von `/?n=…&seed=…` und `/play` behält er, Neuladen und geteilte Links kosten dann nichts. Seiten und JSON schickt er gzip-komprimiert, wenn der Browser das annimmt: etwa ein Drittel der Größe, dafür gut 1 ms Rechenzeit je Seite auf einem Desktop-Kern ([Entscheidung 34](../architecture/decisions/34-gzip.md)).
 
 | Option | Bedeutung |
 |---|---|
 | `-addr` | Adresse (Standard `localhost:6369`) |
 | `-no-pregen` | kein vorbereitetes Puzzle je Größe im Hintergrund bereithalten (betrifft die Bibliothek nicht, dort wird ohnehin nichts vorgerechnet) |
+| `-gzip=false` | Seiten und JSON unkomprimiert schicken, z. B. auf einem schwachen Rechner im schnellen Heimnetz (Standard: komprimiert). Ein Reverse-Proxy davor braucht es nicht: Caddy mit `encode` reicht schon komprimierte Antworten durch |
 
 Dazu die [Solver-Optionen](#solver-optionen). Für den Betrieb auf einem Raspberry Pi siehe [deploy/README.md](../deploy/README.md).
 

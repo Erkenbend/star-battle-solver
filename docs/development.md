@@ -158,12 +158,13 @@ Die Bewertung steht in der Datei (Zeile `# rating:`), damit die Bibliothek beim 
 ```sh
 ./starbattle stress                                # alle Szenarien gegen diese Version, gut zwei Minuten
 ./starbattle stress -server /tmp/alt crawl flood   # dieselben gegen eine andere Version
+./starbattle stress -serve-args=-gzip=false        # gegen serve mit diesen Optionen
 ./starbattle stress -url http://localhost:6369 -pid 1234 reload   # gegen einen laufenden Server
 ```
 
 Spielt Lastszenarien gegen `serve` durch und misst, wie lange die Besucher warten und wie viel Rechenzeit und Speicher der Server braucht ([Entscheidung 33](../architecture/decisions/33-solve-budget.md)). Gedacht für Änderungen daran, wie der Server seine Arbeit einteilt (Budget für den Solver, vorbereitete Puzzles, Cache, Bibliothek): vorher und nachher messen, mit `-server` gegen ein Programm, das aus dem Commit davor gebaut ist (`git worktree add /tmp/alt HEAD~1 && go build -C /tmp/alt -o /tmp/alt/starbattle ./cmd/starbattle`, dann `-server /tmp/alt/starbattle`, danach `git worktree remove /tmp/alt`).
 
-Jedes Szenario bekommt einen frischen Server (`serve -no-pregen`) mit `GOMAXPROCS=4`, wie ein Raspberry Pi 4; wo es `taskset` gibt, läuft er auf den ersten vier Kernen und die Last auf den übrigen. Rechenzeit und Speicher liest `stress` unter Linux aus `/proc`, sonst steht dort `n/a`.
+Jedes Szenario bekommt einen frischen Server (`serve -no-pregen`) mit `GOMAXPROCS=4`, wie ein Raspberry Pi 4; wo es `taskset` gibt, läuft er auf den ersten vier Kernen und die Last auf den übrigen. Rechenzeit und Speicher liest `stress` unter Linux aus `/proc`, sonst steht dort `n/a`. Die Last fragt wie ein Browser nach gzip; nur `pages` wählt selbst.
 
 | Szenario | Was passiert |
 |---|---|
@@ -172,6 +173,7 @@ Jedes Szenario bekommt einen frischen Server (`serve -no-pregen`) mit `GOMAXPROC
 | `abandon` | zwölf Besucher fügen schwere Puzzles ein und gehen nach 300 ms wieder: Rechnet der Server danach weiter? |
 | `flood` | zwölf Besucher fügen gleichzeitig schwere Puzzles ein und warten |
 | `crawl` | ein Crawler öffnet alle schweren Puzzles der Bibliothek, während ein Spieler alle 300 ms ein neues 10×10 will und danach drei Motive geöffnet werden; dauert auf vier Kernen etwa eine Minute |
+| `pages` | 16 Spieler laden 50-mal gleichzeitig eine Seite (wie eine Party in die nächste Runde), ohne und mit gzip: eine gelöste schwere Seite der Bibliothek, neue 8×8, die Anleitung; Rechenzeit und gesendete Bytes je Seite ([Entscheidung 34](../architecture/decisions/34-gzip.md)) |
 
 | Option | Bedeutung |
 |---|---|

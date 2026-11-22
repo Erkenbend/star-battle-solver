@@ -108,7 +108,7 @@ func (b *Budget) Background(solve SolveFunc) SolveFunc {
 // symbol catalog (may be nil), /einstellungen lets players choose the symbol
 // of their stars (symbols.go). /anleitung is the tutorial (tutorial.go).
 // /manifest.webmanifest and the icons make the site installable (install.go).
-// Pages and JSON go out gzipped to browsers that accept it (gzip.go).
+// serve wraps it in Compress unless started with -gzip=false.
 func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Library, syms *Symbols) http.Handler {
 	mux := http.NewServeMux()
 	cache := newResults(cachedResults)
@@ -222,7 +222,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 		}
 		page(w, r, key, title, p, sol)
 	})
-	return compress(mux)
+	return mux
 }
 
 // parsePlay reads the puzzle of /play?p=…: the text format, rows separated

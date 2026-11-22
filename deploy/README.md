@@ -34,8 +34,13 @@ Optional `/etc/default/starbattle` on the Pi:
 
 ```sh
 STARBATTLE_ADDR=:6369            # listen address; :80 works too
-STARBATTLE_OPTS=-search lookahead   # any solver flags of `starbattle serve`
+STARBATTLE_OPTS=-search lookahead   # any flags of `starbattle serve`, e.g. -gzip=false
 ```
+
+`serve` sends pages and JSON gzipped (about a third of the size, decision 34),
+which helps phones on a slow connection. On a weak CPU in a fast home network
+(Pi Zero), `-gzip=false` saves the compressing; a proxy in front (Caddy with
+`encode`) passes gzipped answers through as they are.
 
 Then `sudo systemctl restart starbattle`.
 

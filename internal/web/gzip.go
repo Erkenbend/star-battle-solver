@@ -11,8 +11,8 @@ import (
 )
 
 // gzipLevel is the level pages and JSON are compressed with: the fastest,
-// since the server may run on a Raspberry Pi. TestGzipStress measures what
-// the other levels would save and cost.
+// since the server may run on a Raspberry Pi. Decision 34 has what the
+// other levels would save and cost (BenchmarkGzipLevels).
 const gzipLevel = gzip.BestSpeed
 
 // gzipTypes are the content types worth compressing: the pages (about
@@ -30,10 +30,12 @@ var gzipWriters = sync.Pool{New: func() any {
 	return w
 }}
 
-// compress gzips the answers of h whose content type is in gzipTypes, when
+// Compress gzips the answers of h whose content type is in gzipTypes, when
 // the request accepts gzip. It decides at the first write of a handler (or
-// its WriteHeader), so handlers stay unaware of it.
-func compress(h http.Handler) http.Handler {
+// its WriteHeader), so handlers stay unaware of it. serve wraps Handler in
+// it unless started with -gzip=false, e.g. on a weak CPU in a fast network
+// (decision 34).
+func Compress(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Accept-Encoding")
 		if r.Method == http.MethodHead || !acceptsGzip(r.Header.Get("Accept-Encoding")) {
@@ -69,7 +71,7 @@ func acceptsGzip(header string) bool {
 	return star
 }
 
-// gzipResponse is the ResponseWriter compress hands to the handler.
+// gzipResponse is the ResponseWriter Compress hands to the handler.
 type gzipResponse struct {
 	http.ResponseWriter
 	decided bool         // whether to compress is settled (at the first WriteHeader or Write)

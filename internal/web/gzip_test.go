@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"starbattle"
 	"starbattle/internal/icon"
 	"starbattle/internal/party"
 )
@@ -49,7 +51,7 @@ func gunzip(t *testing.T, b []byte) []byte {
 func TestGzip(t *testing.T) {
 	lib := testLibrary(t)
 	pm, _ := newTestParties(t)
-	srv := httptest.NewServer(Handler(testSolve, nil, pm, []*Library{lib}, nil))
+	srv := httptest.NewServer(Compress(Handler(testSolve, nil, pm, []*Library{lib}, nil)))
 	defer srv.Close()
 	e := lib.entries[0]
 
@@ -70,8 +72,10 @@ func TestGzip(t *testing.T) {
 		if got := gunzip(t, b); !bytes.Equal(got, want) {
 			t.Errorf("%s: decodes to %d bytes, without gzip %d", path, len(got), len(want))
 		}
-		if len(want) > 10000 && len(b)*2 > len(want) {
-			t.Errorf("%s: %d bytes gzipped, %d without", path, len(b), len(want))
+		// About a third (decision 34); more means a lost level or a page
+		// that no longer compresses well.
+		if len(want) > 10000 && len(b)*100 > len(want)*40 {
+			t.Errorf("%s: %d bytes gzipped, %d without: more than 40 %%", path, len(b), len(want))
 		}
 		if res, _ := rawGet(t, srv, path, "gzip;q=0, identity"); res.Header.Get("Content-Encoding") != "" {
 			t.Errorf("%s: gzip with q=0 sent %q", path, res.Header.Get("Content-Encoding"))
@@ -137,6 +141,53 @@ func TestAcceptsGzip(t *testing.T) {
 	} {
 		if got := acceptsGzip(c.header); got != c.want {
 			t.Errorf("acceptsGzip(%q) = %v", c.header, got)
+		}
+	}
+}
+
+// BenchmarkGzipLevels compresses the largest page, a generated one and the
+// tutorial at three levels, for decision 34: time per page and the size
+// sent (B/page).
+//
+//	go test ./internal/web -run '^$' -bench GzipLevels
+func BenchmarkGzipLevels(b *testing.B) {
+	lib, err := LoadLibrary(starbattle.Hard, "testdata/hard", testSolve)
+	if err != nil {
+		b.Fatal(err)
+	}
+	h := Handler(testSolve, nil, nil, []*Library{lib}, nil)
+	big := lib.entries[0]
+	for _, e := range lib.entries {
+		if e.p.N > big.p.N {
+			big = e
+		}
+	}
+	get(h, "/bibliothek/weg?id="+big.id) // waits for the solve, so the page has the trace
+	pages := []struct{ name, path string }{
+		{"hard" + big.name(), "/bibliothek?id=" + big.id},
+		{"generated8", "/?n=8&seed=42"},
+		{"tutorial", "/anleitung"},
+	}
+	for _, pg := range pages {
+		page := get(h, pg.path).Body.Bytes()
+		b.Run(fmt.Sprintf("%s/raw", pg.name), func(b *testing.B) {
+			for b.Loop() {
+				get(h, pg.path)
+			}
+			b.ReportMetric(float64(len(page)), "B/page")
+		})
+		for _, level := range []int{gzip.BestSpeed, gzip.DefaultCompression, gzip.BestCompression} {
+			b.Run(fmt.Sprintf("%s/level%d", pg.name, level), func(b *testing.B) {
+				var buf bytes.Buffer
+				zw, _ := gzip.NewWriterLevel(&buf, level)
+				for b.Loop() {
+					buf.Reset()
+					zw.Reset(&buf)
+					zw.Write(page)
+					zw.Close()
+				}
+				b.ReportMetric(float64(buf.Len()), "B/page")
+			})
 		}
 	}
 }

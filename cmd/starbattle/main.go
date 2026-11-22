@@ -6,7 +6,7 @@
 //	                 [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
 //	                 [-step] [-verbose] [-nocolor] [p.txt]
 //	starbattle html [-o page.html] [-title T] [solver flags] [p.txt]   interactive page
-//	starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags]   generate and solve in the browser
+//	starbattle serve [-addr localhost:6369] [-no-pregen] [-gzip=false] [solver flags]   generate and solve in the browser
 //	starbattle design [-addr localhost:6370] [-dir designs] [solver flags]   draw a pattern, complete it (for developers)
 //	starbattle hardsearch -n N [-from S] [-count C] [-min-lookahead K] [-o testdata/hard] [-workers W]   find hard puzzles (for developers)
 //	starbattle hardsearch -rate -o testdata/hard   rate the puzzles there anew (for developers)
@@ -87,11 +87,11 @@ func usage() {
                    [-partner-depth N] [-dead-max N] [-pigeonhole-max N] [-non-contiguous]
                    [-step] [-verbose] [-nocolor] [file]
   starbattle html [-o page.html] [-title T] [solver flags as for solve] [file]
-  starbattle serve [-addr localhost:6369] [-no-pregen] [solver flags as for solve]
+  starbattle serve [-addr localhost:6369] [-no-pregen] [-gzip=false] [solver flags as for solve]
   starbattle design [-addr localhost:6370] [-dir designs] [solver flags as for solve]
   starbattle hardsearch -n N [-from S] [-count C] [-min-lookahead K] [-o dir] [-workers W]
   starbattle hardsearch -rate -o dir
-  starbattle stress [-server binary] [-cores 4] [-addr localhost:6391] [scenario...]
+  starbattle stress [-server binary] [-serve-args "-gzip=false"] [-cores 4] [-addr localhost:6391] [scenario...]
   starbattle stress -url http://host:port [-pid P] [scenario...]`)
 	os.Exit(2)
 }
@@ -296,6 +296,7 @@ func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "localhost:6369", "listen address")
 	noPregen := fs.Bool("no-pregen", false, "do not keep a generated puzzle of every size ready")
+	gz := fs.Bool("gzip", true, "send pages and JSON gzipped to browsers that accept it")
 	solve := solverFlags(fs, "sync") // sync: reproducible explanations, as for html
 	fs.Parse(args)
 	// One budget for every solve of the server (suggestion 6 of
@@ -330,9 +331,13 @@ func cmdServe(args []string) error {
 	}
 	parties := web.NewParties(background, pool)
 	go parties.Run(5*time.Second, ctx.Done())
+	h := web.Handler(solve, pool, parties, []*web.Library{motifs, hard}, syms)
+	if *gz {
+		h = web.Compress(h)
+	}
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           web.Handler(solve, pool, parties, []*web.Library{motifs, hard}, syms),
+		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
@@ -549,6 +554,7 @@ func cmdStress(args []string) error {
 	target := fs.String("url", "", "drive this running server instead of starting one")
 	pid := fs.Int("pid", 0, "with -url: the server's process, for its CPU time and memory")
 	heavy := fs.Int("heavy", 14, "size of the hard puzzles pasted into /play (and one more)")
+	serveArgs := fs.String("serve-args", "", "more arguments of the started serve, e.g. -gzip=false")
 	fs.Parse(args)
 
 	var scenarios []stress.Scenario
@@ -585,14 +591,15 @@ func cmdStress(args []string) error {
 			return err
 		}
 	}
-	cmd := []string{bin, "serve", "-addr", *addr, "-no-pregen"}
+	cmd := append([]string{bin, "serve", "-addr", *addr, "-no-pregen"}, strings.Fields(*serveArgs)...)
+	serving := strings.Join(cmd, " ")
 	pinned := "not pinned"
 	if taskset, err := exec.LookPath("taskset"); err == nil {
 		cpus := fmt.Sprintf("0-%d", *cores-1)
 		cmd = append([]string{taskset, "-c", cpus}, cmd...) // taskset execs the server: same process
 		pinned = "pinned to CPUs " + cpus
 	}
-	fmt.Printf("server: %s, GOMAXPROCS=%d, %s\n", bin, *cores, pinned)
+	fmt.Printf("server: %s, GOMAXPROCS=%d, %s\n", serving, *cores, pinned)
 	c.URL = "http://" + *addr
 	var errs []error
 	for _, s := range scenarios {
