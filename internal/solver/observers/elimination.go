@@ -39,9 +39,10 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 		inUnit[q] = true
 	}
 	// Group the crosses by explanation so each one becomes a single step.
-	byReason := map[string][]puzzle.Pos{}
-	refs := map[string]*words.Refs{}
-	var order []string
+	// The cause decides the text, so grouping by it is grouping by text,
+	// without writing any.
+	byCause := map[cause][]puzzle.Pos{}
+	var order []cause
 	n := s.P.N
 	for r := range n {
 		for c := range n {
@@ -50,34 +51,38 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 				continue
 			}
 			if s.CrossesAll(cell, free) {
-				why, r := o.explain(s.P, cell, free)
-				if _, seen := byReason[why]; !seen {
+				why := o.cause(s.P, cell, free)
+				if _, seen := byCause[why]; !seen {
 					order = append(order, why)
-					refs[why] = r
 				}
-				byReason[why] = append(byReason[why], cell)
+				byCause[why] = append(byCause[why], cell)
 			}
 		}
 	}
 	var marks []solver.Mark
 	for _, why := range order {
-		for _, cell := range byReason[why] {
-			marks = append(marks, solver.Cross(cell, o.Name()).Why(why, refs[why]))
+		reason := solver.Because(o.explain(why))
+		for _, cell := range byCause[why] {
+			m := solver.Cross(cell, o.Name())
+			m.Reason = reason
+			marks = append(marks, m)
 		}
 	}
 	return marks
 }
 
-// explain says why a star on cell would cross all free cells of the unit:
-//   - they all lie in one region / row / column that also contains cell
-//     (same wording as Confinement with k=1),
-//   - they all touch cell,
-//   - or a mix of both.
-//
-// It also returns the units the text names.
-func (o Elimination) explain(p *puzzle.Puzzle, cell puzzle.Pos, free []puzzle.Pos) (string, *words.Refs) {
-	var w words.Namer
-	self := []int{o.Unit.Index}
+// cause is why a star on a cell would cross all free cells of the unit:
+// they all lie in unit index of kind, which also contains the cell (kind ≥ 0,
+// a puzzle.UnitKind), they all touch the cell (kind touching), or a mix of
+// both (kind mixed).
+type cause struct{ kind, index int }
+
+const (
+	touching = -1
+	mixed    = -2
+)
+
+func (o Elimination) cause(p *puzzle.Puzzle, cell puzzle.Pos, free []puzzle.Pos) cause {
 	for _, kind := range []puzzle.UnitKind{puzzle.Region, puzzle.Row, puzzle.Col} {
 		if kind == o.Unit.Kind {
 			continue
@@ -88,20 +93,31 @@ func (o Elimination) explain(p *puzzle.Puzzle, cell puzzle.Pos, free []puzzle.Po
 			all = all && p.UnitOf(kind, q) == v
 		}
 		if all {
-			why := confined(&w, o.Unit.Kind, self, kind, []int{v})
-			return why, w.Refs()
+			return cause{int(kind), v}
 		}
 	}
-	touching := true
 	for _, q := range free {
-		touching = touching && abs(q.Row-cell.Row) <= 1 && abs(q.Col-cell.Col) <= 1
+		if abs(q.Row-cell.Row) > 1 || abs(q.Col-cell.Col) > 1 {
+			return cause{kind: mixed}
+		}
 	}
-	name := w.Unit(o.Unit.Kind, o.Unit.Index)
-	if touching {
-		return "Die markierten Felder berühren jeweils alle freien Felder von " + name + " → X", w.Refs()
+	return cause{kind: touching}
+}
+
+// explain writes the text of a cause: for a unit the same wording as
+// Confinement with k=1.
+func (o Elimination) explain(c cause) func(w *words.Namer) string {
+	u := o.Unit
+	return func(w *words.Namer) string {
+		switch c.kind {
+		case touching:
+			return "Die markierten Felder berühren jeweils alle freien Felder von " + w.Unit(u.Kind, u.Index) + " → X"
+		case mixed:
+			return "Ein Stern auf einem der markierten Felder würde alle freien Felder von " + w.Unit(u.Kind, u.Index) +
+				" streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X"
+		}
+		return confined(w, u.Kind, []int{u.Index}, puzzle.UnitKind(c.kind), []int{c.index})
 	}
-	return "Ein Stern auf einem der markierten Felder würde alle freien Felder von " + name +
-		" streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X", w.Refs()
 }
 
 func abs(x int) int {

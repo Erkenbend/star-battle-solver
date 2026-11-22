@@ -41,8 +41,8 @@ func steps(w io.Writer, replay *board.State, trace []solver.Step, prefix, indent
 			replay.Set(m.Pos.Row, m.Pos.Col, m.Kind) // conflicting last step: keep what fits
 			hl[m.Pos] = true
 		}
-		if o.Verbose && st.Reason != "" {
-			fmt.Fprintf(w, "%s\n%s%s. %s\n", strings.TrimRight(indent, " "), indent, num, st.Reason)
+		if why := st.Reason.Text(); o.Verbose && why != "" {
+			fmt.Fprintf(w, "%s\n%s%s. %s\n", strings.TrimRight(indent, " "), indent, num, why)
 			if !o.Boards {
 				if d := crosses(st.Marks); d != "" && st.Hypothesis == nil {
 					fmt.Fprintf(w, "%s    %s\n", indent, d)

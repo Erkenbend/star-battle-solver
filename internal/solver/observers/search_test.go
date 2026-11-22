@@ -3,10 +3,11 @@ package observers
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
-	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -162,11 +163,11 @@ func TestLookaheadExplains(t *testing.T) {
 		found++
 		h := st.Hypothesis
 		if h == nil || len(h.Steps) == 0 || h.Steps[0].Marks[0].Kind != board.Star {
-			t.Fatalf("step %q has no proper chain", st.Reason)
+			t.Fatalf("step %q has no proper chain", st.Reason.Text())
 		}
 		var ce *board.ContradictionError
 		if !errors.As(h.Contradiction, &ce) || len(ce.Cells) == 0 {
-			t.Fatalf("step %q: contradiction %v without cells", st.Reason, h.Contradiction)
+			t.Fatalf("step %q: contradiction %v without cells", st.Reason.Text(), h.Contradiction)
 		}
 	}
 	if found == 0 {
@@ -221,7 +222,7 @@ func TestSolveCancelled(t *testing.T) {
 
 	open := full
 	open.Done = make(chan struct{})
-	if got := solver.Solve(board.New(p), All(p), open); !reflect.DeepEqual(got.Trace, want.Trace) {
+	if got := solver.Solve(board.New(p), All(p), open); traceText(got.Trace) != traceText(want.Trace) {
 		t.Error("a Done that is never closed changes the trace")
 	}
 
@@ -288,4 +289,24 @@ func TestSolveCancelled(t *testing.T) {
 			}
 		}
 	}
+}
+
+// traceText writes what a trace says: each step's source, level, reason with
+// its refs and marks, and the refuted chains with their contradictions.
+// Traces are compared through it, as a Reason holds the function that
+// builds it.
+func traceText(steps []solver.Step) string {
+	var b strings.Builder
+	var write func(steps []solver.Step, indent string)
+	write = func(steps []solver.Step, indent string) {
+		for _, st := range steps {
+			fmt.Fprintf(&b, "%s%s %d %q %+v %v\n", indent, st.Source, st.Level, st.Reason.Text(), st.Reason.Refs(), st.Marks)
+			if h := st.Hypothesis; h != nil {
+				write(h.Steps, indent+"  ")
+				fmt.Fprintf(&b, "%s  ⇒ %v\n", indent, h.Contradiction)
+			}
+		}
+	}
+	write(steps, "")
+	return b.String()
 }

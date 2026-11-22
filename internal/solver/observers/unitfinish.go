@@ -27,9 +27,10 @@ func (o UnitFinish) Deduce(s *board.State) []solver.Mark {
 	}
 	if s.FreeCount(o.Unit.Cells) == 1 {
 		q, _ := s.FirstFree(o.Unit.Cells)
-		var w words.Namer
-		why := fmt.Sprintf("In %s ist nur noch das Feld %s frei → Stern", w.Unit(o.Unit.Kind, o.Unit.Index), w.Cell(q))
-		return []solver.Mark{solver.Star(q, o.Name()).Why(why, w.Refs())}
+		u := o.Unit
+		return []solver.Mark{solver.Star(q, o.Name()).Why(func(w *words.Namer) string {
+			return fmt.Sprintf("In %s ist nur noch das Feld %s frei → Stern", w.Unit(u.Kind, u.Index), w.Cell(q))
+		})}
 	}
 	return nil
 }

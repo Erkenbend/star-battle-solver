@@ -48,7 +48,7 @@ func TestForcedPartner(t *testing.T) {
 
 	marks := at(0, 4, 1).Deduce(board.MustParse(hard5, hard5Stuck))
 	want := "Ein Stern auf (0,4) ließe in Farbe B nur (3,3) übrig. Beide Sterne zusammen würden Spalte 2 komplett streichen → X"
-	if len(marks) != 1 || marks[0].Reason != want {
+	if len(marks) != 1 || marks[0].Reason.Text() != want {
 		t.Fatalf("got %v\nwant %q", marks, want)
 	}
 }
@@ -76,7 +76,7 @@ func TestDeadCells(t *testing.T) {
 		{1, 1, "Nach einem Stern auf (1,1) bleiben in Spalte 0 nur (3,0) und (4,0). Ein Stern auf (3,0) oder (4,0) würde Spalte 2 streichen → X"},
 	} {
 		marks := at(tt.r, tt.c, 2).Deduce(board.MustParse(hard5, hard5Stuck))
-		if len(marks) != 1 || marks[0].Reason != tt.want {
+		if len(marks) != 1 || marks[0].Reason.Text() != tt.want {
 			t.Errorf("got %v\nwant %q", marks, tt.want)
 		}
 	}
@@ -91,7 +91,7 @@ func TestForcedPartnerDepth(t *testing.T) {
 	}
 	marks := ForcedPartner{Cell: q, Depth: 2, units: units}.Deduce(s)
 	want := "Ein Stern auf (0,2) ließe in Zeile 1 nur (1,0) übrig, dann in Zeile 2 nur (2,3) übrig. Alle diese Sterne zusammen würden Zeile 3 komplett streichen → X"
-	if len(marks) != 1 || marks[0].Reason != want {
+	if len(marks) != 1 || marks[0].Reason.Text() != want {
 		t.Fatalf("got %v\nwant %q", marks, want)
 	}
 }
@@ -124,7 +124,7 @@ func TestPigeonhole(t *testing.T) {
 		.X.XX`)
 	marks := at(0, 2, 2).Deduce(board.MustParse(p5, rows34))
 	want := "Ein Stern auf (0,2) ließe Zeilen 3 und 4 nur noch Platz in Spalte 0, zu wenig für 2 Sterne → X"
-	if len(marks) != 1 || marks[0].Reason != want {
+	if len(marks) != 1 || marks[0].Reason.Text() != want {
 		t.Fatalf("got %v\nwant %q", marks, want)
 	}
 	// Switched off below k=2.

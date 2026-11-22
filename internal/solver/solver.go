@@ -9,6 +9,7 @@ package solver
 
 import (
 	"fmt"
+	"sync"
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
@@ -18,18 +19,65 @@ import (
 // Mark is one deduction: put a star (M) or a cross (X) on a cell.
 type Mark struct {
 	Pos    puzzle.Pos
-	Kind   board.Cell  // board.Star or board.Cross
-	Source string      // name of the observer that produced it
-	Reason string      // human-readable explanation (German), shown by solve -verbose
-	Refs   *words.Refs // the units and cells Reason names (nil if none), read-only
-	Level  int         // priority level of the rule (set by the runner, see Prioritized)
+	Kind   board.Cell // board.Star or board.Cross
+	Source string     // name of the observer that produced it
+	Reason *Reason    // explanation, shown by solve -verbose and the pages (nil if none)
+	Level  int        // priority level of the rule (set by the runner, see Prioritized)
 }
 
-// Why returns m with its explanation set: the text and what it names,
-// usually both from one words.Namer.
-func (m Mark) Why(reason string, refs *words.Refs) Mark {
-	m.Reason, m.Refs = reason, refs
+// Why returns m with its explanation, built by build on first use (see Reason).
+func (m Mark) Why(build func(w *words.Namer) string) Mark {
+	m.Reason = Because(build)
 	return m
+}
+
+// Reason is the explanation of a deduction: a German text and the units and
+// cells it names. It is built only when asked for, once: lookahead runs a
+// trial for every free cell, and only the explanations of the chain it keeps
+// are ever read. Safe for concurrent use; the methods accept nil (no text).
+type Reason struct {
+	build func(w *words.Namer) string
+	once  sync.Once
+	text  string
+	refs  *words.Refs
+}
+
+// Because returns the reason build writes, naming units and cells through w.
+// build runs at most once, maybe never, so what it reads must not change
+// after the deduction (the rules capture values they no longer modify).
+func Because(build func(w *words.Namer) string) *Reason { return &Reason{build: build} }
+
+func (r *Reason) built() {
+	r.once.Do(func() {
+		var w words.Namer
+		r.text = r.build(&w)
+		r.refs = w.Refs()
+		r.build = nil
+	})
+}
+
+// Text is the German explanation.
+func (r *Reason) Text() string {
+	if r == nil {
+		return ""
+	}
+	r.built()
+	return r.text
+}
+
+// Refs are the units and cells the text names (nil if none), read-only.
+func (r *Reason) Refs() *words.Refs {
+	if r == nil {
+		return nil
+	}
+	r.built()
+	return r.refs
+}
+
+// same reports whether a and b explain the same deduction: the same Reason,
+// or two with the same text. Only the latter builds them.
+func same(a, b *Reason) bool {
+	return a == b || a != nil && b != nil && a.Text() == b.Text()
 }
 
 func (m Mark) String() string {
@@ -75,7 +123,8 @@ func Apply(s *board.State, m Mark) ([]Mark, error) {
 				return delta, fmt.Errorf("%w (%s)", err, m.Source)
 			}
 			if ch {
-				implied := Cross(q, m.Source).Why(m.Reason, m.Refs)
+				implied := Cross(q, m.Source)
+				implied.Reason = m.Reason
 				implied.Level = m.Level
 				delta = append(delta, implied)
 			}
@@ -102,9 +151,8 @@ func (s Status) String() string {
 // the crosses implied by its stars.
 type Step struct {
 	Source string
-	Reason string
-	Refs   *words.Refs // the units and cells Reason names, for highlighting (nil if none)
-	Level  int         // priority level of the rule or search step
+	Reason *Reason // Text and the Refs the pages highlight
+	Level  int     // priority level of the rule or search step
 	Marks  []Mark
 	// Hypothesis is set for a cross proven by refuting a star: it holds the
 	// steps that followed from assuming the star, ending in a contradiction.
@@ -123,11 +171,11 @@ func record(trace []Step, m Mark, delta []Mark) []Step {
 	if len(delta) == 0 {
 		return trace
 	}
-	if n := len(trace); n > 0 && trace[n-1].Source == m.Source && trace[n-1].Reason == m.Reason {
+	if n := len(trace); n > 0 && trace[n-1].Source == m.Source && same(trace[n-1].Reason, m.Reason) {
 		trace[n-1].Marks = append(trace[n-1].Marks, delta...)
 		return trace
 	}
-	return append(trace, Step{Source: m.Source, Reason: m.Reason, Refs: m.Refs, Level: m.Level, Marks: delta})
+	return append(trace, Step{Source: m.Source, Reason: m.Reason, Level: m.Level, Marks: delta})
 }
 
 // Result of a run.

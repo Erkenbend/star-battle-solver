@@ -21,11 +21,11 @@ func TestConfinementReason(t *testing.T) {
 		t.Fatal("no marks")
 	}
 	want := "Farben B und C liegen nur noch in Zeilen 0 und 1 → alle anderen Felder der Zeilen 0 und 1 X"
-	if marks[0].Reason != want {
-		t.Fatalf("got %q\nwant %q", marks[0].Reason, want)
+	if got := marks[0].Reason.Text(); got != want {
+		t.Fatalf("got %q\nwant %q", got, want)
 	}
 	// The page highlights what the text names from Refs.
-	if r := marks[0].Refs; r == nil || !slices.Equal(slices.Sorted(slices.Values(r.Regions)), []int{1, 2}) ||
+	if r := marks[0].Reason.Refs(); r == nil || !slices.Equal(slices.Sorted(slices.Values(r.Regions)), []int{1, 2}) ||
 		!slices.Equal(slices.Sorted(slices.Values(r.Rows)), []int{0, 1}) || len(r.Cols)+len(r.Cells) != 0 {
 		t.Errorf("refs %+v, want regions B and C, rows 0 and 1", r)
 	}
@@ -36,7 +36,7 @@ func TestEliminationReasons(t *testing.T) {
 	reasons := func(u puzzle.Unit, state string) map[puzzle.Pos]string {
 		out := map[puzzle.Pos]string{}
 		for _, m := range (Elimination{Unit: u}).Deduce(board.MustParse(p5, state)) {
-			out[m.Pos] = m.Reason
+			out[m.Pos] = m.Reason.Text()
 		}
 		return out
 	}

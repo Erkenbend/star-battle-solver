@@ -190,7 +190,7 @@ func steps(trace []solver.Step) []Step {
 	out := make([]Step, len(trace))
 	for i, st := range trace {
 		rule, _, _ := strings.Cut(st.Source, "[")
-		s := Step{Rule: rule, Source: st.Source, Level: st.Level, Reason: st.Reason, Refs: refs(st.Refs), Marks: []Mark{}}
+		s := Step{Rule: rule, Source: st.Source, Level: st.Level, Reason: st.Reason.Text(), Refs: refs(st.Reason.Refs()), Marks: []Mark{}}
 		for _, m := range st.Marks {
 			star := 0
 			if m.Kind == board.Star {

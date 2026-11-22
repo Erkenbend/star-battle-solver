@@ -97,8 +97,7 @@ func (o Confinement) Deduce(s *board.State) []solver.Mark {
 	var marks []solver.Mark
 	confinedSets(opens, o.K, o.K, o.blocks(), func(from, union map[int]bool) bool {
 		if len(union) == o.K { // fewer would be a contradiction, left to the runner
-			why, refs := o.explain(from, union)
-			marks = append(marks, o.crosses(s, from, union, why, refs)...)
+			marks = append(marks, o.crosses(s, from, union, solver.Because(o.explain(from, union)))...)
 		}
 		return true
 	})
@@ -131,7 +130,8 @@ func openUnits(s *board.State, us []puzzle.Unit, to puzzle.UnitKind) []openUnit 
 // confinedSets calls f for every choice of k open units whose free cells
 // together lie in at most limit To-units, passing the chosen unit indices and
 // the To-units. With blocks, only k consecutive entries of opens are chosen;
-// otherwise any subset. f returns false to stop the search.
+// otherwise any subset. f returns false to stop the search. f may keep from
+// and union: they are fresh maps, not changed after the call.
 func confinedSets(opens []openUnit, k, limit int, blocks bool, f func(from, union map[int]bool) bool) {
 	if blocks {
 		for i := 0; i+k <= len(opens); i++ {
@@ -184,14 +184,16 @@ func confinedSets(opens []openUnit, k, limit int, blocks bool, f func(from, unio
 
 // crosses returns X for every free cell inside the target To-units but outside the
 // chosen From-units.
-func (o Confinement) crosses(s *board.State, from, to map[int]bool, why string, refs *words.Refs) []solver.Mark {
+func (o Confinement) crosses(s *board.State, from, to map[int]bool, why *solver.Reason) []solver.Mark {
 	var marks []solver.Mark
 	n := s.P.N
 	for r := range n {
 		for c := range n {
 			q := puzzle.Pos{Row: r, Col: c}
 			if s.At(r, c) == board.Free && to[s.P.UnitOf(o.To, q)] && !from[s.P.UnitOf(o.From, q)] {
-				marks = append(marks, solver.Cross(q, o.Name()).Why(why, refs))
+				m := solver.Cross(q, o.Name())
+				m.Reason = why
+				marks = append(marks, m)
 			}
 		}
 	}
@@ -199,9 +201,8 @@ func (o Confinement) crosses(s *board.State, from, to map[int]bool, why string, 
 }
 
 // explain builds e.g. "Farben A und B liegen nur noch in Spalten 2 und 3 → alle
-// anderen Felder der Spalten 2 und 3 X" (see confined), and what it names.
-func (o Confinement) explain(from, to map[int]bool) (string, *words.Refs) {
-	var w words.Namer
-	why := confined(&w, o.From, keys(from), o.To, keys(to))
-	return why, w.Refs()
+// anderen Felder der Spalten 2 und 3 X" (see confined). from and to are not
+// changed after the deduction (see confinedSets).
+func (o Confinement) explain(from, to map[int]bool) func(w *words.Namer) string {
+	return func(w *words.Namer) string { return confined(w, o.From, keys(from), o.To, keys(to)) }
 }
