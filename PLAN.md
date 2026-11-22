@@ -19,6 +19,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | Paket | Inhalt |
 |---|---|
 | `internal/puzzle` | Layout, Textformat (Buchstaben bleiben erhalten, wenn es die ersten N sind), Einheiten |
+| `internal/words` | deutsche Namen von Einheiten und Feldern („Zeilen 3 und 4“, „Farbe B“, „(2,3)“) für alle Erklärungen; `Namer` merkt sich, was ein Text nennt (`Refs`), damit die Seite es hervorhebt, ohne den Text zu lesen |
 | `internal/board` | Zustand, `Set` mit Konflikterkennung, `Implied`, `Contradiction`, Parser für Testzustände; was aus dem Layout folgt (Einheiten, `Implied` je Feld), rechnet `New` einmal aus, Kopien teilen es ([Entscheidung 32](architecture/decisions/32-board-geometry.md)) |
 | `internal/render` | ANSI-Farben; neue Felder in `[ ]`, Widerspruchszellen in `( )`, Pfeile am Rand |
 | `internal/bruteforce` | Referenz-Solver (Backtracking über Zeilen), Test-Orakel |

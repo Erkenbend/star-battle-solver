@@ -2,7 +2,9 @@
 // one unit (or one family of unit subsets); All builds the full set for a puzzle.
 //
 // To add a rule: write a type implementing solver.Observer, add a table test
-// next to it (see unitfinish_test.go), and register it in All.
+// next to it (see unitfinish_test.go), and register it in All. Its
+// explanation names units and cells through one words.Namer, whose Refs go
+// to the marks with the text (solver.Mark.Why): the page highlights them.
 package observers
 
 import (

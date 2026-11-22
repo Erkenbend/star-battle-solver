@@ -59,6 +59,7 @@ Partys, Anleitung, das Lösen allein (ein zweites Mal), die Bibliothek (ein zwei
 |---|---|
 | `cmd/starbattle` | Kommandozeile |
 | `internal/puzzle` | Layout, Textformat, Einheiten (Zeilen, Spalten, Farben) |
+| `internal/words` | deutsche Namen von Einheiten und Feldern für die Erklärungen, und was ein Text nennt (zum Hervorheben auf der Seite) |
 | `internal/board` | Zustand des Bretts (frei, Stern, X), Widerspruchserkennung |
 | `internal/solver` | Runner (`RunSync`, `RunConcurrent`), Suche mit Lookahead und Raten, Trace |
 | `internal/solver/observers` | die logischen Regeln mit Erklärungen |

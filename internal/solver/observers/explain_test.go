@@ -1,30 +1,12 @@
 package observers
 
 import (
+	"slices"
 	"testing"
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 )
-
-func TestUnitsPhrase(t *testing.T) {
-	for _, tt := range []struct {
-		kind puzzle.UnitKind
-		idx  []int
-		want string
-	}{
-		{puzzle.Row, []int{3}, "Zeile 3"},
-		{puzzle.Col, []int{3, 2}, "Spalten 2 und 3"},
-		{puzzle.Region, []int{3, 0, 1}, "Farben A, B und D"},
-		{puzzle.Row, []int{5, 3, 4}, "Zeilen 3 bis 5"},
-		{puzzle.Col, []int{1, 2, 4}, "Spalten 1, 2 und 4"},
-		{puzzle.Region, []int{0, 1, 2}, "Farben A, B und C"},
-	} {
-		if got := units(tt.kind, tt.idx); got != tt.want {
-			t.Errorf("got %q, want %q", got, tt.want)
-		}
-	}
-}
 
 func TestConfinementReason(t *testing.T) {
 	// Regions B and C only in rows 0,1 (see confinement_test.go).
@@ -41,6 +23,11 @@ func TestConfinementReason(t *testing.T) {
 	want := "Farben B und C liegen nur noch in Zeilen 0 und 1 → alle anderen Felder der Zeilen 0 und 1 X"
 	if marks[0].Reason != want {
 		t.Fatalf("got %q\nwant %q", marks[0].Reason, want)
+	}
+	// The page highlights what the text names from Refs.
+	if r := marks[0].Refs; r == nil || !slices.Equal(slices.Sorted(slices.Values(r.Regions)), []int{1, 2}) ||
+		!slices.Equal(slices.Sorted(slices.Values(r.Rows)), []int{0, 1}) || len(r.Cols)+len(r.Cells) != 0 {
+		t.Errorf("refs %+v, want regions B and C, rows 0 and 1", r)
 	}
 }
 

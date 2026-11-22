@@ -113,15 +113,16 @@ something far away.
               (unique puzzles,       (referee / oracle)
                also around a pattern)
 
- model        internal/board ──► internal/puzzle
-              (marks, implied      (layout, units,
-               crosses, conflicts)  text format)
+ model        internal/board ──► internal/words ──► internal/puzzle
+              (marks, implied      (German names of   (layout, units,
+               crosses, conflicts)  units and cells,   text format)
+                                    what a text names)
 ```
 
 Dependencies only point downwards: a package uses packages in its own row
 (along the arrows) or in rows below it, never above. `puzzle` knows nothing
-else; `board` adds state; `solver` adds deduction mechanics; `observers` adds
-the actual rules.
+else; `words` names its units and cells in German; `board` adds state;
+`solver` adds deduction mechanics; `observers` adds the actual rules.
 The generator deliberately depends on brute force, not on the solver (it was
 tried and was slower, see [decision 5](decisions/05-generator-uses-brute-force.md)).
 
@@ -134,6 +135,12 @@ snapshot of marks on a puzzle, with the knowledge of what a star implies
 (crosses in its row, column, region and neighbourhood) and detection of
 contradictions (a unit with no room left, two stars in conflict). The
 contradiction carries the cells involved, so it can be explained and shown.
+`words` is the one source of the German names of units and cells ("Zeilen 3
+und 4", "Farbe B", "(2,3)") for every explanation, in `board`, `solver` and
+the rules. Its `Namer` gives the same names and records what it named
+(`Refs`); a mark carries them with its reason, and the page highlights the
+named units and cells and puts color swatches in the text from them,
+without parsing the German.
 What follows from the layout alone (the units, the crosses a star on each
 cell implies) `board.New` computes once; clones share it read-only, so a
 puzzle must not change once a board exists for it.
@@ -393,7 +400,7 @@ browser code. The full suite with every hard puzzle is CI's job.
 
 | Change | Start at | Keep in mind |
 |---|---|---|
-| a new deduction rule | `internal/solver/observers` | priority level, German wording, soundness test; rewrite the traces of the sample (`go test ./internal/web -run TestTraceGolden -update`) and review their diff; measure its effect on `testdata/hard`, update the rules in `PLAN.md` and record the measurement as a new file in `architecture/decisions` |
+| a new deduction rule | `internal/solver/observers` | priority level, German wording (name units and cells through one `words.Namer` and give its `Refs` to `Mark.Why`), soundness test; rewrite the traces of the sample (`go test ./internal/web -run TestTraceGolden -update`) and review their diff; measure its effect on `testdata/hard`, update the rules in `PLAN.md` and record the measurement as a new file in `architecture/decisions` |
 | solver search behaviour | `internal/solver` (search) | explanations must stay reproducible; the sync runner drives trial runs; `TestTraceGolden` (`internal/web/testdata/traces`) shows which explanations change |
 | generator | `internal/generator` | changes all seeded puzzles; rerun the hard search test; measure (see decisions 8, 12, 13) and record it in `architecture/decisions` |
 | more hard puzzles | `starbattle hardsearch`, then append to `testdata/hard/bibliothek.idx` | continue from the seed ranges in [decision 17](decisions/17-library-over-100-sample-tests.md) and `PLAN.md` |

@@ -10,6 +10,7 @@ import (
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
+	"starbattle/internal/words"
 )
 
 // Runner is RunSync or RunConcurrent.
@@ -133,9 +134,10 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 		pos := free[0]
 		stats.Guesses++
 		guessed := s.Clone()
-		why := fmt.Sprintf("Raten: Stern auf (%d,%d) (eines von %d freien Feldern in %s)",
-			pos.Row, pos.Col, len(free), unitName(*unit))
-		guess := Star(pos, HypothesisSource).Why(why)
+		var w words.Namer
+		why := fmt.Sprintf("Raten: Stern auf %s (eines von %d freien Feldern in %s)",
+			w.Cell(pos), len(free), w.Unit(unit.Kind, unit.Index))
+		guess := Star(pos, HypothesisSource).Why(why, w.Refs())
 		guess.Level = LevelGuess
 		delta, err := Apply(guessed, guess)
 		var sub Result
@@ -180,28 +182,31 @@ type refutation struct {
 // step with its reasoning chain (hyp may be nil for deep backtracking). level is
 // LevelLookahead or LevelGuess, depending on how the star was refuted.
 func refute(s *board.State, trace []Step, pos puzzle.Pos, hyp *Hypothesis, level int) ([]Step, error) {
-	why := fmt.Sprintf("Annahme: Stern auf (%d,%d) führt zu einem Widerspruch → X", pos.Row, pos.Col)
+	var w words.Namer
+	why := fmt.Sprintf("Annahme: Stern auf %s führt zu einem Widerspruch → X", w.Cell(pos))
 	if hyp == nil {
-		why = fmt.Sprintf("Annahme: Stern auf (%d,%d) führt nach weiterem Raten immer zu einem Widerspruch → X", pos.Row, pos.Col)
+		why = fmt.Sprintf("Annahme: Stern auf %s führt nach weiterem Raten immer zu einem Widerspruch → X", w.Cell(pos))
 	}
-	m := Cross(pos, HypothesisSource).Why(why)
+	m := Cross(pos, HypothesisSource).Why(why, w.Refs())
 	m.Level = level
 	delta, err := Apply(s, m)
 	if len(delta) > 0 {
-		trace = append(trace, Step{Source: m.Source, Reason: why, Level: m.Level, Marks: delta, Hypothesis: hyp})
+		trace = append(trace, Step{Source: m.Source, Reason: why, Refs: m.Refs, Level: m.Level, Marks: delta, Hypothesis: hyp})
 	}
 	return trace, err
 }
 
 // assumedStep is the first step of a hypothesis chain: the star and its crosses.
 func assumedStep(p *puzzle.Puzzle, pos puzzle.Pos, delta []Mark) Step {
-	why := fmt.Sprintf("Angenommen, auf (%d,%d) ist ein Stern → X in Zeile %d, Spalte %d, Farbe %c und Nachbarschaft",
-		pos.Row, pos.Col, pos.Row, pos.Col, puzzle.RegionLetter(p.Region(pos.Row, pos.Col)))
+	var w words.Namer
+	why := fmt.Sprintf("Angenommen, auf %s ist ein Stern → X in %s, %s, %s und Nachbarschaft",
+		w.Cell(pos), w.Unit(puzzle.Row, pos.Row), w.Unit(puzzle.Col, pos.Col), w.Unit(puzzle.Region, p.Region(pos.Row, pos.Col)))
+	refs := w.Refs()
 	for i := range delta {
-		delta[i].Reason = why
+		delta[i].Reason, delta[i].Refs = why, refs
 		delta[i].Level = LevelLookahead
 	}
-	return Step{Source: HypothesisSource, Reason: why, Level: LevelLookahead, Marks: delta}
+	return Step{Source: HypothesisSource, Reason: why, Refs: refs, Level: LevelLookahead, Marks: delta}
 }
 
 // lookahead tries a star on every free cell in parallel and returns the
@@ -325,15 +330,4 @@ func branchUnit(s *board.State) (*puzzle.Unit, []puzzle.Pos) {
 	}
 	u := *best // a copy: the units are shared by all clones
 	return &u, s.Free(u.Cells)
-}
-
-func unitName(u puzzle.Unit) string {
-	switch u.Kind {
-	case puzzle.Row:
-		return fmt.Sprintf("Zeile %d", u.Index)
-	case puzzle.Col:
-		return fmt.Sprintf("Spalte %d", u.Index)
-	default:
-		return fmt.Sprintf("Farbe %c", puzzle.RegionLetter(u.Index))
-	}
 }

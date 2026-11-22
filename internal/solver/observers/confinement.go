@@ -6,6 +6,7 @@ import (
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
+	"starbattle/internal/words"
 )
 
 // Confinement is the pigeonhole rule, generalizing the "Line/Column", "Color" and
@@ -96,7 +97,8 @@ func (o Confinement) Deduce(s *board.State) []solver.Mark {
 	var marks []solver.Mark
 	confinedSets(opens, o.K, o.K, o.blocks(), func(from, union map[int]bool) bool {
 		if len(union) == o.K { // fewer would be a contradiction, left to the runner
-			marks = append(marks, o.crosses(s, from, union, o.explain(from, union))...)
+			why, refs := o.explain(from, union)
+			marks = append(marks, o.crosses(s, from, union, why, refs)...)
 		}
 		return true
 	})
@@ -182,14 +184,14 @@ func confinedSets(opens []openUnit, k, limit int, blocks bool, f func(from, unio
 
 // crosses returns X for every free cell inside the target To-units but outside the
 // chosen From-units.
-func (o Confinement) crosses(s *board.State, from, to map[int]bool, why string) []solver.Mark {
+func (o Confinement) crosses(s *board.State, from, to map[int]bool, why string, refs *words.Refs) []solver.Mark {
 	var marks []solver.Mark
 	n := s.P.N
 	for r := range n {
 		for c := range n {
 			q := puzzle.Pos{Row: r, Col: c}
 			if s.At(r, c) == board.Free && to[s.P.UnitOf(o.To, q)] && !from[s.P.UnitOf(o.From, q)] {
-				marks = append(marks, solver.Cross(q, o.Name()).Why(why))
+				marks = append(marks, solver.Cross(q, o.Name()).Why(why, refs))
 			}
 		}
 	}
@@ -197,7 +199,9 @@ func (o Confinement) crosses(s *board.State, from, to map[int]bool, why string) 
 }
 
 // explain builds e.g. "Farben A und B liegen nur noch in Spalten 2 und 3 → alle
-// anderen Felder der Spalten 2 und 3 X" (see confined).
-func (o Confinement) explain(from, to map[int]bool) string {
-	return confined(o.From, keys(from), o.To, keys(to))
+// anderen Felder der Spalten 2 und 3 X" (see confined), and what it names.
+func (o Confinement) explain(from, to map[int]bool) (string, *words.Refs) {
+	var w words.Namer
+	why := confined(&w, o.From, keys(from), o.To, keys(to))
+	return why, w.Refs()
 }

@@ -44,9 +44,11 @@ function boot() {
     e.style.setProperty("--ds", Math.round(s * 0.62) + "%");
     e.style.setProperty("--dl", Math.round(22 + (l - 60) * 0.75) + "%");
   };
-  // Explanation text with a color swatch for every "Farbe X".
-  const rich = (text) =>
-    L.colorSegments(d, text).map((s) => {
+  // Explanation text with a color swatch for every "Farbe X" it names:
+  // refs are the step's (or contradiction's) refs from the server, undefined
+  // for the page's own texts.
+  const rich = (text, refs) =>
+    L.colorSegments(d, text, refs && (refs.regions || [])).map((s) => {
       if (typeof s === "string") return document.createTextNode(s);
       const sw = el("span", "sw");
       regionColor(sw, s.region);
@@ -56,9 +58,9 @@ function boot() {
       sw.dataset.region = s.region;
       return sw;
     });
-  const elr = (tag, cls, text) => {
+  const elr = (tag, cls, text, refs) => {
     const e = el(tag, cls);
-    e.append(...rich(text));
+    e.append(...rich(text, refs));
     return e;
   };
 
@@ -722,19 +724,19 @@ function boot() {
       return;
     }
     const step = d.steps[h.step];
-    const refs = L.refs(d, step.reason);
+    const refs = L.refCells(d, step.refs);
     if (!done) hintCount++;
     overlay = { hint: new Set(h.marks.map(([r, c]) => L.idx(d, r, c))), ref: refs.units, refcell: refs.cells };
     const head = el("p", "");
     head.append(chip(step), " ", el("span", "muted", `Schritt ${h.step + 1} des Lösungswegs`));
-    const reason = elr("p", "", step.reason);
+    const reason = elr("p", "", step.reason, step.refs || {});
     const nodes = [head, reason];
     if (step.hypothesis) {
       const det = el("details");
       det.append(el("summary", "", "Gedankengang anzeigen"));
       const ol = el("ol");
-      for (const s of step.hypothesis.steps) ol.append(elr("li", "", s.reason));
-      det.append(ol, elr("p", "contra", "⇒ Widerspruch: " + step.hypothesis.contradiction));
+      for (const s of step.hypothesis.steps) ol.append(elr("li", "", s.reason, s.refs || {}));
+      det.append(ol, elr("p", "contra", "⇒ Widerspruch: " + step.hypothesis.contradiction, step.hypothesis.refs || {}));
       nodes.push(det);
     }
     const apply = el("button", "primary", "Anwenden");

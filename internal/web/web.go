@@ -22,6 +22,7 @@ import (
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
+	"starbattle/internal/words"
 )
 
 //go:embed assets/page.html
@@ -125,8 +126,30 @@ type Step struct {
 	Source     string      `json:"source"`
 	Level      int         `json:"level"`
 	Reason     string      `json:"reason"`
+	Refs       *Refs       `json:"refs,omitempty"` // what Reason names
 	Marks      []Mark      `json:"marks"`
 	Hypothesis *Hypothesis `json:"hypothesis,omitempty"`
+}
+
+// Refs are the units and cells an explanation names (words.Refs): the page
+// highlights them and shows a color swatch for each named region, without
+// reading the German text.
+type Refs struct {
+	Cells   [][2]int `json:"cells,omitempty"`
+	Rows    []int    `json:"rows,omitempty"`
+	Cols    []int    `json:"cols,omitempty"`
+	Regions []int    `json:"regions,omitempty"`
+}
+
+func refs(r *words.Refs) *Refs {
+	if r.Empty() {
+		return nil
+	}
+	out := &Refs{Rows: r.Rows, Cols: r.Cols, Regions: r.Regions}
+	for _, q := range r.Cells {
+		out.Cells = append(out.Cells, [2]int{q.Row, q.Col})
+	}
+	return out
 }
 
 // Mark is [row, col, 1 for a star / 0 for a cross], compact in JSON.
@@ -136,6 +159,7 @@ type Mark [3]int
 type Hypothesis struct {
 	Steps         []Step   `json:"steps"`
 	Contradiction string   `json:"contradiction"`
+	Refs          *Refs    `json:"refs,omitempty"`  // what Contradiction names
 	Cells         [][2]int `json:"cells,omitempty"` // cells that show the contradiction
 }
 
@@ -166,7 +190,7 @@ func steps(trace []solver.Step) []Step {
 	out := make([]Step, len(trace))
 	for i, st := range trace {
 		rule, _, _ := strings.Cut(st.Source, "[")
-		s := Step{Rule: rule, Source: st.Source, Level: st.Level, Reason: st.Reason, Marks: []Mark{}}
+		s := Step{Rule: rule, Source: st.Source, Level: st.Level, Reason: st.Reason, Refs: refs(st.Refs), Marks: []Mark{}}
 		for _, m := range st.Marks {
 			star := 0
 			if m.Kind == board.Star {
@@ -179,6 +203,7 @@ func steps(trace []solver.Step) []Step {
 			if h.Contradiction != nil {
 				hy.Contradiction = h.Contradiction.Error()
 				if ce, ok := errors.AsType[*board.ContradictionError](h.Contradiction); ok {
+					hy.Refs = refs(ce.Refs)
 					for _, q := range ce.Cells {
 						hy.Cells = append(hy.Cells, [2]int{q.Row, q.Col})
 					}

@@ -46,7 +46,7 @@ function Watch(P) {
     d.steps.forEach((s, i) => {
       const li = el("li");
       const row = el("div", "row");
-      const text = elr("span", "text", s.reason || s.source);
+      const text = elr("span", "text", s.reason || s.source, s.refs || {});
       if (s.hypothesis) {
         const t = el("button", "toggle-chain", expanded[i] ? "Gedankengang ausblenden" : "Gedankengang zeigen");
         t.onclick = (ev) => {
@@ -67,13 +67,13 @@ function Watch(P) {
         s.hypothesis.steps.forEach((h, j) => {
           const cli = el("li");
           const crow = el("div", "row");
-          crow.append(el("span", "num", `${i + 1}.${j + 1}`), chip(h), elr("span", "text", h.reason || h.source));
+          crow.append(el("span", "num", `${i + 1}.${j + 1}`), chip(h), elr("span", "text", h.reason || h.source, h.refs || {}));
           crow.onclick = () => go({ k: i + 1, j });
           cli.append(crow);
           chain.append(cli);
           rowEls.set(`${i + 1}.${j}`, crow);
         });
-        chain.append(elr("li", "end", "⇒ Widerspruch: " + s.hypothesis.contradiction));
+        chain.append(elr("li", "end", "⇒ Widerspruch: " + s.hypothesis.contradiction, s.hypothesis.refs || {}));
         li.append(chain);
       }
       ol.append(li);
@@ -93,7 +93,7 @@ function Watch(P) {
     if (pos.j === undefined) {
       if (pos.k === 0) return { cells: prefix[0], step: null, marks: {} };
       const step = d.steps[pos.k - 1];
-      const refs = L.refs(d, step.reason);
+      const refs = L.refCells(d, step.refs);
       return { cells: prefix[pos.k], step, marks: { new: toSet(step.marks), ref: refs.units, refcell: refs.cells } };
     }
     const parent = d.steps[pos.k - 1];
@@ -101,7 +101,7 @@ function Watch(P) {
     const cells = Uint8Array.from(prefix[pos.k - 1]);
     for (let j = 0; j <= pos.j; j++) L.apply(d, cells, h.steps[j]);
     const step = h.steps[pos.j];
-    const refs = L.refs(d, step.reason);
+    const refs = L.refCells(d, step.refs);
     const marks = { new: toSet(step.marks), ref: refs.units, refcell: refs.cells };
     const last = pos.j === h.steps.length - 1;
     if (last) marks.bad = new Set((h.cells || []).map(([r, c]) => L.idx(d, r, c)));
@@ -134,8 +134,8 @@ function Watch(P) {
     } else {
       const num = pos.j === undefined ? `Schritt ${pos.k} von ${d.steps.length}` : `Gedankengang ${pos.k}.${pos.j + 1}`;
       head.append(chip(v.step), el("span", "", num));
-      cur.append(head, elr("p", "reason", v.step.reason || v.step.source));
-      if (v.last) cur.append(elr("p", "contra", "⇒ Widerspruch: " + v.parent.hypothesis.contradiction));
+      cur.append(head, elr("p", "reason", v.step.reason || v.step.source, v.step.refs || {}));
+      if (v.last) cur.append(elr("p", "contra", "⇒ Widerspruch: " + v.parent.hypothesis.contradiction, v.parent.hypothesis.refs || {}));
     }
     if (pos.j !== undefined) {
       const first = v.parent.hypothesis.steps[0].marks.find((m) => m[2] === 1);

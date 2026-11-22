@@ -64,24 +64,26 @@ for (const f of files) {
     assert.ok(st.hypothesis.contradiction.length > 0);
   }
 
-  // No region letter is left as plain text once swatches replace them.
+  // Every explanation with the refs the server sends with it.
   const texts = [];
   for (const st of d.steps) {
-    texts.push(st.reason);
-    if (st.hypothesis) texts.push(st.hypothesis.contradiction, ...st.hypothesis.steps.map((h) => h.reason));
+    texts.push([st.reason, st.refs]);
+    if (st.hypothesis) texts.push([st.hypothesis.contradiction, st.hypothesis.refs], ...st.hypothesis.steps.map((h) => [h.reason, h.refs]));
   }
-  for (const t of texts) {
-    for (const seg of L.colorSegments(d, t)) {
+  // No region letter is left as plain text once swatches replace the
+  // referenced ones: every color a text names is in its refs.
+  for (const [t, r] of texts) {
+    for (const seg of L.colorSegments(d, t, (r && r.regions) || [])) {
       if (typeof seg === "string") assert.doesNotMatch(seg, /\bFarben? [A-Z]\b/, `${name}: letter left in "${t}"`);
     }
   }
-
-  // Every explanation that names a unit or cell is understood by refs.
-  for (const st of d.steps) {
-    if (/(Zeile|Spalte|Farbe) [0-9A-Z]/.test(st.reason)) {
-      const r = L.refs(d, st.reason);
-      assert.ok(r.units.size > 0, `${name}: no unit found in "${st.reason}"`);
-    }
+  // The refs name what the text names, as the old parser of the text reads it
+  // (refactoring 8: until the parser goes).
+  const sorted = (set) => [...set].sort((a, b) => a - b);
+  for (const [t, r] of texts) {
+    const got = L.refCells(d, r), want = L.refs(d, t);
+    assert.deepEqual(sorted(got.cells), sorted(want.cells), `${name}: cells of "${t}"`);
+    assert.deepEqual(sorted(got.units), sorted(want.units), `${name}: units of "${t}"`);
   }
 }
 
@@ -167,6 +169,14 @@ for (const f of files) {
   r = L.refs(d, "Farbe E hat nur noch freie Felder in Spalte 0 → alle anderen Felder der Spalte 0 X");
   assert.ok(has(r.units, [at(3, 0), at(4, 0), at(0, 0)]) && !r.units.has(at(4, 1)));
 
+  // The refs the server sends: cells, rows, columns and regions.
+  r = L.refCells(d, { cells: [[2, 3]], rows: [2], cols: [3], regions: [4] });
+  assert.deepEqual([...r.cells], [at(2, 3)]);
+  assert.ok(has(r.units, [...rows(2), at(0, 3), at(4, 3), at(3, 0), at(4, 0)]));
+  assert.equal(r.units.size, 5 + 4 + 2);
+  r = L.refCells(d, undefined);
+  assert.equal(r.cells.size + r.units.size, 0);
+
   assert.deepEqual(L.ruleLabel({ rule: "Confinement", level: 2 }), { name: "Eingesperrt", cls: "l1" });
   assert.equal(L.ruleLabel({ rule: "Hypothesis", level: 100 }).name, "Annahme");
   assert.equal(L.ruleLabel({ rule: "Hypothesis", level: 101 }).name, "Raten");
@@ -209,6 +219,9 @@ console.log("drag ok");
   assert.deepEqual(L.colorSegments(d, "X in Zeile 2, Spalte 3, Farbe E und Nachbarschaft"), ["X in Zeile 2, Spalte 3, Farbe ", { region: 4 }, " und Nachbarschaft"]);
   assert.deepEqual(L.colorSegments(d, "Zeile 3 hat 2 Sterne"), ["Zeile 3 hat 2 Sterne"]);
   assert.deepEqual(L.colorSegments(d, ""), []);
+  // With the regions a step names, only their letters.
+  assert.deepEqual(L.colorSegments(d, "Farben B und C", [2]), ["Farben B und ", { region: 2 }]);
+  assert.deepEqual(L.colorSegments(d, "Farbe A", []), ["Farbe A"]);
 }
 console.log("swatches ok");
 

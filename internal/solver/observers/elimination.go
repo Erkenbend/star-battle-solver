@@ -4,6 +4,7 @@ import (
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
+	"starbattle/internal/words"
 )
 
 // Elimination replaces the "Form" idea from the original plan: a star on cell c
@@ -39,6 +40,7 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 	}
 	// Group the crosses by explanation so each one becomes a single step.
 	byReason := map[string][]puzzle.Pos{}
+	refs := map[string]*words.Refs{}
 	var order []string
 	n := s.P.N
 	for r := range n {
@@ -48,9 +50,10 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 				continue
 			}
 			if s.CrossesAll(cell, free) {
-				why := o.explain(s.P, cell, free)
+				why, r := o.explain(s.P, cell, free)
 				if _, seen := byReason[why]; !seen {
 					order = append(order, why)
+					refs[why] = r
 				}
 				byReason[why] = append(byReason[why], cell)
 			}
@@ -59,7 +62,7 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 	var marks []solver.Mark
 	for _, why := range order {
 		for _, cell := range byReason[why] {
-			marks = append(marks, solver.Cross(cell, o.Name()).Why(why))
+			marks = append(marks, solver.Cross(cell, o.Name()).Why(why, refs[why]))
 		}
 	}
 	return marks
@@ -70,7 +73,10 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 //     (same wording as Confinement with k=1),
 //   - they all touch cell,
 //   - or a mix of both.
-func (o Elimination) explain(p *puzzle.Puzzle, cell puzzle.Pos, free []puzzle.Pos) string {
+//
+// It also returns the units the text names.
+func (o Elimination) explain(p *puzzle.Puzzle, cell puzzle.Pos, free []puzzle.Pos) (string, *words.Refs) {
+	var w words.Namer
 	self := []int{o.Unit.Index}
 	for _, kind := range []puzzle.UnitKind{puzzle.Region, puzzle.Row, puzzle.Col} {
 		if kind == o.Unit.Kind {
@@ -82,19 +88,20 @@ func (o Elimination) explain(p *puzzle.Puzzle, cell puzzle.Pos, free []puzzle.Po
 			all = all && p.UnitOf(kind, q) == v
 		}
 		if all {
-			return confined(o.Unit.Kind, self, kind, []int{v})
+			why := confined(&w, o.Unit.Kind, self, kind, []int{v})
+			return why, w.Refs()
 		}
 	}
 	touching := true
 	for _, q := range free {
 		touching = touching && abs(q.Row-cell.Row) <= 1 && abs(q.Col-cell.Col) <= 1
 	}
-	name := units(o.Unit.Kind, self)
+	name := w.Unit(o.Unit.Kind, o.Unit.Index)
 	if touching {
-		return "Die markierten Felder berühren jeweils alle freien Felder von " + name + " → X"
+		return "Die markierten Felder berühren jeweils alle freien Felder von " + name + " → X", w.Refs()
 	}
 	return "Ein Stern auf einem der markierten Felder würde alle freien Felder von " + name +
-		" streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X"
+		" streichen (über Zeile, Spalte, Farbe und Nachbarschaft) → X", w.Refs()
 }
 
 func abs(x int) int {

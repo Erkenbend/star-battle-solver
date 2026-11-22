@@ -98,6 +98,18 @@ as map keys for offsets), `solver` (`unitName`, the texts of `refute` and
 with these words (unit, units, cell, cell lists) would give every text one
 source.
 
+Step 1 (November 2026): `internal/words` names units and cells for
+`board`, `solver` and the rules; its `Namer` records what a text names, and
+`Mark.Why` takes those `Refs` with the text, so every rule has to hand them
+over. `web.Step` and `web.Hypothesis` (for the contradiction) send them as
+`refs` (`cells`, `rows`, `cols`, `regions`, each omitted when empty); the
+page highlights from `Logic.refCells`, and swatches replace only the
+letters of named regions. The trace JSON grows by about 18.5 % before gzip
+(526 → 624 KB over the 29 sample traces, estimated from the golden traces).
+`logic_test.js` checks that the old parser and the refs agree on every
+text of the sample traces. Open: once that has held, remove `Logic.refs`
+and the comparison, then move this entry to "Done".
+
 ## 9. Puzzle page: one state object, capabilities instead of flags
 
 `boot()` in `app.js` is one closure of 1,100 lines. The page object `P`

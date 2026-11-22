@@ -7,6 +7,7 @@ import (
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
+	"starbattle/internal/words"
 )
 
 // Both rules in this file look one assumption ahead: "if cell c held a star ...".
@@ -31,7 +32,7 @@ type ForcedPartner struct {
 func (ForcedPartner) Priority() int { return LevelForcedPartner }
 
 func (o ForcedPartner) Name() string {
-	return fmt.Sprintf("ForcedPartner[%s d=%d]", cell(o.Cell), o.Depth)
+	return fmt.Sprintf("ForcedPartner[%s d=%d]", words.Cell(o.Cell), o.Depth)
 }
 
 func (o ForcedPartner) Done(s *board.State) bool { return s.At(o.Cell.Row, o.Cell.Col) != board.Free }
@@ -46,19 +47,20 @@ func (o ForcedPartner) Deduce(s *board.State) []solver.Mark {
 		return nil
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Ein Stern auf %s ließe ", cell(o.Cell))
+	var w words.Namer
+	fmt.Fprintf(&b, "Ein Stern auf %s ließe ", w.Cell(o.Cell))
 	for i, f := range chain {
 		if i > 0 {
 			b.WriteString(", dann ")
 		}
-		fmt.Fprintf(&b, "in %s nur %s übrig", units(f.unit.Kind, []int{f.unit.Index}), cell(f.cell))
+		fmt.Fprintf(&b, "in %s nur %s übrig", w.Unit(f.unit.Kind, f.unit.Index), w.Cell(f.cell))
 	}
 	together := "Beide Sterne zusammen"
 	if len(chain) > 1 {
 		together = "Alle diese Sterne zusammen"
 	}
-	fmt.Fprintf(&b, ". %s würden %s komplett streichen → X", together, units(empty.Kind, []int{empty.Index}))
-	return []solver.Mark{solver.Cross(o.Cell, o.Name()).Why(b.String())}
+	fmt.Fprintf(&b, ". %s würden %s komplett streichen → X", together, w.Unit(empty.Kind, empty.Index))
+	return []solver.Mark{solver.Cross(o.Cell, o.Name()).Why(b.String(), w.Refs())}
 }
 
 type forced struct {
@@ -112,7 +114,7 @@ type DeadCells struct {
 func (DeadCells) Priority() int { return LevelDeadCells }
 
 func (o DeadCells) Name() string {
-	return fmt.Sprintf("DeadCells[%s max=%d]", cell(o.Cell), o.MaxCells)
+	return fmt.Sprintf("DeadCells[%s max=%d]", words.Cell(o.Cell), o.MaxCells)
 }
 
 func (o DeadCells) Done(s *board.State) bool { return s.At(o.Cell.Row, o.Cell.Col) != board.Free }
@@ -155,17 +157,20 @@ func (o DeadCells) Deduce(s *board.State) []solver.Mark {
 		if n != len(free) {
 			continue // some cell of V is still possible
 		}
+		// Named in the order of the text, though refs have no order that matters.
+		var w words.Namer
+		head := fmt.Sprintf("Nach einem Stern auf %s bleiben in %s nur %s. Ein Stern ",
+			w.Cell(o.Cell), w.Unit(v.Kind, v.Index), w.Cells(free))
 		clauses := make([]string, len(order))
-		for i, w := range order {
-			at := make([]string, len(byUnit[w]))
-			for j, d := range byUnit[w] {
-				at[j] = cell(d)
+		for i, u := range order {
+			at := make([]string, len(byUnit[u]))
+			for j, d := range byUnit[u] {
+				at[j] = w.Cell(d)
 			}
-			clauses[i] = fmt.Sprintf("auf %s würde %s streichen", strings.Join(at, " oder "), units(w.Kind, []int{w.Index}))
+			clauses[i] = fmt.Sprintf("auf %s würde %s streichen", strings.Join(at, " oder "), w.Unit(u.Kind, u.Index))
 		}
-		why := fmt.Sprintf("Nach einem Stern auf %s bleiben in %s nur %s. Ein Stern %s → X",
-			cell(o.Cell), units(v.Kind, []int{v.Index}), cellsAnd(free), strings.Join(clauses, ", einer "))
-		return []solver.Mark{solver.Cross(o.Cell, o.Name()).Why(why)}
+		why := head + strings.Join(clauses, ", einer ") + " → X"
+		return []solver.Mark{solver.Cross(o.Cell, o.Name()).Why(why, w.Refs())}
 	}
 	return nil
 }
@@ -189,7 +194,7 @@ type Pigeonhole struct {
 func (Pigeonhole) Priority() int { return LevelPigeonhole }
 
 func (o Pigeonhole) Name() string {
-	return fmt.Sprintf("Pigeonhole[%s k≤%d]", cell(o.Cell), o.MaxK)
+	return fmt.Sprintf("Pigeonhole[%s k≤%d]", words.Cell(o.Cell), o.MaxK)
 }
 
 func (o Pigeonhole) Done(s *board.State) bool { return s.At(o.Cell.Row, o.Cell.Col) != board.Free }
@@ -225,13 +230,14 @@ func (o Pigeonhole) Deduce(s *board.State) []solver.Mark {
 				continue
 			}
 			var why string
+			var w words.Namer
 			confinedSets(pr.opens, k, k-1, pr.from != puzzle.Region, func(from, union map[int]bool) bool {
 				why = fmt.Sprintf("Ein Stern auf %s ließe %s nur noch Platz in %s, zu wenig für %d Sterne → X",
-					cell(o.Cell), units(pr.from, keys(from)), units(pr.to, keys(union)), k)
+					w.Cell(o.Cell), w.Units(pr.from, keys(from)), w.Units(pr.to, keys(union)), k)
 				return false
 			})
 			if why != "" {
-				return []solver.Mark{solver.Cross(o.Cell, o.Name()).Why(why)}
+				return []solver.Mark{solver.Cross(o.Cell, o.Name()).Why(why, w.Refs())}
 			}
 		}
 	}

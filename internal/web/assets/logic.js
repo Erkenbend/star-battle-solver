@@ -167,8 +167,26 @@ const Logic = (() => {
     return null;
   }
 
-  // Units and cells named in an explanation, for highlighting:
-  // "Zeilen 3 und 4", "Spalten 2 bis 5", "Farben A, B und D", "(2,3)".
+  // The cells of the units and the cells an explanation names, for
+  // highlighting, from the refs the server sends with it (web.Refs:
+  // {cells: [[r, c], …], rows, cols, regions}, each list omitted when empty;
+  // a step without refs names nothing).
+  function refCells(d, refs) {
+    const cells = new Set(), units = new Set();
+    const r = refs || {};
+    for (const [row, col] of r.cells || []) cells.add(idx(d, row, col));
+    for (const row of r.rows || []) for (let c = 0; c < d.n; c++) units.add(idx(d, row, c));
+    for (const col of r.cols || []) for (let row = 0; row < d.n; row++) units.add(idx(d, row, col));
+    const regions = new Set(r.regions || []);
+    if (regions.size)
+      for (let row = 0; row < d.n; row++) for (let c = 0; c < d.n; c++) if (regions.has(d.regions[row][c])) units.add(idx(d, row, c));
+    return { cells, units };
+  }
+
+  // The same read from the German text: "Zeilen 3 und 4", "Spalten 2 bis 5",
+  // "Farben A, B und D", "(2,3)". Only the node test still uses it, to check
+  // that refCells agrees on every sample trace; it goes once that has held
+  // (refactoring 8 in architecture/refactorings.md).
   function refs(d, text) {
     const cells = new Set(), unitCells = new Set();
     const addUnit = (kind, i) => {
@@ -200,15 +218,19 @@ const Logic = (() => {
 
   // Splits an explanation into text and region references, so the page can
   // show a color swatch instead of the letter: "Farben B und C liegen …" →
-  // ["Farben ", {region: 1}, " und ", {region: 2}, " liegen …"].
-  function colorSegments(d, text) {
+  // ["Farben ", {region: 1}, " und ", {region: 2}, " liegen …"]. regions,
+  // if given, are the regions the text names (refs.regions of a step): only
+  // their letters become swatches. Texts without refs (the tutorial's, the
+  // page's own) get one for every "Farbe X".
+  function colorSegments(d, text, regions) {
+    const named = regions ? new Set(regions) : null;
     const out = [];
     let last = 0;
     for (const m of text.matchAll(/\b(Farben?) ([A-Za-z](?:(?:, | und )[A-Za-z](?![a-zäöüß]))*)(?![a-zäöüß])/g)) {
       out.push(text.slice(last, m.index) + m[1] + " ");
       for (const part of m[2].split(/(, | und )/)) {
         const i = d.letters.indexOf(part);
-        out.push(part.length === 1 && i >= 0 ? { region: i } : part);
+        out.push(part.length === 1 && i >= 0 && (!named || named.has(i)) ? { region: i } : part);
       }
       last = m.index + m[0].length;
     }
@@ -570,7 +592,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refCells, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;

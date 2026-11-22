@@ -12,20 +12,23 @@ import (
 
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
+	"starbattle/internal/words"
 )
 
 // Mark is one deduction: put a star (M) or a cross (X) on a cell.
 type Mark struct {
 	Pos    puzzle.Pos
-	Kind   board.Cell // board.Star or board.Cross
-	Source string     // name of the observer that produced it
-	Reason string     // human-readable explanation (German), shown by solve -verbose
-	Level  int        // priority level of the rule (set by the runner, see Prioritized)
+	Kind   board.Cell  // board.Star or board.Cross
+	Source string      // name of the observer that produced it
+	Reason string      // human-readable explanation (German), shown by solve -verbose
+	Refs   *words.Refs // the units and cells Reason names (nil if none), read-only
+	Level  int         // priority level of the rule (set by the runner, see Prioritized)
 }
 
-// Why returns m with its explanation set.
-func (m Mark) Why(reason string) Mark {
-	m.Reason = reason
+// Why returns m with its explanation set: the text and what it names,
+// usually both from one words.Namer.
+func (m Mark) Why(reason string, refs *words.Refs) Mark {
+	m.Reason, m.Refs = reason, refs
 	return m
 }
 
@@ -72,7 +75,7 @@ func Apply(s *board.State, m Mark) ([]Mark, error) {
 				return delta, fmt.Errorf("%w (%s)", err, m.Source)
 			}
 			if ch {
-				implied := Cross(q, m.Source).Why(m.Reason)
+				implied := Cross(q, m.Source).Why(m.Reason, m.Refs)
 				implied.Level = m.Level
 				delta = append(delta, implied)
 			}
@@ -100,7 +103,8 @@ func (s Status) String() string {
 type Step struct {
 	Source string
 	Reason string
-	Level  int // priority level of the rule or search step
+	Refs   *words.Refs // the units and cells Reason names, for highlighting (nil if none)
+	Level  int         // priority level of the rule or search step
 	Marks  []Mark
 	// Hypothesis is set for a cross proven by refuting a star: it holds the
 	// steps that followed from assuming the star, ending in a contradiction.
@@ -110,7 +114,7 @@ type Step struct {
 // Hypothesis is the chain of reasoning behind a refuted assumption.
 type Hypothesis struct {
 	Steps         []Step // the assumed star itself first, then the rules' deductions
-	Contradiction error  // usually a *board.ContradictionError
+	Contradiction error  // usually a *board.ContradictionError, whose Refs name what it names
 }
 
 // record adds the cells changed by applying m to the trace, extending the last
@@ -123,7 +127,7 @@ func record(trace []Step, m Mark, delta []Mark) []Step {
 		trace[n-1].Marks = append(trace[n-1].Marks, delta...)
 		return trace
 	}
-	return append(trace, Step{Source: m.Source, Reason: m.Reason, Level: m.Level, Marks: delta})
+	return append(trace, Step{Source: m.Source, Reason: m.Reason, Refs: m.Refs, Level: m.Level, Marks: delta})
 }
 
 // Result of a run.

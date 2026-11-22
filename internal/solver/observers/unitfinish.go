@@ -6,6 +6,7 @@ import (
 	"starbattle/internal/board"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
+	"starbattle/internal/words"
 )
 
 // UnitFinish: a unit (row, column or region) without a star and with exactly one
@@ -26,9 +27,9 @@ func (o UnitFinish) Deduce(s *board.State) []solver.Mark {
 	}
 	if s.FreeCount(o.Unit.Cells) == 1 {
 		q, _ := s.FirstFree(o.Unit.Cells)
-		why := fmt.Sprintf("In %s ist nur noch das Feld %s frei → Stern",
-			units(o.Unit.Kind, []int{o.Unit.Index}), cell(q))
-		return []solver.Mark{solver.Star(q, o.Name()).Why(why)}
+		var w words.Namer
+		why := fmt.Sprintf("In %s ist nur noch das Feld %s frei → Stern", w.Unit(o.Unit.Kind, o.Unit.Index), w.Cell(q))
+		return []solver.Mark{solver.Star(q, o.Name()).Why(why, w.Refs())}
 	}
 	return nil
 }

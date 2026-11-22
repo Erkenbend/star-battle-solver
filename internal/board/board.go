@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"starbattle/internal/puzzle"
+	"starbattle/internal/words"
 )
 
 // Cell is the state of a single cell.
@@ -71,9 +72,12 @@ func (s *State) Set(r, c int, v Cell) (bool, error) {
 	case cur == v:
 		return false, nil
 	case cur != Free:
+		var w words.Namer
+		q := puzzle.Pos{Row: r, Col: c}
 		return false, &ContradictionError{
-			Msg:   fmt.Sprintf("Konflikt bei (%d,%d): ist %v, soll %v werden", r, c, cur, v),
-			Cells: []puzzle.Pos{{Row: r, Col: c}},
+			Msg:   fmt.Sprintf("Konflikt bei %s: ist %v, soll %v werden", w.Cell(q), cur, v),
+			Cells: []puzzle.Pos{q},
+			Refs:  w.Refs(),
 		}
 	case v == Free:
 		return false, fmt.Errorf("cannot reset (%d,%d) to free", r, c)
@@ -95,6 +99,7 @@ func (s *State) Equal(o *State) bool { return slices.Equal(s.cells, o.cells) }
 type ContradictionError struct {
 	Msg   string
 	Cells []puzzle.Pos
+	Refs  *words.Refs // the units and cells Msg names
 }
 
 func (e *ContradictionError) Error() string { return e.Msg }
@@ -117,13 +122,8 @@ func (s *State) Contradiction() error {
 		if stars <= 1 && (stars == 1 || free > 0) {
 			continue
 		}
-		kind, name := "Zeile", fmt.Sprint(u.Index)
-		switch u.Kind {
-		case puzzle.Col:
-			kind, name = "Spalte", fmt.Sprint(u.Index)
-		case puzzle.Region:
-			kind, name = "Farbe", string(puzzle.RegionLetter(u.Index))
-		}
+		var w words.Namer
+		name := w.Unit(u.Kind, u.Index)
 		if stars > 1 {
 			var at []puzzle.Pos
 			for _, q := range u.Cells {
@@ -131,9 +131,9 @@ func (s *State) Contradiction() error {
 					at = append(at, q)
 				}
 			}
-			return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte %d Sterne", kind, name, stars), Cells: at}
+			return &ContradictionError{Msg: fmt.Sprintf("%s hätte %d Sterne", name, stars), Cells: at, Refs: w.Refs()}
 		}
-		return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte keinen Stern und kein freies Feld mehr", kind, name), Cells: slices.Clone(u.Cells)}
+		return &ContradictionError{Msg: name + " hätte keinen Stern und kein freies Feld mehr", Cells: slices.Clone(u.Cells), Refs: w.Refs()}
 	}
 	for r := range n {
 		for c := range n {
@@ -144,9 +144,12 @@ func (s *State) Contradiction() error {
 			for _, d := range [4]puzzle.Pos{{Row: 0, Col: 1}, {Row: 1, Col: -1}, {Row: 1, Col: 0}, {Row: 1, Col: 1}} {
 				rr, cc := r+d.Row, c+d.Col
 				if s.P.In(rr, cc) && s.At(rr, cc) == Star {
+					var w words.Namer
+					a, b := puzzle.Pos{Row: r, Col: c}, puzzle.Pos{Row: rr, Col: cc}
 					return &ContradictionError{
-						Msg:   fmt.Sprintf("die Sterne auf (%d,%d) und (%d,%d) würden sich berühren", r, c, rr, cc),
-						Cells: []puzzle.Pos{{Row: r, Col: c}, {Row: rr, Col: cc}},
+						Msg:   fmt.Sprintf("die Sterne auf %s und %s würden sich berühren", w.Cell(a), w.Cell(b)),
+						Cells: []puzzle.Pos{a, b},
+						Refs:  w.Refs(),
 					}
 				}
 			}

@@ -1,43 +1,17 @@
 package observers
 
 import (
-	"fmt"
 	"maps"
 	"slices"
-	"strings"
 
 	"starbattle/internal/puzzle"
+	"starbattle/internal/words"
 )
 
-// German phrases for the explanations shown by `solve -verbose`.
-
-var unitWords = map[puzzle.UnitKind][2]string{ // singular, plural
-	puzzle.Row:    {"Zeile", "Zeilen"},
-	puzzle.Col:    {"Spalte", "Spalten"},
-	puzzle.Region: {"Farbe", "Farben"},
-}
-
-// units names a set of units, e.g. "Zeile 3", "Spalten 2 und 3", "Farben A, B und D".
-// Three or more consecutive rows or columns become a range: "Zeilen 3 bis 5".
-func units(kind puzzle.UnitKind, idx []int) string {
-	idx = slices.Sorted(slices.Values(idx))
-	if n := len(idx); kind != puzzle.Region && n >= 3 && idx[n-1]-idx[0] == n-1 {
-		return fmt.Sprintf("%s %d bis %d", unitWords[kind][1], idx[0], idx[n-1])
-	}
-	names := make([]string, len(idx))
-	for i, x := range idx {
-		if kind == puzzle.Region {
-			names[i] = string(puzzle.RegionLetter(x))
-		} else {
-			names[i] = fmt.Sprint(x)
-		}
-	}
-	w := unitWords[kind]
-	if len(names) == 1 {
-		return w[0] + " " + names[0]
-	}
-	return w[1] + " " + strings.Join(names[:len(names)-1], ", ") + " und " + names[len(names)-1]
-}
+// German phrases for the explanations shown by `solve -verbose` and the
+// pages. The names of units and cells come from package words; a rule names
+// them through one words.Namer per explanation and gives its Refs to the
+// marks along with the text (solver.Mark.Why).
 
 // confined explains a confinement: the free cells of the From-units lie only in
 // the To-units, so the rest of the To-units is crossed. Examples:
@@ -45,8 +19,8 @@ func units(kind puzzle.UnitKind, idx []int) string {
 //	Spalte 11 hat nur noch freie Felder der Farbe I → alle anderen Felder der Farbe I X
 //	Zeilen 3 und 4 haben nur noch freie Felder in Spalten 0 und 1 → alle anderen Felder der Spalten 0 und 1 X
 //	Farben B und C liegen nur noch in Zeilen 0 und 1 → alle anderen Felder der Zeilen 0 und 1 X
-func confined(from puzzle.UnitKind, fromIdx []int, to puzzle.UnitKind, toIdx []int) string {
-	f, t := units(from, fromIdx), units(to, toIdx)
+func confined(w *words.Namer, from puzzle.UnitKind, fromIdx []int, to puzzle.UnitKind, toIdx []int) string {
+	f, t := w.Units(from, fromIdx), w.Units(to, toIdx)
 	one := len(fromIdx) == 1
 	var premise string
 	switch {
@@ -65,20 +39,6 @@ func verb(singular bool, s, p string) string {
 		return s
 	}
 	return p
-}
-
-func cell(q puzzle.Pos) string { return fmt.Sprintf("(%d,%d)", q.Row, q.Col) }
-
-// cellsAnd lists cells as "(1,2)", "(1,2) und (3,4)", "(1,2), (3,4) und (5,6)".
-func cellsAnd(qs []puzzle.Pos) string {
-	out := make([]string, len(qs))
-	for i, q := range qs {
-		out[i] = cell(q)
-	}
-	if len(out) <= 1 {
-		return strings.Join(out, "")
-	}
-	return strings.Join(out[:len(out)-1], ", ") + " und " + out[len(out)-1]
 }
 
 func keys(m map[int]bool) []int { return slices.Collect(maps.Keys(m)) }
