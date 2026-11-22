@@ -19,7 +19,7 @@ Fokus: der Solver-Algorithmus und **verständliche Erklärungen** der Lösungssc
 | Paket | Inhalt |
 |---|---|
 | `internal/puzzle` | Layout, Textformat (Buchstaben bleiben erhalten, wenn es die ersten N sind), Einheiten |
-| `internal/board` | Zustand, `Set` mit Konflikterkennung, `Implied`, `Contradiction`, Parser für Testzustände |
+| `internal/board` | Zustand, `Set` mit Konflikterkennung, `Implied`, `Contradiction`, Parser für Testzustände; was aus dem Layout folgt (Einheiten, `Implied` je Feld), rechnet `New` einmal aus, Kopien teilen es ([Entscheidung 32](architecture/decisions/32-board-geometry.md)) |
 | `internal/render` | ANSI-Farben; neue Felder in `[ ]`, Widerspruchszellen in `( )`, Pfeile am Rand |
 | `internal/bruteforce` | Referenz-Solver (Backtracking über Zeilen), Test-Orakel |
 | `internal/generator` | zufällige Lösung → Regionen wachsen → zweite Lösungen durch Verschieben von Regionsstücken zerstören (siehe [Entscheidung 8](architecture/decisions/08-generator-repair-by-pieces.md)) |

@@ -71,47 +71,6 @@ The numbers are the ranking: value for maintainability, robustness and
 speed against cost and risk. 5 to 7 are worth doing soon; 9 and 10 go
 together; 14 only after 5, and only if measurements still call for it.
 
-## 5. Precomputed geometry for `board`
-
-A CPU profile of `go test -short -run TestHardPuzzles ./internal/solver/observers`
-(13 s, 49 s CPU) shows:
-
-- `board.Implied` at 21 % cumulative. It runs for every star `solver.Apply`
-  sets: inside every lookahead trial and every `assume` of `ForcedPartner`,
-  `DeadCells` and `Pigeonhole` (`assume` alone is 25 %). Each call allocates a
-  map and rebuilds `p.RegionCells()` (10.5 % of all CPU, mostly from here).
-- Allocation at 27 % (`mallocgc`), with GC work on top: `State.Free` (15 %)
-  builds a slice where most callers only need a count or the first cell
-  (`emptyUnit`, `UnitFinish`, `Elimination`, `branchUnit`), and
-  `State.Contradiction` calls `p.Units()`, which rebuilds all 3N units, after
-  every change in `RunSync`.
-
-`observers` already has the fix for one rule (`impliedTable`, used by
-`Elimination`). Proposal: a per-puzzle, read-only `geometry` in `board`
-(units, cell → unit indices, implied cells per cell, as lists in today's
-order), built once by `board.New` and shared by `Clone` as a pointer.
-`Implied`, `Contradiction` and the rules read from it; `State` gets
-allocation-free helpers (`FreeCount`, `FirstFree`, `Open(unit)`) next to
-`Free`. `impliedTable` then becomes the geometry's.
-
-- The order of `Implied` must stay as it is: it orders the crosses of a
-  step, so trace, `solve -verbose` and the pages would change otherwise.
-  Check as in 4: compare `solve -verbose` and `html` output byte for byte
-  on the sample puzzles.
-- It relies on a puzzle not changing once a board exists for it (see
-  "Guidelines"); the generator changes `Regions` only while repairing,
-  before any board exists.
-- Build the geometry eagerly in `board.New` and hand it on with the `State`
-  (`Implied` reads it from there), not lazily in a cache on the `Puzzle`:
-  many goroutines share one `*puzzle.Puzzle`, so a lazy cache would need a
-  `sync.Once` or a mutex, a new pattern for
-  [concurrency.md](concurrency.md). Built eagerly, it is written before any
-  goroutine starts and only read afterwards; the intro of concurrency.md and
-  the bullet "Private state per actor" in its section 1 then say that clones
-  share this read-only part.
-- Measure on `testdata/hard` (the whole set, not only the sample) and on a
-  Raspberry Pi if possible, and record it as a decision.
-
 ## 6. One solve budget in `serve`: limit, cancel, cache
 
 Every caller of the server's `SolveFunc` runs the full solver with
@@ -292,8 +251,8 @@ What the review found that needs no change now, only attention later:
 - **A puzzle does not change once a board exists for it.** The generator
   changes `Regions` in place while repairing a layout, before anything
   solves it; everything after that treats a `*puzzle.Puzzle` as read-only.
-  5 relies on it (derived tables per puzzle); a tool that edits a puzzle
-  makes a new one (`Clone`).
+  The geometry `board.New` derives from it relies on that (see 5 under
+  "Done"); a tool that edits a puzzle makes a new one (`Clone`).
 
 ## Considered and not recommended
 
@@ -375,3 +334,8 @@ What the review found that needs no change now, only attention later:
   one file each in [decisions/](decisions/README.md), translated to English
   and not shortened. `PLAN.md` keeps the rules, the current state and open
   ideas.
+- **5. Precomputed geometry for `board`** (November 2026): `board.New`
+  builds the units, the implied crosses of every cell and a covers table
+  once, clones share them read-only; `FreeCount` and `FirstFree` next to
+  `Free`. Same output, the hard puzzles solve about 2.4× faster
+  ([decision 32](decisions/32-board-geometry.md)).

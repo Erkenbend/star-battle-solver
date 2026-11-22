@@ -41,6 +41,7 @@ and open ideas.
 | [29](29-designer-searches-longer.md) | Designer: search on all cores until *k* puzzles or a budget of attempts | done |
 | [30](30-ways-between-pages.md) | Ways between pages only through the tab bar, one way to the next puzzle | done |
 | [31](31-party-resumes.md) | "/party" leads back to the party one plays in, "Party verlassen" also in a round | done |
+| [32](32-board-geometry.md) | Precomputed geometry for `board`, built by `New`, shared by clones | done |
 
 ## Adding a decision
 
