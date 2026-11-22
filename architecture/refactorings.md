@@ -133,21 +133,6 @@ source and `generator.ForSeed(n, seed)` for the puzzle, used everywhere;
 a test that `generate -seed`, `/?n=&seed=` and `hardsearch` agree on one
 seed.
 
-## 14. Lookahead: stop trials that cannot win
-
-`lookahead` runs every trial to its end and then takes the refutation with
-the fewest steps (then fewest cells, then the earliest candidate). The
-trials are 37 % of the CPU in the profile of 5. A trial that already has
-more steps than a refutation found by another trial can never be chosen,
-so it could stop there, without changing which one is chosen: the
-explanation stays the same and does not depend on scheduling. It needs
-`RunSync` with a step limit (an internal variant) and a shared "best so
-far" read by the workers. The candidates come tightest unit first, so
-short refutations tend to be found early. Do it after 5, measure on
-`testdata/hard`, keep it only if it pays, and record it as a decision with
-the check that every trace stays byte for byte the same (`TestTraceGolden`
-for the sample, plus `solve -verbose` on the whole set as in 5).
-
 ## Guidelines
 
 What the review found that needs no change now, only attention later:
@@ -280,3 +265,10 @@ What the review found that needs no change now, only attention later:
   waiting for the solve budget; request bodies are small and limited by
   `http.MaxBytesReader`. `writeHard` and `rateDir` stay in `main.go` until
   `hardsearch` grows.
+- **14. Lookahead: stop trials that cannot win** (November 2026): the
+  workers share an atomic minimum of the shortest refutation so far, and a
+  trial (`runSync`, `RunSync` with a step limit) gives up once its chain is
+  longer. Same traces on all of `testdata/hard`; about 1.5× faster there
+  (CPU 1.65×), also on 4 threads
+  ([decision 36](decisions/36-lookahead-stops-trials.md),
+  [concurrency.md](concurrency.md) section 2).
