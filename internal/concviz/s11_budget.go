@@ -13,7 +13,7 @@ func budgetStory() *Story {
 	l1 := s.Go("library 1", Pt{130, 110}, lib...)
 	l2 := s.Go("library 2", Pt{130, 290}, lib...)
 	l3 := s.Go("library 3", Pt{130, 470}, lib...)
-	page := []string{"web.page", "web.Budget.Limit", "solver.cancelled"}
+	page := []string{"web.Handler", "web.Budget.Limit", "solver.cancelled"}
 	r1 := s.Go("page: new puzzle", Pt{900, 190}, page...)
 	r2 := s.Go("page: /play", Pt{900, 430}, page...)
 	v1 := s.Outside("visitor 1", Pt{1170, 70})

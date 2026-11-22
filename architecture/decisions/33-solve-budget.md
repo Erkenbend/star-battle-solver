@@ -1,6 +1,6 @@
 # 33. One solve budget in `serve`: limit, cancel, cache
 
-- **Status:** partly done (cancel and limit; the cache is open)
+- **Status:** done
 - **Date:** 2026-11-22
 
 Suggestion 6 of [refactorings.md](../refactorings.md). Every solve of
@@ -30,6 +30,13 @@ an older `/?n=…&seed=…` solved again.
    one fewer first, so a page always finds a slot. Nothing holds a slot of
    the budget and of `cpuSlots` at once: callers generate first, then
    solve. [concurrency.md](../concurrency.md), section 11.
+3. **A cache of served pages** in `web.Handler` (`results`): the last 64
+   solved puzzles of `/?n=…&seed=…` (key `n/seed`, also those the pool
+   handed out, as the pool keeps only the last one per size) and of
+   `/play` (key: the puzzle's text, so `/` and `,` between the rows give
+   the same entry), least recently used out. Only finished results are
+   kept, so a cancelled or failed solve is tried again. The tutorial is
+   solved once (`sync.OnceValues`), with `context.Background()`.
 
 ## Measurements
 
@@ -80,6 +87,26 @@ The cost of the limit: three solves on four cores leave a core idle while
 the solves are in their rules phase (single-threaded), so a burst of pages
 that all wait takes a little longer overall, about 13 % here.
 
+**Reloads:** one hard 14×14 puzzle pasted into `/play` and reloaded 10
+times in a row; then 8 players open another one at the same moment.
+
+| | before | after |
+|---|---|---|
+| 10 reloads | 11.8 s, CPU 30.3 s | 1.2 s, CPU 3.1 s (the first solves) |
+| 8 players, one new link at once | 2.5 s, CPU 9.3 s | 3.0 s, CPU 10.5 s |
+| that link once more | 0.57 s | 0.00 s |
+| 200 × `/anleitung` | CPU 0.17 s | CPU 0.12 s |
+
+The final build gave the same numbers in the other scenarios as the
+budget column above (crawl: new 10×10 at most 0.05 s, 57.5 s and 218 s
+CPU for the whole library, peak RSS 176 MB; abandoned pages: 0.05 s of CPU
+after the visitors left; flood: median 2.04 s, slowest 3.89 s).
+
+**Memory of the cache** (heap kept by 64 results): 3.5 MB for 8×8
+puzzles, 11.7 MB for 12×12, 25.6 MB for the 64 largest hard puzzles of
+`testdata/hard` (13×13 to 15×15, 400 KB each, mostly the chains of the
+lookahead). Bounded and below what the limit saves at peak.
+
 `TestHardPuzzles` takes 6.2 s with and without step 1, and
 `TestTraceGolden` shows the same traces: a `Done` that stays open changes
 nothing.
@@ -97,6 +124,15 @@ nothing.
 - **Making the lookahead's workers take `cpuSlots` tokens**, one budget for
   every core of the process: stricter, but a single solve would then wait
   for the generator and lose its parallelism; not needed by the numbers.
+- **Keeping the page data or the HTML** instead of the solver's result:
+  building the page is cheap next to solving, and the result is what the
+  pool and the parties hold too.
 
-Open: step 3 of the suggestion, a bounded cache of served results and the
-tutorial's result computed once.
+Open: several visitors opening the same new link at the same moment each
+solve it (8 at once: all eight solve, within the budget). Sharing one
+solve among them (an in-flight entry, like the library's future) needs
+a context that ends only when the last of them has left; worth it only if
+links are shared that way. Not measured on a Raspberry Pi; there the
+solves are several times slower, which makes the limit matter more, not
+less. A hard library puzzle whose `/bibliothek/weg` a player asks for
+while a crawl is queued waits behind the crawl (background lane).

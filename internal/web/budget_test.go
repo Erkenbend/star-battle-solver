@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -139,7 +140,6 @@ func TestPageSolveCancelled(t *testing.T) {
 	for _, path := range []string{
 		"/play?" + url.Values{"p": {tutorialPuzzle}}.Encode(),
 		"/?n=6&seed=12",
-		"/anleitung",
 	} {
 		ctx, cancel := context.WithCancel(context.Background())
 		rec := httptest.NewRecorder()
@@ -162,5 +162,64 @@ func TestPageSolveCancelled(t *testing.T) {
 		if rec.Body.Len() != 0 {
 			t.Errorf("%s: wrote %d bytes for a request that is gone", path, rec.Body.Len())
 		}
+	}
+	// A cancelled solve is not kept: the next visitor's page is solved.
+	close(g.release)
+	calls := g.calls.Load()
+	if rec := get(h, "/?n=6&seed=12"); rec.Code != 200 || g.calls.Load() != calls+1 {
+		t.Errorf("after a cancelled solve: status %d, %d solves, want 200 and 1", rec.Code, g.calls.Load()-calls)
+	}
+}
+
+// TestResultsKept: a reload, a shared link written another way and every
+// visit of the tutorial cost no solve; a failed solve is not kept.
+func TestResultsKept(t *testing.T) {
+	var calls atomic.Int32
+	fail := true
+	h := Handler(func(ctx context.Context, p *puzzle.Puzzle) (solver.Result, error) {
+		calls.Add(1)
+		if fail {
+			return solver.Result{}, errors.New("kaputt")
+		}
+		return testSolve(ctx, p)
+	}, nil, nil, nil, nil)
+	check := func(path string, wantCode int, wantCalls int32) string {
+		t.Helper()
+		rec := get(h, path)
+		if rec.Code != wantCode || calls.Load() != wantCalls {
+			t.Fatalf("%s: status %d after %d solves, want %d after %d", path, rec.Code, calls.Load(), wantCode, wantCalls)
+		}
+		return rec.Body.String()
+	}
+	check("/?n=7&seed=5", 500, 1)
+	fail = false
+	first := check("/?n=7&seed=5", 200, 2)
+	if check("/?n=7&seed=5", 200, 2) != first {
+		t.Error("the kept page differs from the solved one")
+	}
+	check("/play?p=AAB/ABB/CCC", 400, 2) // too small: no solve
+	text := "BBBCC/BBCCC/ADDDC/DDDEE/DEEEE"
+	check("/play?p="+text, 200, 3)
+	check("/play?p="+strings.ReplaceAll(text, "/", ","), 200, 3)
+	for range 3 {
+		check("/anleitung", 200, 4)
+	}
+}
+
+// TestResultsEvict: the least recently used entry goes first.
+func TestResultsEvict(t *testing.T) {
+	c := newResults(2)
+	a, b, d := &served{}, &served{}, &served{}
+	c.put("a", a)
+	c.put("b", b)
+	c.get("a")
+	c.put("d", d)
+	if c.get("a") != a || c.get("d") != d || c.get("b") != nil {
+		t.Error("want a and d kept, b dropped")
+	}
+	var none *results
+	none.put("a", a)
+	if none.get("a") != nil {
+		t.Error("a nil cache keeps something")
 	}
 }

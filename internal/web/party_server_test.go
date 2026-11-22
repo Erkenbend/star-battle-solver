@@ -130,7 +130,9 @@ func TestPartyPuzzle(t *testing.T) {
 	if err != nil || rp.P.N != 5 || len(rp.Solution) != 5 || rp.Res.Status != solver.Solved {
 		t.Fatalf("got %+v, %v", rp, err)
 	}
-	failing := func(context.Context, *puzzle.Puzzle) (solver.Result, error) { return solver.Result{}, errors.New("kaputt") }
+	failing := func(context.Context, *puzzle.Puzzle) (solver.Result, error) {
+		return solver.Result{}, errors.New("kaputt")
+	}
 	if _, err := partyPuzzle(failing, nil)(5); err == nil || err.Error() != "kaputt" {
 		t.Fatalf("solve error: got %v", err)
 	}

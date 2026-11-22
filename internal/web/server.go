@@ -100,7 +100,9 @@ func (b *Budget) Background(solve SolveFunc) SolveFunc {
 //	                separated by newlines, '/' or ',')
 //
 // With a pool (may be nil), /?n=8 hands out the seed of the puzzle the pool
-// has ready, so the page appears without waiting for the generator. With
+// has ready, so the page appears without waiting for the generator. The
+// last pages of /?n=…&seed=… and /play are kept (results), so a reload or
+// a shared link answers at once. With
 // parties (may be nil), /party and below serve the party mode (party_server.go).
 // With libraries (may be none), /bibliothek serves them (library.go). With a
 // symbol catalog (may be nil), /einstellungen lets players choose the symbol
@@ -108,6 +110,21 @@ func (b *Budget) Background(solve SolveFunc) SolveFunc {
 // /manifest.webmanifest and the icons make the site installable (install.go).
 func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Library, syms *Symbols) http.Handler {
 	mux := http.NewServeMux()
+	cache := newResults(cachedResults)
+	// page solves p for request r, keeps the result under key and writes
+	// the page; nothing if r is gone.
+	page := func(w http.ResponseWriter, r *http.Request, key, title string, p *puzzle.Puzzle, sol []int) {
+		res, err := solve(r.Context(), p)
+		if r.Context().Err() != nil {
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		cache.put(key, &served{p, sol, res})
+		write(w, title, p, sol, res)
+	}
 	if parties != nil {
 		partyRoutes(mux, parties)
 	}
@@ -161,8 +178,15 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 			return
 		}
 		title := fmt.Sprintf("Star Battle %d×%d · Nr. %d", n, n, seed)
+		key := fmt.Sprintf("%d/%d", n, seed)
 		if e := pool.Lookup(n, seed); e != nil {
+			// Kept, as the pool keeps only the last one per size.
+			cache.put(key, &served{e.p, e.sol, e.res})
 			write(w, title, e.p, e.sol, e.res)
+			return
+		}
+		if v := cache.get(key); v != nil {
+			write(w, title, v.p, v.sol, v.res)
 			return
 		}
 		p, sol, err := generate(r.Context().Done(), n, seed)
@@ -172,12 +196,18 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 			}
 			return
 		}
-		page(w, r, solve, title, p, sol)
+		page(w, r, key, title, p, sol)
 	})
 	mux.HandleFunc("GET /play", func(w http.ResponseWriter, r *http.Request) {
 		p, err := parsePlay(r.URL.Query().Get("p"))
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "Puzzle nicht lesbar: "+err.Error())
+			return
+		}
+		title := fmt.Sprintf("Star Battle %d×%d · eigenes Puzzle", p.N, p.N)
+		key := "play:" + p.String() // the same puzzle however its link writes the rows
+		if v := cache.get(key); v != nil {
+			write(w, title, v.p, v.sol, v.res)
 			return
 		}
 		var sol []int
@@ -189,7 +219,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 		case 1:
 			sol = sols[0]
 		}
-		page(w, r, solve, fmt.Sprintf("Star Battle %d×%d · eigenes Puzzle", p.N, p.N), p, sol)
+		page(w, r, key, title, p, sol)
 	})
 	return mux
 }
@@ -257,19 +287,6 @@ func newSeed() uint64 { return uint64(rand.IntN(999_999) + 1) }
 // Closing done (may be nil) cancels it.
 func generate(done <-chan struct{}, n int, seed uint64) (*puzzle.Puzzle, []int, error) {
 	return generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n), Done: done})
-}
-
-// page solves p for request r and writes the page; nothing if r is gone.
-func page(w http.ResponseWriter, r *http.Request, solve SolveFunc, title string, p *puzzle.Puzzle, sol []int) {
-	res, err := solve(r.Context(), p)
-	if r.Context().Err() != nil {
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	write(w, title, p, sol, res)
 }
 
 // write writes the page for a solved puzzle, marked as served so it shows the forms.

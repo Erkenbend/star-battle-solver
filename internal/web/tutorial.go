@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"starbattle/internal/bruteforce"
 	"starbattle/internal/puzzle"
@@ -110,12 +111,12 @@ func tutorialData(ctx context.Context, solve SolveFunc) (Data, error) {
 	return d, nil
 }
 
+// tutorialRoutes adds /anleitung. Its puzzle is fixed, so it is solved once,
+// on the first visit (not the request's context: the result is kept).
 func tutorialRoutes(mux *http.ServeMux, solve SolveFunc) {
+	data := sync.OnceValues(func() (Data, error) { return tutorialData(context.Background(), solve) })
 	mux.HandleFunc("GET /anleitung", func(w http.ResponseWriter, r *http.Request) {
-		d, err := tutorialData(r.Context(), solve)
-		if r.Context().Err() != nil {
-			return
-		}
+		d, err := data()
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

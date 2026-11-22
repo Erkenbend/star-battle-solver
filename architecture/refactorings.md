@@ -71,42 +71,6 @@ The numbers are the ranking: value for maintainability, robustness and
 speed against cost and risk. 5 to 7 are worth doing soon; 9 and 10 go
 together; 14 only after 5, and only if measurements still call for it.
 
-## 6. One solve budget in `serve`: limit, cancel, cache
-
-Every caller of the server's `SolveFunc` runs the full solver with
-lookahead, which starts `GOMAXPROCS` workers per solve:
-
-- the pool (one size at a time, fine);
-- the library: the first visit of each puzzle starts a goroutine of its own
-  (`Library.start`). A crawler or a curious player opening the ~190 hard
-  puzzles one after another starts that many solves at once on the Pi;
-- party preparation, one per party (up to `MaxParties`, against the clock
-  several in a row);
-- `/?n=…&seed=…` when the pool does not have it: generate and solve on
-  every request, also on every reload of an older puzzle (the pool keeps
-  only the last puzzle it handed out per size); `/play`; `/anleitung`
-  solves its fixed puzzle on every request.
-
-Generating is limited across the process (`generator.cpuSlots`), solving
-is not, and `solver.Solve` cannot be cancelled: a solve for a request that
-is gone runs to the end.
-
-Proposal, in this order:
-
-1. `solver.Options.Done` (like `generator.Options.Done`), checked between
-   lookahead trials and before each guess; `Solve` then ends with a new
-   status or error that callers treat like a failed request.
-2. In `web`, a limiter around `SolveFunc` (a buffered channel as
-   semaphore, sized like `cpuSlots`). Never hold it while waiting for
-   `cpuSlots` or the other way round: generate first, then solve.
-3. A small bounded cache of served results keyed by (n, seed) and by the
-   `/play` text (e.g. the last 64), so reloads and shared links cost
-   nothing; the tutorial's result computed once (`sync.Once`, as the
-   library does).
-
-New goroutines or channels: update `architecture/concurrency.md` and its
-story in `internal/concviz` (pool, library and party sections).
-
 ## 7. gzip for pages and JSON
 
 A puzzle page is about 208 KB (a 15×15 hard puzzle via `html`: 42 KB CSS,
@@ -340,3 +304,13 @@ What the review found that needs no change now, only attention later:
   once, clones share them read-only; `FreeCount` and `FirstFree` next to
   `Free`. Same output, the hard puzzles solve about 2.4× faster
   ([decision 32](decisions/32-board-geometry.md)).
+- **6. One solve budget in `serve`: limit, cancel, cache** (November 2026):
+  `solver.Options.Done` cancels a solve; `web.SolveFunc` takes a context,
+  and a page's solve ends when its visitor leaves. `web.Budget` limits
+  the solves of `serve` to GOMAXPROCS − 1, with a second, smaller
+  semaphore for solves nobody waits for yet, so a page always finds a slot
+  (one semaphore alone, as suggested, made pages wait up to 54 s behind a
+  crawl of the library). The last 64 pages of `/?n=…&seed=…` and `/play`
+  are kept, the tutorial is solved once
+  ([decision 33](decisions/33-solve-budget.md),
+  [concurrency.md](concurrency.md) section 11).

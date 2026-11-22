@@ -550,6 +550,11 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
 - **Not nested with the generator's semaphore.** Callers generate first
   and solve after, so nobody holds a slot of the budget while waiting for
   `cpuSlots` (section 3), or the other way round.
+- **Most reloads never get here.** The handler keeps the last 64 solved
+  pages of `/?n=…&seed=…` and `/play` (`web.results`, a list behind a
+  mutex) and solves the tutorial once (`sync.OnceValues`). Only finished
+  results are kept: several visitors who open the same new link at once
+  each solve it, within the budget.
 
 ## Idioms
 

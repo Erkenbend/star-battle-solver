@@ -258,7 +258,7 @@ explains most of the design:
 |---|---|---|
 | Puzzles and their order in the library | text files in the repo (`testdata/hard`, `designs`), embedded at build time | forever; only ever appended to |
 | A generated puzzle | nowhere: recomputed from size + seed (the URL) | stateless |
-| Solver results | computed per request; cached in memory for the pool, the library and party rounds | process lifetime |
+| Solver results | computed on request, within one budget for all solves ([decision 33](decisions/33-solve-budget.md)); kept in memory for the pool, the library, party rounds, the tutorial and the last 64 pages of `/?n=…&seed=…` and `/play` | process lifetime |
 | Parties, players, rounds, the shared coop board | server memory behind one mutex | expire after inactivity; lost on restart |
 | A player's progress, timer, solved library puzzles, preferences, chosen symbol, party token | the browser's `localStorage` | per device |
 | The unsolved solo puzzle `/` leads back to | a cookie (`starbattle.solo`), set and cleared by the page, read by the server ([decision 27](decisions/27-solo-resumes.md)) | per device, 90 days |
