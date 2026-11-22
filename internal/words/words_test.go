@@ -58,7 +58,8 @@ func TestNamer(t *testing.T) {
 		t.Errorf("got %q, want %q", text, want)
 	}
 	got := n.Refs()
-	want := &Refs{Cells: []puzzle.Pos{{Row: 2, Col: 3}, {Row: 0, Col: 0}}, Rows: []int{4, 3}, Cols: []int{1}, Regions: []int{2}}
+	// Rows in the order of the text: the same text, the same refs.
+	want := &Refs{Cells: []puzzle.Pos{{Row: 2, Col: 3}, {Row: 0, Col: 0}}, Rows: []int{3, 4}, Cols: []int{1}, Regions: []int{2}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}

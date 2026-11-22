@@ -71,7 +71,8 @@ func and(s []string) string {
 }
 
 // Refs are the cells and units an explanation names, each once, in the
-// order they are first named.
+// order they are first named in the text (a set of units in the order
+// Units lists it), so the same text always has the same Refs.
 type Refs struct {
 	Cells   []puzzle.Pos
 	Rows    []int
@@ -110,9 +111,10 @@ func (n *Namer) Unit(kind puzzle.UnitKind, i int) string {
 	return Unit(kind, i)
 }
 
-// Units is Units, recorded.
+// Units is Units, recorded in the order of the text, not of idx: the
+// rules pass map keys.
 func (n *Namer) Units(kind puzzle.UnitKind, idx []int) string {
-	for _, i := range idx {
+	for _, i := range slices.Sorted(slices.Values(idx)) {
 		n.refs.addUnit(kind, i)
 	}
 	return Units(kind, idx)
