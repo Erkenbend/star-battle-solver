@@ -280,5 +280,6 @@ What the review found that needs no change now, only attention later:
   units and cells for `board`, `solver` and the rules, and its `Namer`
   records what a text names. Steps and contradictions carry these `Refs`
   to the page, which highlights them and puts swatches on named regions.
-  The text parser `Logic.refs` is gone. Cost: about 3 % more solver CPU,
-  +0.5 to 3.5 % per gzipped page.
+  The text parser `Logic.refs` is gone. Explanations are built only when
+  read, which made the solver about 8 % faster; a gzipped page grows by
+  0.5 to 3.5 %.

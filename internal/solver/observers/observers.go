@@ -3,8 +3,9 @@
 //
 // To add a rule: write a type implementing solver.Observer, add a table test
 // next to it (see unitfinish_test.go), and register it in All. Its
-// explanation names units and cells through one words.Namer, whose Refs go
-// to the marks with the text (solver.Mark.Why): the page highlights them.
+// explanation is a function given to solver.Mark.Why that names units and
+// cells through a words.Namer (the page highlights them); it runs only when
+// the text is read, so it must only read values the rule no longer changes.
 package observers
 
 import (

@@ -9,9 +9,9 @@ import (
 )
 
 // German phrases for the explanations shown by `solve -verbose` and the
-// pages. The names of units and cells come from package words; a rule names
-// them through one words.Namer per explanation and gives its Refs to the
-// marks along with the text (solver.Mark.Why).
+// pages. The names of units and cells come from package words; a rule writes
+// its explanation in a function given to solver.Mark.Why or solver.Because,
+// which names them through the words.Namer it gets.
 
 // confined explains a confinement: the free cells of the From-units lie only in
 // the To-units, so the rest of the To-units is crossed. Examples:
