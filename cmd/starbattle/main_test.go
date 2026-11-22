@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"net"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"starbattle/internal/web"
 )
@@ -207,6 +211,53 @@ func TestServeAndDesignBadAddr(t *testing.T) {
 		t.Error("design: expected listen error")
 	}
 	mustContain(t, "design", errOut, "Designer auf http://localhost:-1/")
+}
+
+// A request of serve or design runs until it is done or the server shuts
+// down, however long that takes. A ReadTimeout would cancel its context when
+// it passes and a WriteTimeout would fail its writes, ending party event
+// streams, the designer's search and pages waiting for the solve budget (see
+// serveUntilDone). No test can wait for a timeout of any length, so the
+// fields are checked, and the shutdown on the behaviour.
+func TestServerLetsLongRequestsRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ended := make(chan error, 1)
+	srv := newServer(ctx, "", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		http.NewResponseController(w).Flush()
+		<-r.Context().Done()
+		ended <- r.Context().Err()
+	}))
+	if srv.ReadTimeout != 0 || srv.WriteTimeout != 0 {
+		t.Errorf("ReadTimeout %v, WriteTimeout %v: they would end long requests", srv.ReadTimeout, srv.WriteTimeout)
+	}
+	if srv.ReadHeaderTimeout == 0 || srv.IdleTimeout == 0 {
+		t.Errorf("ReadHeaderTimeout %v, IdleTimeout %v: connections without a request stay open", srv.ReadHeaderTimeout, srv.IdleTimeout)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go srv.Serve(ln)
+	defer srv.Close()
+	resp, err := http.Get("http://" + ln.Addr().String() + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	select {
+	case err := <-ended:
+		t.Fatalf("request ended before the shutdown: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	cancel() // what Ctrl-C does
+	select {
+	case <-ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("request still running 5 s after its server's context ended")
+	}
 }
 
 func TestHardsearch(t *testing.T) {

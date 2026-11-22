@@ -377,13 +377,7 @@ func cmdDesign(args []string) error {
 // http.MaxBytesReader; ReadHeaderTimeout and IdleTimeout close connections
 // that send no request.
 func serveUntilDone(ctx context.Context, addr string, h http.Handler) error {
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           h,
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       2 * time.Minute, // keep-alive connections of browsers that left
-		BaseContext:       func(net.Listener) context.Context { return ctx },
-	}
+	srv := newServer(ctx, addr, h)
 	errc := make(chan error, 1) // one slot: the send after Shutdown finds no reader
 	go func() { errc <- srv.ListenAndServe() }()
 	select {
@@ -394,6 +388,18 @@ func serveUntilDone(ctx context.Context, addr string, h http.Handler) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// newServer is the server of serveUntilDone: request contexts derive from
+// ctx, and no timeout caps how long a handler runs (see there).
+func newServer(ctx context.Context, addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute, // keep-alive connections of browsers that left
+		BaseContext:       func(net.Listener) context.Context { return ctx },
+	}
 }
 
 // cmdHardsearch searches seeds for hard puzzles (see hardsearch), a tool for
