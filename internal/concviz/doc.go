@@ -15,7 +15,6 @@ const (
 // PlayerURL is where .github/workflows/pages.yml publishes the player.
 const PlayerURL = "https://erkenbend.github.io/star-battle-solver/"
 
-
 // DocBlock is the Markdown that shows s in concurrency.md: the sequence
 // diagram, a pointer to the player, and the steps.
 func (s *Story) DocBlock() string {

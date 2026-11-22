@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Formats the staged Go files with gofmt -s before a commit, like the CI
+# checks them. Enable once per clone:
+#
+#   git config core.hooksPath .githooks
+#
+# A file is formatted and staged again only if all its changes are staged;
+# a file with unstaged changes as well is left alone and stops the commit,
+# so the hook never stages anything that was not meant for it. So does
+# every unformatted file of `git commit <paths>`: git commits those from a
+# temporary index and then overwrites the real one, which would keep the
+# unformatted version.
+set -euo pipefail
+
+# git commit <paths> uses .git/next-index-*.lock; commit -a uses
+# .git/index.lock, which becomes the real index.
+temporary_index=false
+[[ $(basename -- "${GIT_INDEX_FILE:-index}") == next-index-* ]] && temporary_index=true
+
+if ! command -v gofmt >/dev/null; then
+  echo "pre-commit: gofmt not found, Go files not checked" >&2
+  exit 0
+fi
+
+status=0
+while IFS= read -r -d '' f; do
+  [[ -f $f ]] || continue
+  [[ -z $(gofmt -s -l -- "$f") ]] && continue
+  if ! $temporary_index && git diff --quiet -- "$f"; then
+    gofmt -s -w -- "$f"
+    git add -- "$f"
+    echo "pre-commit: gofmt -s formatted $f"
+  else
+    echo "pre-commit: $f needs gofmt -s, and has unstaged changes too or is committed by path: run gofmt -s -w $f, stage it and commit again" >&2
+    status=1
+  fi
+done < <(git diff --cached --name-only -z --diff-filter=ACMR -- '*.go')
+exit $status

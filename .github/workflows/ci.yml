@@ -24,6 +24,15 @@ jobs:
       - run: node --version
       - name: go vet
         run: go vet ./...
+      # Like the pre-commit hook in .githooks, which formats instead.
+      - name: gofmt -s
+        run: |
+          files=$(gofmt -s -l .)
+          if [ -n "$files" ]; then
+            echo "not formatted with gofmt -s:"
+            echo "$files"
+            exit 1
+          fi
       # Of the hard puzzles only the sample in testdata/hard/sample.idx, like
       # locally; all of them (STARBATTLE_ALL_HARD=1) took 36 min on the runner.
       # -coverpkg=./... also counts code that is exercised by other packages'

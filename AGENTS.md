@@ -17,6 +17,7 @@
 ## Coding
 
 * Solo development: commit directly on main unless instructed otherwise
+* Go code is formatted with `gofmt -s` (CI checks it); the pre-commit hook in `.githooks` does it, enable it in a new clone with `git config core.hooksPath .githooks`
 * Commit after each meaningful step (e.g. decision documented, rule implemented, UI feature done), don't batch unrelated steps into one commit
 * Push only after the user confirms
 * Report choices made autonomously, assume the user is a developer

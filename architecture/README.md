@@ -368,7 +368,8 @@ browser code. The full suite with every hard puzzle is CI's job.
   and for the settings page, which shows it. The build time is not in Go's
   stamp: `deploy.sh` and the CI archives set it with `-ldflags -X`
   (`internal/buildinfo`); without it the page shows the commit's time.
-- **CI** (`.github/workflows/ci.yml`) on every push: vet, the full test suite
+- **CI** (`.github/workflows/ci.yml`) on every push: vet, `gofmt -s` (the
+  pre-commit hook in `.githooks` formats before a commit), the full test suite
   with all hard puzzles and coverage, a race run, cross-compiled archives for
   Linux (incl. Raspberry Pi), macOS and Windows as workflow artifacts, and on
   `main` the badge data (coverage, library size) pushed to the orphan branch

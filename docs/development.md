@@ -16,6 +16,8 @@ STARBATTLE_ALL_HARD=1 go test ./...   # alle schweren Puzzles statt der Stichpro
 go test -short -coverpkg=./... -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1   # Testabdeckung
 ```
 
+Go-Code ist mit `gofmt -s` formatiert; die CI prüft das. Der Hook in `.githooks` formatiert die Go-Dateien eines Commits vorher selbst (einmal je Klon einschalten mit `git config core.hooksPath .githooks`). Hat eine Datei außerdem Änderungen, die nicht im Commit sind, oder wird mit `git commit <Pfade>` committet, formatiert er nicht, sondern bricht ab und nennt sie.
+
 Von den schweren Puzzles aus `testdata/hard` prüfen die Tests nur eine Stichprobe (`testdata/hard/sample.idx`, 29 Puzzles), die alle Größen, Regeln und Schwierigkeitsstufen abdeckt; die CI auf GitHub Actions ebenso. Mit `STARBATTLE_ALL_HARD=1` laufen alle Puzzles der Bibliothek durch (dauert geschätzt etwa zwölf Minuten, in der CI eine Dreiviertelstunde). Das lohnt sich nach Änderungen an Regeln, Suche oder Bewertung.
 
 Die Lösungswege der Stichprobe, so wie die Seiten sie bekommen (Regel, Stufe, Begründung und Markierungen jedes Schritts in ihrer Reihenfolge, die widerlegten Annahmen mit ihrem Widerspruch), liegen in `internal/web/testdata/traces`; `TestTraceGolden` vergleicht sie (mit `-short` ohne die Puzzles mit 3 Sternen). Eine Änderung an Regeln, Suche oder `board`, die keine Erklärung ändern soll, lässt die Dateien, wie sie sind. Soll sie Erklärungen ändern (neue Regel, andere Formulierung), schreibt `go test ./internal/web -run TestTraceGolden -update` sie neu, und ihr Diff gehört zum Commit.
