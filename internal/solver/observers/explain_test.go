@@ -46,10 +46,9 @@ func TestConfinementReason(t *testing.T) {
 
 func TestEliminationReasons(t *testing.T) {
 	units := p5.Units()
-	implied := newImpliedTable(p5)
 	reasons := func(u puzzle.Unit, state string) map[puzzle.Pos]string {
 		out := map[puzzle.Pos]string{}
-		for _, m := range (Elimination{Unit: u, implied: implied}).Deduce(board.MustParse(p5, state)) {
+		for _, m := range (Elimination{Unit: u}).Deduce(board.MustParse(p5, state)) {
 			out[m.Pos] = m.Reason
 		}
 		return out

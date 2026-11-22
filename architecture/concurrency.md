@@ -11,7 +11,10 @@ are given as `package.Function` so they can be found with grep.
 Principle 1 of [README.md](README.md#2-principles-that-shape-the-code)
 (the board is monotone) is what makes most of this safe: a cell only goes from
 free to star or cross, so marks can arrive in any order and be duplicated, and
-every goroutine can work on its own copy of the board without locks.
+every goroutine can work on its own copy of the board without locks. The
+copies share only what follows from the layout (the units, what a star
+implies): `board.New` builds it before any goroutine starts, and nothing writes
+it afterwards.
 
 Every section shows one run of its pattern as a sequence diagram: a column
 per goroutine, channel and other shared state, time downwards, one band per
@@ -102,7 +105,8 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
 - **Private state per actor.** Each observer keeps its own clone of the board
   and applies the deltas from its mailbox in order. The board is monotone, so
   after applying all batches up to version *v* the copy equals the runner's
-  board at *v*. No locks around the board.
+  board at *v*. No locks around the board: the clones share only the
+  read-only tables `board.New` derived from the layout.
 - **Shutdown by `close(quit)`.** Closing a channel wakes every receiver at
   once, so it serves as a broadcast. Both blocking points of an observer (the
   send on `out` and the wait on `notify`) `select` on `quit` too. The runner
@@ -501,6 +505,7 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
 | results written by index instead of sent | `hyps` (2), `results` (3) |
 | `sync.WaitGroup.Go` (Go 1.25) instead of `Add`/`Done` | (1), (2), (3), (4), (5) |
 | no channel at all: mutex + generation number | (7) |
+| no lock at all: read-only data built before the goroutines start | the geometry shared by board clones (1), (2) |
 
 ## Testing
 

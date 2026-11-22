@@ -54,7 +54,6 @@ const (
 func AllWith(p *puzzle.Puzzle, cfg Config) []solver.Observer {
 	var obs []solver.Observer
 	units := p.Units()
-	implied := newImpliedTable(p)
 	kinds := []puzzle.UnitKind{puzzle.Row, puzzle.Col, puzzle.Region}
 	confinement := func(k int) {
 		for _, from := range kinds {
@@ -84,7 +83,7 @@ func AllWith(p *puzzle.Puzzle, cfg Config) []solver.Observer {
 	}
 	confinement(1)
 	for _, u := range units {
-		obs = append(obs, Elimination{Unit: u, implied: implied})
+		obs = append(obs, Elimination{Unit: u})
 	}
 	for k := 2; k < p.N; k++ {
 		confinement(k)

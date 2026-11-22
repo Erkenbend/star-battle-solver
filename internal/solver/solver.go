@@ -66,7 +66,7 @@ func Apply(s *board.State, m Mark) ([]Mark, error) {
 	}
 	delta := []Mark{m}
 	if m.Kind == board.Star {
-		for _, q := range board.Implied(s.P, m.Pos.Row, m.Pos.Col) {
+		for _, q := range s.Implied(m.Pos) {
 			ch, err := s.Set(q.Row, q.Col, board.Cross)
 			if err != nil {
 				return delta, fmt.Errorf("%w (%s)", err, m.Source)

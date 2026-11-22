@@ -130,6 +130,9 @@ snapshot of marks on a puzzle, with the knowledge of what a star implies
 (crosses in its row, column, region and neighbourhood) and detection of
 contradictions (a unit with no room left, two stars in conflict). The
 contradiction carries the cells involved, so it can be explained and shown.
+What follows from the layout alone (the units, the crosses a star on each
+cell implies) `board.New` computes once; clones share it read-only, so a
+puzzle must not change once a board exists for it.
 
 ### 3.2 Reasoning: `solver` and `solver/observers`
 

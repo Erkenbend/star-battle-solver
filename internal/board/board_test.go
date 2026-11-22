@@ -63,7 +63,7 @@ func TestImplied(t *testing.T) {
 	p := puzzle.MustParse(p5)
 	// Star at (0,0): row 0 (4), column 0 (4), region D adds (1,1),(2,1),(3,1),(3,2).
 	got := map[puzzle.Pos]bool{}
-	for _, q := range Implied(p, 0, 0) {
+	for _, q := range New(p).Implied(puzzle.Pos{}) {
 		got[q] = true
 	}
 	for _, q := range []puzzle.Pos{{Row: 0, Col: 4}, {Row: 4, Col: 0}, {Row: 1, Col: 1}, {Row: 3, Col: 2}} {

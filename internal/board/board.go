@@ -36,11 +36,12 @@ func (c Cell) String() string {
 type State struct {
 	P     *puzzle.Puzzle
 	cells []Cell
+	g     *geometry // derived from P, shared by clones (see geometry)
 }
 
-// New returns an all-free state for p.
+// New returns an all-free state for p. p must not change afterwards.
 func New(p *puzzle.Puzzle) *State {
-	return &State{P: p, cells: make([]Cell, p.N*p.N)}
+	return &State{P: p, cells: make([]Cell, p.N*p.N), g: newGeometry(p)}
 }
 
 // FromSolution returns a state with stars at (r, cols[r]) and crosses elsewhere.
@@ -81,65 +82,14 @@ func (s *State) Set(r, c int, v Cell) (bool, error) {
 	return true, nil
 }
 
-// Clone returns an independent copy (the puzzle layout is shared, it is immutable).
+// Clone returns an independent copy (the puzzle layout and the tables derived
+// from it are shared, they are read-only).
 func (s *State) Clone() *State {
-	return &State{P: s.P, cells: slices.Clone(s.cells)}
+	return &State{P: s.P, cells: slices.Clone(s.cells), g: s.g}
 }
 
 // Equal reports whether two states have identical cells.
 func (s *State) Equal(o *State) bool { return slices.Equal(s.cells, o.cells) }
-
-// Implied returns the cells that must be crosses if a star sits at (r, c): the rest of
-// its row, column and region, plus its 8 neighbors.
-func Implied(p *puzzle.Puzzle, r, c int) []puzzle.Pos {
-	seen := map[puzzle.Pos]bool{}
-	var out []puzzle.Pos
-	add := func(q puzzle.Pos) {
-		if q != (puzzle.Pos{Row: r, Col: c}) && !seen[q] {
-			seen[q] = true
-			out = append(out, q)
-		}
-	}
-	for i := range p.N {
-		add(puzzle.Pos{Row: r, Col: i})
-		add(puzzle.Pos{Row: i, Col: c})
-	}
-	for _, q := range p.RegionCells()[p.Region(r, c)] {
-		add(q)
-	}
-	for dr := -1; dr <= 1; dr++ {
-		for dc := -1; dc <= 1; dc++ {
-			if p.In(r+dr, c+dc) {
-				add(puzzle.Pos{Row: r + dr, Col: c + dc})
-			}
-		}
-	}
-	return out
-}
-
-// unitCounts tallies stars and free cells of one unit.
-type unitCounts struct{ stars, free int }
-
-func (s *State) units() (rows, cols, regs []unitCounts) {
-	n := s.P.N
-	rows, cols, regs = make([]unitCounts, n), make([]unitCounts, n), make([]unitCounts, n)
-	for r := range n {
-		for c := range n {
-			reg := s.P.Region(r, c)
-			switch s.At(r, c) {
-			case Star:
-				rows[r].stars++
-				cols[c].stars++
-				regs[reg].stars++
-			case Free:
-				rows[r].free++
-				cols[c].free++
-				regs[reg].free++
-			}
-		}
-	}
-	return
-}
 
 // ContradictionError describes why a state is impossible and which cells show it.
 type ContradictionError struct {
@@ -153,38 +103,38 @@ func (e *ContradictionError) Error() string { return e.Msg }
 // solution: a unit with two stars, a unit with no star and no free cell, or two
 // touching stars.
 func (s *State) Contradiction() error {
-	rows, cols, regs := s.units()
-	units := s.P.Units() // rows, then columns, then regions
-	offset := map[string]int{"Zeile": 0, "Spalte": s.P.N, "Farbe": 2 * s.P.N}
-	check := func(kind string, us []unitCounts, name func(int) string) error {
-		for i, u := range us {
-			cells := units[offset[kind]+i].Cells
-			if u.stars > 1 {
-				var stars []puzzle.Pos
-				for _, q := range cells {
-					if s.At(q.Row, q.Col) == Star {
-						stars = append(stars, q)
-					}
-				}
-				return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte %d Sterne", kind, name(i), u.stars), Cells: stars}
-			}
-			if u.stars == 0 && u.free == 0 {
-				return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte keinen Stern und kein freies Feld mehr", kind, name(i)), Cells: cells}
+	n := s.P.N
+	for _, u := range s.g.units {
+		stars, free := 0, 0
+		for _, q := range u.Cells {
+			switch s.cells[q.Row*n+q.Col] {
+			case Star:
+				stars++
+			case Free:
+				free++
 			}
 		}
-		return nil
+		if stars <= 1 && (stars == 1 || free > 0) {
+			continue
+		}
+		kind, name := "Zeile", fmt.Sprint(u.Index)
+		switch u.Kind {
+		case puzzle.Col:
+			kind, name = "Spalte", fmt.Sprint(u.Index)
+		case puzzle.Region:
+			kind, name = "Farbe", string(puzzle.RegionLetter(u.Index))
+		}
+		if stars > 1 {
+			var at []puzzle.Pos
+			for _, q := range u.Cells {
+				if s.At(q.Row, q.Col) == Star {
+					at = append(at, q)
+				}
+			}
+			return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte %d Sterne", kind, name, stars), Cells: at}
+		}
+		return &ContradictionError{Msg: fmt.Sprintf("%s %s hätte keinen Stern und kein freies Feld mehr", kind, name), Cells: slices.Clone(u.Cells)}
 	}
-	num := func(i int) string { return fmt.Sprint(i) }
-	if err := check("Zeile", rows, num); err != nil {
-		return err
-	}
-	if err := check("Spalte", cols, num); err != nil {
-		return err
-	}
-	if err := check("Farbe", regs, func(i int) string { return string(puzzle.RegionLetter(i)) }); err != nil {
-		return err
-	}
-	n := s.P.N
 	for r := range n {
 		for c := range n {
 			if s.At(r, c) != Star {
@@ -207,9 +157,14 @@ func (s *State) Contradiction() error {
 
 // Solved reports whether every row has exactly one star and the state is consistent.
 func (s *State) Solved() bool {
-	rows, _, _ := s.units()
-	for _, u := range rows {
-		if u.stars != 1 {
+	for r := range s.P.N {
+		stars := 0
+		for c := range s.P.N {
+			if s.At(r, c) == Star {
+				stars++
+			}
+		}
+		if stars != 1 {
 			return false
 		}
 	}
@@ -293,6 +248,27 @@ func (s *State) Free(cells []puzzle.Pos) []puzzle.Pos {
 		}
 	}
 	return out
+}
+
+// FreeCount returns the number of free cells among cells.
+func (s *State) FreeCount(cells []puzzle.Pos) int {
+	n := 0
+	for _, q := range cells {
+		if s.At(q.Row, q.Col) == Free {
+			n++
+		}
+	}
+	return n
+}
+
+// FirstFree returns the first free cell among cells; ok is false if there is none.
+func (s *State) FirstFree(cells []puzzle.Pos) (q puzzle.Pos, ok bool) {
+	for _, q := range cells {
+		if s.At(q.Row, q.Col) == Free {
+			return q, true
+		}
+	}
+	return puzzle.Pos{}, false
 }
 
 // HasStar reports whether any of cells holds a star.

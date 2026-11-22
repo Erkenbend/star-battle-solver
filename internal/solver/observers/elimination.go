@@ -16,8 +16,7 @@ import (
 //
 // One instance watches one unit U.
 type Elimination struct {
-	Unit    puzzle.Unit
-	implied *impliedTable
+	Unit puzzle.Unit
 }
 
 func (o Elimination) Name() string { return "Elimination[" + o.Unit.String() + "]" }
@@ -48,7 +47,7 @@ func (o Elimination) Deduce(s *board.State) []solver.Mark {
 			if s.At(r, c) != board.Free || inUnit[cell] {
 				continue
 			}
-			if o.implied.coversAll(cell, free) {
+			if s.CrossesAll(cell, free) {
 				why := o.explain(s.P, cell, free)
 				if _, seen := byReason[why]; !seen {
 					order = append(order, why)
@@ -103,34 +102,4 @@ func abs(x int) int {
 		return -x
 	}
 	return x
-}
-
-// impliedTable precomputes board.Implied for every cell (shared, read-only).
-type impliedTable struct {
-	n     int
-	cover [][]bool // cover[cell][other] = a star on cell crosses other
-}
-
-func newImpliedTable(p *puzzle.Puzzle) *impliedTable {
-	t := &impliedTable{n: p.N, cover: make([][]bool, p.N*p.N)}
-	for r := range p.N {
-		for c := range p.N {
-			row := make([]bool, p.N*p.N)
-			for _, q := range board.Implied(p, r, c) {
-				row[q.Row*p.N+q.Col] = true
-			}
-			t.cover[r*p.N+c] = row
-		}
-	}
-	return t
-}
-
-func (t *impliedTable) coversAll(cell puzzle.Pos, cells []puzzle.Pos) bool {
-	row := t.cover[cell.Row*t.n+cell.Col]
-	for _, q := range cells {
-		if !row[q.Row*t.n+q.Col] {
-			return false
-		}
-	}
-	return true
 }

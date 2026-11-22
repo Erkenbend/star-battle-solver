@@ -76,12 +76,12 @@ func (o ForcedPartner) search(t *board.State, chain []forced) ([]forced, *puzzle
 		if t.HasStar(u.Cells) {
 			continue
 		}
-		free := t.Free(u.Cells)
-		if len(free) != 1 {
+		if t.FreeCount(u.Cells) != 1 {
 			continue
 		}
-		next := append(append([]forced(nil), chain...), forced{u, free[0]})
-		t2, ok := assume(t, free[0])
+		q, _ := t.FirstFree(u.Cells)
+		next := append(append([]forced(nil), chain...), forced{u, q})
+		t2, ok := assume(t, q)
 		if !ok {
 			continue
 		}
@@ -126,10 +126,10 @@ func (o DeadCells) Deduce(s *board.State) []solver.Mark {
 		if t.HasStar(v.Cells) {
 			continue
 		}
-		free := t.Free(v.Cells)
-		if len(free) < 2 || len(free) > o.MaxCells {
+		if k := t.FreeCount(v.Cells); k < 2 || k > o.MaxCells {
 			continue
 		}
+		free := t.Free(v.Cells)
 		// Which unit each remaining cell would empty, grouped by that unit so that
 		// "(3,0) oder (4,0) würde Spalte 2 streichen" reads as one clause.
 		var order []*puzzle.Unit
@@ -251,7 +251,7 @@ func assume(s *board.State, q puzzle.Pos) (*board.State, bool) {
 // emptyUnit returns a unit without star and without free cell, or nil.
 func emptyUnit(t *board.State, us []puzzle.Unit) *puzzle.Unit {
 	for i := range us {
-		if !t.HasStar(us[i].Cells) && len(t.Free(us[i].Cells)) == 0 {
+		if t.FreeCount(us[i].Cells) == 0 && !t.HasStar(us[i].Cells) {
 			return &us[i]
 		}
 	}

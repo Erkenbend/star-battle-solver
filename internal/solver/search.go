@@ -238,12 +238,12 @@ func (h *Hypothesis) cells() int {
 // ties in board order.
 func candidates(s *board.State) []puzzle.Pos {
 	p := s.P
-	freeIn := map[puzzle.UnitKind][]int{}
-	for _, u := range p.Units() {
-		if freeIn[u.Kind] == nil {
-			freeIn[u.Kind] = make([]int, p.N)
-		}
-		freeIn[u.Kind][u.Index] = len(s.Free(u.Cells))
+	var freeIn [3][]int // by puzzle.UnitKind, then unit index
+	for k := range freeIn {
+		freeIn[k] = make([]int, p.N)
+	}
+	for _, u := range s.Units() {
+		freeIn[u.Kind][u.Index] = s.FreeCount(u.Cells)
 	}
 	tight := func(q puzzle.Pos) int {
 		t := p.N * p.N
@@ -267,17 +267,22 @@ func candidates(s *board.State) []puzzle.Pos {
 // branchUnit returns the open unit with the fewest free cells, and those cells.
 func branchUnit(s *board.State) (*puzzle.Unit, []puzzle.Pos) {
 	var best *puzzle.Unit
-	var bestFree []puzzle.Pos
-	for _, u := range s.P.Units() {
-		if s.HasStar(u.Cells) {
+	bestFree := 0
+	us := s.Units()
+	for i := range us {
+		if s.HasStar(us[i].Cells) {
 			continue
 		}
-		free := s.Free(u.Cells)
-		if best == nil || len(free) < len(bestFree) {
-			best, bestFree = &u, free
+		free := s.FreeCount(us[i].Cells)
+		if best == nil || free < bestFree {
+			best, bestFree = &us[i], free
 		}
 	}
-	return best, bestFree
+	if best == nil {
+		return nil, nil
+	}
+	u := *best // a copy: the units are shared by all clones
+	return &u, s.Free(u.Cells)
 }
 
 func unitName(u puzzle.Unit) string {

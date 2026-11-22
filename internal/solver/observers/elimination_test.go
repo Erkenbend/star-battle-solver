@@ -51,10 +51,9 @@ func TestElimination(t *testing.T) {
 			.....
 			.....`},
 	}
-	implied := newImpliedTable(p5)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expectDeduce(t, p5, Elimination{Unit: units[tt.unitIdx], implied: implied}, tt.before, tt.after)
+			expectDeduce(t, p5, Elimination{Unit: units[tt.unitIdx]}, tt.before, tt.after)
 		})
 	}
 }

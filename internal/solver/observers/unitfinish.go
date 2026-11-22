@@ -24,10 +24,11 @@ func (o UnitFinish) Deduce(s *board.State) []solver.Mark {
 	if s.HasStar(o.Unit.Cells) {
 		return nil
 	}
-	if free := s.Free(o.Unit.Cells); len(free) == 1 {
+	if s.FreeCount(o.Unit.Cells) == 1 {
+		q, _ := s.FirstFree(o.Unit.Cells)
 		why := fmt.Sprintf("In %s ist nur noch das Feld %s frei → Stern",
-			units(o.Unit.Kind, []int{o.Unit.Index}), cell(free[0]))
-		return []solver.Mark{solver.Star(free[0], o.Name()).Why(why)}
+			units(o.Unit.Kind, []int{o.Unit.Index}), cell(q))
+		return []solver.Mark{solver.Star(q, o.Name()).Why(why)}
 	}
 	return nil
 }
