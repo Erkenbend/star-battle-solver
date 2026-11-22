@@ -6,6 +6,9 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"starbattle"
@@ -168,5 +171,121 @@ func TestLookaheadExplains(t *testing.T) {
 	}
 	if found == 0 {
 		t.Fatal("no lookahead step")
+	}
+}
+
+// closer wraps an observer and closes done on the at-th call of Deduce
+// among all observers sharing calls, so a test can cancel a solve at a
+// point in the search instead of at a time.
+type closer struct {
+	solver.Observer
+	calls *atomic.Int64
+	at    int64
+	done  chan struct{}
+	once  *sync.Once
+}
+
+func (c closer) Deduce(s *board.State) []solver.Mark {
+	if c.calls.Add(1) == c.at {
+		c.once.Do(func() { close(c.done) })
+	}
+	return c.Observer.Deduce(s)
+}
+
+// cancelAt returns obs wrapped so that done closes on the at-th call of
+// Deduce (counting all observers and goroutines), and the counter.
+func cancelAt(obs []solver.Observer, at int64) ([]solver.Observer, chan struct{}, *atomic.Int64) {
+	done := make(chan struct{})
+	calls, once := new(atomic.Int64), new(sync.Once)
+	out := make([]solver.Observer, len(obs))
+	for i, o := range obs {
+		out[i] = closer{Observer: o, calls: calls, at: at, done: done, once: once}
+	}
+	return out, done, calls
+}
+
+// TestSolveCancelled: a solve whose Done is closed ends Cancelled with
+// ErrCancelled, whether that happens before it starts, during lookahead or
+// inside a guess (a cancelled guess must not be taken for a refuted one,
+// which would cross the cell of the solution's star).
+// A Done that is never closed changes nothing.
+func TestSolveCancelled(t *testing.T) {
+	hard, err := os.ReadFile(filepath.Join("../../..", starbattle.HardDir, "n10_s1271.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := puzzle.MustParse(string(hard))
+	full := solver.Options{Lookahead: true, Backtrack: true}
+	want := solver.Solve(board.New(p), All(p), full)
+	checkSolution(t, "uncancelled", p, want)
+
+	open := full
+	open.Done = make(chan struct{})
+	if got := solver.Solve(board.New(p), All(p), open); !reflect.DeepEqual(got.Trace, want.Trace) {
+		t.Error("a Done that is never closed changes the trace")
+	}
+
+	closed := make(chan struct{})
+	close(closed)
+	for _, o := range []solver.Options{
+		{Lookahead: true, Done: closed},
+		{Backtrack: true, Done: closed},
+		{Lookahead: true, Backtrack: true, Done: closed, Run: solver.RunConcurrent},
+	} {
+		if res := solver.Solve(board.New(p), All(p), o); res.Status != solver.Cancelled || !errors.Is(res.Err, solver.ErrCancelled) {
+			t.Errorf("closed before the start: %v (%v), want cancelled", res.Status, res.Err)
+		}
+	}
+
+	// During the search: most calls of the first observer are in lookahead
+	// trials. After the last lookahead the rules run to the end unchecked,
+	// so the call to close at must come before that.
+	counted, _, counter := cancelAt(All(p), -1)
+	solver.Solve(board.New(p), counted, full)
+	calls := counter.Load()
+	for _, at := range []int64{calls / 4, calls / 2, calls * 3 / 4} {
+		obs, done, _ := cancelAt(All(p), at)
+		o := full
+		o.Done = done
+		if res := solver.Solve(board.New(p), obs, o); res.Status != solver.Cancelled {
+			t.Errorf("closed at call %d of %d: %v, want cancelled", at, calls, res.Status)
+		}
+	}
+
+	// Inside a guess: with UnitFinish alone the solver guesses, nested.
+	var g *puzzle.Puzzle
+	var weak []solver.Observer
+	for seed := uint64(0); g == nil; seed++ {
+		q, _, err := generator.Generate(9, rand.New(rand.NewPCG(seed, 9)), generator.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		weak = nil
+		for _, u := range q.Units() {
+			weak = append(weak, UnitFinish{Unit: u})
+		}
+		counted, _, counter = cancelAt(weak, -1)
+		if res := solver.Solve(board.New(q), counted, solver.Options{Backtrack: true}); res.Stats.MaxDepth >= 3 {
+			g = q
+		}
+	}
+	sol := bruteforce.Solve(g, 1)[0]
+	calls = counter.Load()
+	for k := range int64(20) {
+		at := 1 + k*calls/20
+		obs, done, _ := cancelAt(weak, at)
+		res := solver.Solve(board.New(g), obs, solver.Options{Backtrack: true, Done: done})
+		if res.Status != solver.Cancelled {
+			t.Errorf("guessing, closed at call %d of %d: %v, want cancelled", at, calls, res.Status)
+			continue
+		}
+		// What a cancelled solve decided so far is still sound.
+		for r := range g.N {
+			for c := range g.N {
+				if v := res.State.At(r, c); v != board.Free && (v == board.Star) != (sol[r] == c) {
+					t.Errorf("guessing, closed at call %d of %d: wrong %v at (%d,%d)", at, calls, v, r, c)
+				}
+			}
+		}
 	}
 }

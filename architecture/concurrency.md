@@ -167,6 +167,12 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
   all are done, by a strict comparison in index order, so ties keep the
   earlier candidate. Which worker finished first never matters. Inside a
   trial the deterministic `RunSync` is used, for the same reason.
+- **Cancellation by a `Done <-chan struct{}`** in `solver.Options`, as in
+  the generator (section 3): once it is closed, the workers skip the
+  trials still to come (`cancelled`, a `select` with `default`) and `Solve`
+  ends `Cancelled` instead of using the lookahead's result. `Solve` checks
+  it before each guess too; a guess cancelled deep down is not taken for a
+  refuted one. A solve with a `Done` that stays open gives the same trace.
 
 ## 3. Parallel generator attempts (`generator.run`, `internal/generator/generator.go`)
 
@@ -498,9 +504,9 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
 | mutex-protected slice + notify channel = unbounded queue | `mailbox` (1) |
 | buffered channel as counting semaphore | `slots`, `cpuSlots` (3) |
 | buffered channel sized so sends can never block | `queue` (6), `errc` (10) |
-| `select` with `default` to poll | `cancelled` (3), `done()` (8), `signal` (9) |
+| `select` with `default` to poll | `cancelled` (2, 3), `done()` (8), `signal` (9) |
 | `select` on results and a `time.Ticker` | progress of the designer (5), heartbeat (9), `Manager.Run` (10) |
-| `<-chan struct{}` for cancellation in lower packages, `context` at the edges | generator, hardsearch, designer |
+| `<-chan struct{}` for cancellation in lower packages, `context` at the edges | solver, generator, hardsearch, designer |
 | waiter goroutine `wg.Wait(); close(out)` so the consumer can `range` (or select until closed) | (4), (5) |
 | results written by index instead of sent | `hyps` (2), `results` (3) |
 | `sync.WaitGroup.Go` (Go 1.25) instead of `Add`/`Done` | (1), (2), (3), (4), (5) |
@@ -517,7 +523,10 @@ Step through the scene in the [player](https://erkenbend.github.io/star-battle-s
   checks that the simple one is still applied first, 20 times in both orders.
 - `TestWorkersSameResult` (`internal/generator`) checks that the number of
   workers does not change the puzzle; `TestCompleteCancel` checks the `Done`
-  channel.
+  channel. `TestSolveCancelled` (`internal/solver/observers`) closes the
+  solver's `Done` at points in the search (counted calls of the rules, not
+  times): before the start, in lookahead trials and inside nested guesses,
+  and checks that what a cancelled solve returns is still sound.
 - `TestSearch` (`internal/hardsearch`) checks seed-ordered emission with
   three workers and the return value of a cancelled search.
 - `TestDesignerCompleteAndSave`, `TestDesignerBudget` and

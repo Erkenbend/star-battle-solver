@@ -88,10 +88,11 @@ const (
 	Stuck         Status = iota // fixpoint reached, puzzle not solved: needs stronger rules or search
 	Solved                      // every unit has its star
 	Contradiction               // the observers derived an impossible state (bug in a rule, or a wrong guess)
+	Cancelled                   // Solve was cancelled through Options.Done; Err is ErrCancelled
 )
 
 func (s Status) String() string {
-	return [...]string{"stuck", "solved", "contradiction"}[s]
+	return [...]string{"stuck", "solved", "contradiction", "cancelled"}[s]
 }
 
 // Step is one deduction: the marks that share a Source and Reason, including

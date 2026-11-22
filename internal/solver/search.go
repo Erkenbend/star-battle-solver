@@ -2,6 +2,7 @@ package solver
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"runtime"
 	"slices"
@@ -26,6 +27,23 @@ type Options struct {
 	// Backtrack: when lookahead finds nothing, guess a star and solve recursively.
 	// If the guess fails, its cell is a cross. With Backtrack, Solve never ends Stuck.
 	Backtrack bool
+	// Done, if not nil, cancels the solve once closed: it is checked before
+	// each lookahead trial and each guess, and Solve then ends Cancelled.
+	// The rules' fixpoint runs between those points are not interrupted.
+	Done <-chan struct{}
+}
+
+// ErrCancelled is the Err of a Result that ended Cancelled.
+var ErrCancelled = errors.New("solver: cancelled")
+
+// cancelled reports whether done is closed (never for nil).
+func cancelled(done <-chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
+	}
 }
 
 // Stats measure how much search a puzzle needed beyond the rules.
@@ -58,7 +76,8 @@ const HypothesisSource = "Hypothesis"
 // Every cross derived from a failed hypothesis is a valid deduction, so the
 // trace stays explainable. Only the final successful guess (if any) is an
 // unproven step; for puzzles with a unique solution it is the solution.
-// start is not modified.
+// start is not modified. A solve cancelled through o.Done ends Cancelled;
+// its State and Trace hold what was proven until then, no guess.
 func Solve(start *board.State, observers []Observer, o Options) Result {
 	return solve(start, observers, o, 0)
 }
@@ -86,7 +105,11 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 		s = res.State
 
 		if o.Lookahead {
-			if r, ok := lookahead(s, observers); ok {
+			r, ok := lookahead(s, observers, o.Done)
+			if cancelled(o.Done) {
+				return done(cancel(s))
+			}
+			if ok {
 				var err error
 				if trace, err = refute(s, trace, r.pos, r.hyp, LevelLookahead); err != nil {
 					return done(finish(s, nil, err))
@@ -99,6 +122,9 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 			return done(finish(s, nil, nil))
 		}
 
+		if cancelled(o.Done) {
+			return done(cancel(s))
+		}
 		// Guess a star in the open unit with the fewest free cells.
 		unit, free := branchUnit(s)
 		if unit == nil {
@@ -119,6 +145,11 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 			sub = solve(guessed, observers, o, depth+1)
 		}
 		stats.add(sub.Stats)
+		if sub.Status == Cancelled {
+			// Not a refutation: the guess was never decided. s holds only
+			// what is proven, sub.State the unproven guess too.
+			return done(cancel(s))
+		}
 		if sub.Status == Solved {
 			trace = record(trace, guess, delta)
 			return done(sub)
@@ -133,6 +164,11 @@ func solve(start *board.State, observers []Observer, o Options, depth int) Resul
 			return done(finish(s, nil, err))
 		}
 	}
+}
+
+// cancel is the result of a cancelled solve at state s.
+func cancel(s *board.State) Result {
+	return Result{State: s, Status: Cancelled, Err: ErrCancelled}
 }
 
 type refutation struct {
@@ -175,7 +211,10 @@ func assumedStep(p *puzzle.Puzzle, pos puzzle.Pos, delta []Mark) Step {
 // Each trial runs with RunSync: the trials already run in parallel, and the
 // concurrent runner's step order (hence chain length) varies between runs,
 // which would make the chosen explanation non-deterministic.
-func lookahead(s *board.State, observers []Observer) (refutation, bool) {
+//
+// Once done is closed, the workers skip the remaining trials; the caller
+// then must not use the result.
+func lookahead(s *board.State, observers []Observer, done <-chan struct{}) (refutation, bool) {
 	cells := candidates(s)
 	hyps := make([]*Hypothesis, len(cells))
 	jobs := make(chan int)
@@ -183,6 +222,9 @@ func lookahead(s *board.State, observers []Observer) (refutation, bool) {
 	for range runtime.GOMAXPROCS(0) {
 		wg.Go(func() {
 			for i := range jobs {
+				if cancelled(done) {
+					continue
+				}
 				trial := s.Clone()
 				delta, err := Apply(trial, Star(cells[i], HypothesisSource))
 				steps := []Step{assumedStep(s.P, cells[i], delta)}
