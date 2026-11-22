@@ -77,13 +77,9 @@ for (const f of files) {
       if (typeof seg === "string") assert.doesNotMatch(seg, /\bFarben? [A-Z]\b/, `${name}: letter left in "${t}"`);
     }
   }
-  // The refs name what the text names, as the old parser of the text reads it
-  // (refactoring 8: until the parser goes).
-  const sorted = (set) => [...set].sort((a, b) => a - b);
+  // A text that names a unit highlights one.
   for (const [t, r] of texts) {
-    const got = L.refCells(d, r), want = L.refs(d, t);
-    assert.deepEqual(sorted(got.cells), sorted(want.cells), `${name}: cells of "${t}"`);
-    assert.deepEqual(sorted(got.units), sorted(want.units), `${name}: units of "${t}"`);
+    if (/(Zeile|Spalte|Farbe) [0-9A-Z]/.test(t)) assert.ok(L.refCells(d, r).units.size > 0, `${name}: no unit in the refs of "${t}"`);
   }
 }
 
@@ -153,24 +149,10 @@ for (const f of files) {
   wrong[at(0, 2)] = L.CROSS;
   assert.deepEqual(L.mistakes(d, wrong), [at(0, 0), at(0, 2)]);
 
-  // Explanations: units, ranges, colors and cells.
+  // Highlights from the refs the server sends: cells, rows, columns and regions.
   const rows = (r) => [0, 1, 2, 3, 4].map((c) => at(r, c));
   const has = (set, cells) => cells.every((i) => set.has(i));
-  let r = L.refs(d, "Zeilen 3 und 4 haben nur noch freie Felder in Spalten 0 und 1 → alle anderen Felder der Spalten 0 und 1 X");
-  assert.ok(has(r.units, [...rows(3), ...rows(4), at(0, 0), at(0, 1)]));
-  assert.ok(!r.units.has(at(0, 2)));
-  r = L.refs(d, "Zeilen 1 bis 3 haben nur noch freie Felder der Farben B, C und D");
-  assert.ok(has(r.units, [...rows(1), ...rows(2), ...rows(3), at(0, 1), at(1, 3), at(0, 0)]));
-  assert.ok(!r.units.has(at(4, 4))); // region A, row 4: not named
-  r = L.refs(d, "Angenommen, auf (2,3) ist ein Stern → X in Zeile 2, Spalte 3, Farbe A und Nachbarschaft");
-  assert.ok(r.cells.has(at(2, 3)) && r.cells.size === 1);
-  assert.ok(has(r.units, [...rows(2), at(4, 3), at(4, 1)]));
-  assert.ok(!r.units.has(at(0, 0))); // "und Nachbarschaft" is not region N
-  r = L.refs(d, "Farbe E hat nur noch freie Felder in Spalte 0 → alle anderen Felder der Spalte 0 X");
-  assert.ok(has(r.units, [at(3, 0), at(4, 0), at(0, 0)]) && !r.units.has(at(4, 1)));
-
-  // The refs the server sends: cells, rows, columns and regions.
-  r = L.refCells(d, { cells: [[2, 3]], rows: [2], cols: [3], regions: [4] });
+  let r = L.refCells(d, { cells: [[2, 3]], rows: [2], cols: [3], regions: [4] });
   assert.deepEqual([...r.cells], [at(2, 3)]);
   assert.ok(has(r.units, [...rows(2), at(0, 3), at(4, 3), at(3, 0), at(4, 0)]));
   assert.equal(r.units.size, 5 + 4 + 2);

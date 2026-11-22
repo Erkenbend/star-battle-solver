@@ -71,45 +71,6 @@ The numbers are the ranking: value for maintainability, robustness and
 speed against cost and risk. 5 to 7 are worth doing soon; 9 and 10 go
 together; 14 only after 5, and only if measurements still call for it.
 
-## 8. Structured references in the trace
-
-The page highlights the rows, columns, colors and cells an explanation
-names, and puts color swatches in its text, by parsing the German text:
-`Logic.refs` and `Logic.colorSegments` match "Zeilen 3 und 4",
-"Spalten 2 bis 5", "Farben A, B und D" and "(2,3)" with regular
-expressions. A test in `logic_test.js` checks that every explanation of the
-sample traces is understood, so it holds today, but every new wording
-(e.g. "Zeilen 3–5"), a new rule or a second language has to keep the Go
-text and the JS patterns in step.
-
-Proposal: the rules already know what they name (`Confinement`'s from and
-target sets, `ForcedPartner`'s chain, …). Give `solver.Step` (and
-`Hypothesis`) a `Refs` value (cells, rows, columns, regions), filled where
-the reason is built, sent compactly in `web.Step`, and used by the page
-instead of `refs`. Swatches can use `Refs.Regions` to replace only the
-letters that are referenced. While both exist, the node test can assert
-that the old parser and the new refs agree on every sample trace, then
-the parser goes. Measure how much the trace JSON grows.
-
-In the same go, the German names of units and cells now live in three
-packages: `board.Contradiction` (where "Zeile", "Spalte", "Farbe" also serve
-as map keys for offsets), `solver` (`unitName`, the texts of `refute` and
-`assumedStep`) and `observers/explain.go`. A small package below `board`
-with these words (unit, units, cell, cell lists) would give every text one
-source.
-
-Step 1 (November 2026): `internal/words` names units and cells for
-`board`, `solver` and the rules; its `Namer` records what a text names, and
-`Mark.Why` takes those `Refs` with the text, so every rule has to hand them
-over. `web.Step` and `web.Hypothesis` (for the contradiction) send them as
-`refs` (`cells`, `rows`, `cols`, `regions`, each omitted when empty); the
-page highlights from `Logic.refCells`, and swatches replace only the
-letters of named regions. The trace JSON grows by about 18.5 % before gzip
-(526 → 624 KB over the 29 sample traces, estimated from the golden traces).
-`logic_test.js` checks that the old parser and the refs agree on every
-text of the sample traces. Open: once that has held, remove `Logic.refs`
-and the comparison, then move this entry to "Done".
-
 ## 9. Puzzle page: one state object, capabilities instead of flags
 
 `boot()` in `app.js` is one closure of 1,100 lines. The page object `P`
@@ -314,3 +275,10 @@ What the review found that needs no change now, only attention later:
   three times faster on a slow connection, for about 1.2 ms of CPU per
   page on a desktop core. Not in `writeHTML`/`writeJSON` as suggested:
   they lack the request ([decision 34](decisions/34-gzip.md)).
+- **8. Structured references in the trace** (November 2026,
+  [decision 35](decisions/35-refs-in-the-trace.md)): `internal/words` names
+  units and cells for `board`, `solver` and the rules, and its `Namer`
+  records what a text names. Steps and contradictions carry these `Refs`
+  to the page, which highlights them and puts swatches on named regions.
+  The text parser `Logic.refs` is gone. Cost: about 3 % more solver CPU,
+  +0.5 to 3.5 % per gzipped page.

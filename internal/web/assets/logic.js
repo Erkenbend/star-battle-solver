@@ -183,39 +183,6 @@ const Logic = (() => {
     return { cells, units };
   }
 
-  // The same read from the German text: "Zeilen 3 und 4", "Spalten 2 bis 5",
-  // "Farben A, B und D", "(2,3)". Only the node test still uses it, to check
-  // that refCells agrees on every sample trace; it goes once that has held
-  // (refactoring 8 in architecture/refactorings.md).
-  function refs(d, text) {
-    const cells = new Set(), unitCells = new Set();
-    const addUnit = (kind, i) => {
-      if (kind === "row" && i < d.n) for (let c = 0; c < d.n; c++) unitCells.add(idx(d, i, c));
-      if (kind === "col" && i < d.n) for (let r = 0; r < d.n; r++) unitCells.add(idx(d, r, i));
-      if (kind === "region")
-        for (let r = 0; r < d.n; r++) for (let c = 0; c < d.n; c++) if (d.regions[r][c] === i) unitCells.add(idx(d, r, c));
-    };
-    for (const m of text.matchAll(/\((\d+),(\d+)\)/g)) {
-      const r = +m[1], c = +m[2];
-      if (r < d.n && c < d.n) cells.add(idx(d, r, c));
-    }
-    for (const m of text.matchAll(/\b(Zeilen?|Spalten?) (\d+(?:(?:, | und | bis )\d+)*)\b/g)) {
-      const kind = m[1].startsWith("Zeile") ? "row" : "col";
-      const nums = m[2].split(/, | und /).map(Number);
-      if (m[2].includes(" bis ")) {
-        const [a, b] = m[2].split(" bis ").map(Number);
-        for (let i = a; i <= b; i++) addUnit(kind, i);
-      } else nums.forEach((i) => addUnit(kind, i));
-    }
-    for (const m of text.matchAll(/\b(Farben?) ([A-Za-z](?:(?:, | und )[A-Za-z](?![a-zäöüß]))*)(?![a-zäöüß])/g)) {
-      for (const l of m[2].split(/, | und /)) {
-        const i = d.letters.indexOf(l);
-        if (i >= 0) addUnit("region", i);
-      }
-    }
-    return { cells, units: unitCells };
-  }
-
   // Splits an explanation into text and region references, so the page can
   // show a color swatch instead of the letter: "Farben B und C liegen …" →
   // ["Farben ", {region: 1}, " und ", {region: 2}, " liegen …"]. regions,
@@ -592,7 +559,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refCells, refs, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refCells, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;
