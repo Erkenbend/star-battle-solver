@@ -24,7 +24,7 @@
 * Keep the principles of [architecture/README.md](architecture/README.md) section 2, e.g. no third-party dependencies and no JS build step
 * Test at behaviour level: prefer a slightly slower but stable integration test to a fast but brittle unit test
 * Measure changes to rules, search or generator (on `testdata/hard`, generated puzzles) and record the numbers in a new decision, see [Adding a decision](architecture/decisions/README.md#adding-a-decision). Elsewhere, benchmark only when a problem is suspected or upon request, no scientific-grade precision needed
-* Changes to how `serve` schedules its work (solve budget, pool, cache, library, party preparation): measure under load with `starbattle stress` before and after (`-server` with a build of the previous commit), and look at the latency of a page that waits, not only at throughput; one semaphore that looked right starved the pages (decision 33)
+* Changes to how `serve` schedules its work (solve budget, pool, cache, library, party preparation) or to what it costs to serve a page (compression, page size, wrappers around the handler): measure under load with `starbattle stress` before and after (`-server` with a build of the previous commit, `-serve-args` for an option of `serve`; add a scenario if none covers it), not with a load test in the test process, which mixes the client's CPU into the server's; look at the latency of a page that waits, not only at throughput; one semaphore that looked right starved the pages (decision 33)
 * `testdata/hard` and `designs` are long-lived data: index files are append-only, see [architecture/README.md](architecture/README.md) sections 4 and 5
 
 ## Testing
