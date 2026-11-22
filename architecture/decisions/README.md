@@ -43,6 +43,7 @@ and open ideas.
 | [31](31-party-resumes.md) | "/party" leads back to the party one plays in, "Party verlassen" also in a round | done |
 | [32](32-board-geometry.md) | Precomputed geometry for `board`, built by `New`, shared by clones | done |
 | [33](33-solve-budget.md) | One solve budget in `serve`: cancel, limit with a slot kept for pages, cache | done |
+| [34](34-gzip.md) | gzip for pages and JSON in `serve` (`-gzip=false` turns it off) | done |
 
 ## Adding a decision
 

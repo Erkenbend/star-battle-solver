@@ -71,24 +71,6 @@ The numbers are the ranking: value for maintainability, robustness and
 speed against cost and risk. 5 to 7 are worth doing soon; 9 and 10 go
 together; 14 only after 5, and only if measurements still call for it.
 
-## 7. gzip for pages and JSON
-
-A puzzle page is about 208 KB (a 15×15 hard puzzle via `html`: 42 KB CSS,
-~150 KB script, the trace), 56 KB gzipped. `serve` sends it uncompressed
-and with `Cache-Control: no-store`, so every page change (next puzzle, the
-next party round) loads all of it again. The deployment docs suggest Caddy
-in front, which compresses only with an `encode` directive, and players on
-the home network reach the binary directly. The UI check's slow-connection
-scenarios show why this matters.
-
-Proposal: compress in `writeHTML` and `writeJSON` (both already buffer the
-whole answer) when the request accepts gzip, with `compress/gzip` from the
-standard library (`BestSpeed` if the Pi needs it; measure). Not for the
-event stream (`/party/{code}/events`, it must flush per event) and not for
-the PNG icons. Single-file pages (principle 6) stay as they are. Test:
-a request with `Accept-Encoding: gzip` gets a body that decodes to the
-same page.
-
 ## 8. Structured references in the trace
 
 The page highlights the rows, columns, colors and cells an explanation
@@ -243,7 +225,7 @@ What the review found that needs no change now, only attention later:
   (second review). It would save more per page change than gzip (about
   150 KB of script are the same on every puzzle page), but it is a second
   way of delivering pages next to the single file of `html`, with cache
-  versioning to get right. gzip (7) first; reconsider if pages grow well
+  versioning to get right. gzip (7, done) first; reconsider if pages grow well
   beyond 200 KB or slow connections still hurt.
 - **One mutex per party instead of one for all** (second review). With at
   most 50 parties of 16 players, waiting for the lock is negligible, and one
@@ -314,3 +296,9 @@ What the review found that needs no change now, only attention later:
   are kept, the tutorial is solved once
   ([decision 33](decisions/33-solve-budget.md),
   [concurrency.md](concurrency.md) section 11).
+- **7. gzip for pages and JSON** (November 2026): `web.Compress`, a
+  wrapper `serve` puts around all routes (off with `-gzip=false`), sends
+  pages and JSON gzipped at `BestSpeed`: a 15×15 hard page 220 → 72 KB,
+  three times faster on a slow connection, for about 1.2 ms of CPU per
+  page on a desktop core. Not in `writeHTML`/`writeJSON` as suggested:
+  they lack the request ([decision 34](decisions/34-gzip.md)).
