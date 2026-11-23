@@ -10,12 +10,7 @@
   const L = Logic;
   const d = JSON.parse(document.getElementById("data").textContent);
   const $ = (id) => document.getElementById(id);
-  const el = (tag, cls, text) => {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-  };
+  const { el } = Dom;
 
   // ⓘ beside the title: what the page is about, folded away.
   $("info-btn").onclick = () => {

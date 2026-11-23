@@ -367,6 +367,17 @@ const Logic = (() => {
   const ratingStars = (k, empty = true) => (k >= 1 && k <= 3 ? "★".repeat(k) + (empty ? "☆".repeat(3 - k) : "") : "");
   const ratingText = (k) => (k >= 1 && k <= 3 ? `Schwierigkeit ${k} von 3` : "");
 
+  // A time in ms as "m:ss", from an hour on "h:mm:ss" (seconds cut off).
+  function fmtTime(ms) {
+    const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+    const ss = String(s % 60).padStart(2, "0");
+    return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+  }
+  // A number of hints: "1 Hinweis", "3 Hinweise"; and how a puzzle was
+  // solved with them: "ohne Hinweise", "mit 1 Hinweis", "mit 3 Hinweisen".
+  const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
+  const withHints = (k) => (!k ? "ohne Hinweise" : k === 1 ? "mit 1 Hinweis" : `mit ${k} Hinweisen`);
+
   // The server's board string ("0120…") as cells.
   const decodeBoard = (str) => Uint8Array.from(str, (ch) => ch.charCodeAt(0) - 48);
 
@@ -559,7 +570,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refCells, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refCells, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, fmtTime, hintsText, withHints, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;

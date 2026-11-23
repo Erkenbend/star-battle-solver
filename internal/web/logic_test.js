@@ -422,3 +422,18 @@ for (const bad of [0, 4, undefined, null]) {
   assert.equal(L.ratingText(bad), "");
 }
 console.log("ratings ok");
+
+// Times and hints as the pages show them.
+assert.equal(L.fmtTime(0), "0:00");
+assert.equal(L.fmtTime(59999), "0:59", "seconds are cut off, not rounded");
+assert.equal(L.fmtTime(61000), "1:01");
+assert.equal(L.fmtTime(3599000), "59:59");
+assert.equal(L.fmtTime(3600000), "1:00:00");
+assert.equal(L.fmtTime(36061000), "10:01:01");
+assert.equal(L.hintsText(0), "0 Hinweise");
+assert.equal(L.hintsText(1), "1 Hinweis");
+assert.equal(L.hintsText(2), "2 Hinweise");
+assert.equal(L.withHints(0), "ohne Hinweise");
+assert.equal(L.withHints(1), "mit 1 Hinweis");
+assert.equal(L.withHints(5), "mit 5 Hinweisen");
+console.log("formats ok");

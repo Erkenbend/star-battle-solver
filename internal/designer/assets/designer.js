@@ -5,12 +5,7 @@
   const L = Logic;
   const cfg = JSON.parse(document.getElementById("data").textContent);
   const $ = (id) => document.getElementById(id);
-  const el = (tag, cls, text) => {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-  };
+  const { el } = Dom;
   const SVG = "http://www.w3.org/2000/svg";
   const FREE = -1;
   const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";

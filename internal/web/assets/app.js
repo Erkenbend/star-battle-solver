@@ -29,12 +29,8 @@ function boot() {
   const tut = !!d.tutorial; // the tutorial (/anleitung), see tutorial.js
   const n = d.n;
   const $ = (id) => document.getElementById(id);
-  const el = (tag, cls, text) => {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-  };
+  const { el } = Dom;
+  const { fmtTime, hintsText } = L;
 
   const regionColor = (e, reg) => {
     const [h, s, l] = L.regionHSL(n, reg);
@@ -387,12 +383,6 @@ function boot() {
   }
   // No input: solved, or in a party round given up, not started or not ours.
   const locked = () => done || (!!party && (party.gaveUp || !party.live()));
-  function fmtTime(ms) {
-    const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
-    const ss = String(s % 60).padStart(2, "0");
-    return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-  }
-  const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
   function drawClock() {
     if (race) return race.clock();
     $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : bare ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}` + (party ? party.livesText() : "");
@@ -547,12 +537,12 @@ function boot() {
   // The banner below the board in the play tab, once renderPlay is done.
   function playBanner(solved) {
     if (solved && !race && !tut) { // against the clock, the party banner tells how it goes on; in the tutorial its card
-      const with_ = bare ? "ohne Hilfe" : !hintCount ? "ohne Hinweise" : hintCount === 1 ? "mit 1 Hinweis" : `mit ${hintCount} Hinweisen`;
+      const with_ = bare ? "ohne Hilfe" : L.withHints(hintCount);
       const extra = [];
       if (!party) {
         const share = el("button", "share", "Ergebnis kopieren");
         share.title = bare ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
-        share.onclick = () => copyText(shareText(with_), share);
+        share.onclick = () => copyResult(shareText(with_), share);
         extra.push(share);
       }
       const next = lib && L.nextUnsolved(lib.entries, libSolved(), lib.id);
@@ -643,35 +633,11 @@ function boot() {
     return t;
   }
 
-  // Copies text to the clipboard. navigator.clipboard needs a secure context
-  // (HTTPS or localhost), which a home server like http://raspberrypi:6369 is
-  // not, so fall back to the old execCommand route.
-  async function copyText(text, btn) {
-    let ok = false;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        ok = true;
-      }
-    } catch { /* fall through */ }
-    if (!ok) {
-      const ta = el("textarea");
-      ta.value = text;
-      ta.setAttribute("readonly", "");
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.append(ta);
-      ta.focus();
-      ta.select();
-      try { ok = document.execCommand("copy"); } catch { ok = false; }
-      ta.remove();
-    }
-    if (ok) {
-      btn.textContent = "Kopiert ✓";
-      setTimeout(() => { btn.textContent = "Ergebnis kopieren"; }, 2000);
-    } else {
-      window.prompt("Kopieren nicht möglich, bitte selbst kopieren:", text);
-    }
+  // Copies the result; the button says so for a moment.
+  async function copyResult(text, btn) {
+    if (!(await Dom.copyText(text))) return;
+    btn.textContent = "Kopiert ✓";
+    setTimeout(() => { btn.textContent = "Ergebnis kopieren"; }, 2000);
   }
 
   function store() {
@@ -792,7 +758,7 @@ function boot() {
     if (!done) hintCount += cost;
     overlay = { bad: new Set(wrong) };
     const what = `${wrong.length === 1 ? "Ein Feld ist" : wrong.length + " Felder sind"} falsch (rot markiert).`;
-    message(el("p", "", cost ? `${what} ${cost === 1 ? "1 Hinweis" : cost + " Hinweise"} angerechnet.` : what));
+    message(el("p", "", cost ? `${what} ${hintsText(cost)} angerechnet.` : what));
     renderPlay();
   }
 

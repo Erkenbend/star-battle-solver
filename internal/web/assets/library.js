@@ -10,12 +10,7 @@
   const L = Logic;
   const d = JSON.parse(document.getElementById("data").textContent);
   const $ = (id) => document.getElementById(id);
-  const el = (tag, cls, text) => {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-  };
+  const { el } = Dom;
   const SVG = "http://www.w3.org/2000/svg";
 
   // ⓘ beside the title: what the page is about, folded away.
@@ -36,12 +31,6 @@
   let part = partOf(location.hash.slice(1)) || parts[0];
   try { $("hide-solved").checked = localStorage.getItem(hideKey) === "1"; } catch { /* ignore */ }
 
-  const fmtTime = (ms) => {
-    const s = Math.floor(ms / 1000);
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
-    const pad = (x) => String(x).padStart(2, "0");
-    return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
-  };
 
   // Regions as colored areas with thick walls between them: one path per
   // region, not one rect per cell, since the tab "Schwer" alone has some 190
@@ -119,9 +108,9 @@
           r.title = L.ratingText(e.rating);
           meta.append(r);
         }
-        if (s) meta.append(el("span", "done", Number.isFinite(s.time) ? `✓ ${fmtTime(s.time)}` : "✓"));
+        if (s) meta.append(el("span", "done", Number.isFinite(s.time) ? `✓ ${L.fmtTime(s.time)}` : "✓"));
         a.append(meta);
-        if (s && s.hints > 0) a.append(el("span", "sub", s.hints === 1 ? "mit 1 Hinweis" : `mit ${s.hints} Hinweisen`));
+        if (s && s.hints > 0) a.append(el("span", "sub", L.withHints(s.hints)));
         grid.append(a);
       }
       g.append(grid);

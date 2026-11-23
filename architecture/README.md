@@ -207,7 +207,7 @@ but one until there are the asked number of distinct puzzles (or a budget
 of attempts is used up, see
 [decision 29](decisions/29-designer-searches-longer.md)), give the regions of
 one other colors if wanted, save it to a collection. Its page is built like the site's pages
-(`web.ServePage`, with the shared style and `logic.js`) from its own assets, and
+(`web.ServePage`, with the shared style and scripts) from its own assets, and
 it reuses `web`'s play page for "try it".
 
 `party` is the multiplayer game on its own: parties, players, rounds in three
@@ -219,10 +219,11 @@ events, maps its error kinds to status codes, and builds a round's page from
 `Manager.Page`. Tests drive it with a fake clock.
 
 The browser code is plain JavaScript without a build step, inlined into
-each page by the template's two script slots: shared scripts and the page's
-own. `logic.js` is the pure `Logic` module (board rules, hints, coop
-operations, region colours, symbols, …), shared by every page and also run
-under node by a Go test. The puzzle page's UI is `app.js`, the core (board,
+each page by the template's two script slots: the shared scripts first, then
+the page's own. The shared ones are `dom.js` (`Dom`, small DOM helpers such
+as `el` and `copyText`) and `logic.js`, the pure `Logic` module (board
+rules, hints, coop operations, region colours, symbols, times, …), which a
+Go test also runs under node. The puzzle page's UI is `app.js`, the core (board,
 play mode, undo, hints, clock, storage, options), plus one file per part:
 `hypothesis.js`, `watch.js` (the solving path), `tutorial.js` and `round.js`
 for party rounds, with `coop.js` and `race.js` for their modes. `boot()` in

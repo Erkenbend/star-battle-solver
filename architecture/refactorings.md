@@ -96,18 +96,6 @@ groups that use the puzzle page):
 
 Still no modules, build step or framework (see 3 under "Done").
 
-## 10. Shared DOM and format helpers for all pages
-
-The same small helpers are written out several times: `el` in `app.js`,
-`party.js`, `library.js`, `settings.js` and `designer.js`; `fmtTime` and
-`hintsText` in `app.js` and `party.js`; `copyText` with its `execCommand`
-fallback in `app.js` and `party.js`. Proposal: `fmtTime` and `hintsText`
-into `Logic`, with node tests; `el` and `copyText` into a small `dom.js`
-shared by every page with script. Note that the party page gets no
-`logic.js` today (`WriteParty` leaves the shared slot empty): it would get
-`dom.js` and `logic.js`, about 27 KB more, or only `dom.js`. Best done
-together with 9.
-
 ## 11. Split `party.go` like `coop.go` and `clock.go`
 
 `party.go` has 1,023 lines: limits and types, joining and leaving, the
@@ -272,3 +260,9 @@ What the review found that needs no change now, only attention later:
   (CPU 1.65×), also on 4 threads
   ([decision 36](decisions/36-lookahead-stops-trials.md),
   [concurrency.md](concurrency.md) section 2).
+- **10. Shared DOM and format helpers for all pages** (November 2026):
+  `fmtTime`, `hintsText` and `withHints` ("mit 3 Hinweisen") are in
+  `Logic` with node tests; `el` and `copyText` in `dom.js` (`Dom`). Every
+  page with script gets `dom.js` and `logic.js` before its own script
+  (`render` adds them; a test checks the order in every template), the
+  party page now too: 69 → 96 KB, gzipped 23 → 35 KB.

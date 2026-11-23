@@ -32,19 +32,8 @@ const Party = (() => {
     } catch { /* cookies blocked */ }
   }
 
-  function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-  }
-
-  function fmtTime(ms) {
-    const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
-    const ss = String(s % 60).padStart(2, "0");
-    return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-  }
-  const hintsText = (k) => (k === 1 ? "1 Hinweis" : `${k} Hinweise`);
+  const { el, copyText } = Dom;
+  const { fmtTime } = Logic;
 
   // post sends an action with the player's token; it resolves to the reply
   // ({snapshot, ...}) or rejects with the server's message.
@@ -62,29 +51,6 @@ const Party = (() => {
     }
     if (!res.ok) throw Object.assign(new Error(reply.error || res.statusText), { status: res.status });
     return reply;
-  }
-
-  // Copies text to the clipboard, with the old execCommand route for plain
-  // http (a home server is not a secure context).
-  async function copyText(text) {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch { /* fall through */ }
-    const ta = el("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.append(ta);
-    ta.select();
-    let ok = false;
-    try { ok = document.execCommand("copy"); } catch { ok = false; }
-    ta.remove();
-    if (!ok) window.prompt("Kopieren nicht möglich, bitte selbst kopieren:", text);
-    return ok;
   }
 
   const STATUS = { solved: "gelöst", gaveup: "aufgegeben", out: "KO", playing: "spielt noch", absent: "abwesend", left: "gegangen", done: "fertig" };
@@ -472,5 +438,5 @@ const Party = (() => {
     bootPage();
   }
 
-  return { token, setToken, name, setName, post, live, goTo, leave, fmtTime, hintsText, copyText, el, roundPath, livesRule };
+  return { token, setToken, name, setName, post, live, goTo, leave, roundPath, livesRule };
 })();

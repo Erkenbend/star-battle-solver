@@ -112,3 +112,27 @@ func TestTemplatesHaveAppSlot(t *testing.T) {
 		}
 	}
 }
+
+// Every template with a script has the shared scripts (dom.js, logic.js)
+// before the page's own, which use Dom and Logic as soon as they run. The
+// designer's template is built the same way.
+func TestTemplatesSharedScriptsFirst(t *testing.T) {
+	var files []string
+	for _, pat := range []string{"assets/*.html", "../designer/assets/*.html"} {
+		f, err := filepath.Glob(pat)
+		if err != nil || len(f) == 0 {
+			t.Fatalf("no templates for %s: %v", pat, err)
+		}
+		files = append(files, f...)
+	}
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		shared, script := strings.Index(string(b), "/*{{SHARED}}*/"), strings.Index(string(b), "/*{{SCRIPT}}*/")
+		if script >= 0 && (shared < 0 || shared > script) {
+			t.Errorf("%s: /*{{SHARED}}*/ must come before /*{{SCRIPT}}*/", f)
+		}
+	}
+}
