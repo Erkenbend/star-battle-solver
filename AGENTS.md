@@ -21,6 +21,7 @@
 * Commit after each meaningful step (e.g. decision documented, rule implemented, UI feature done), don't batch unrelated steps into one commit
 * Push only after the user confirms
 * Report choices made autonomously, assume the user is a developer
+* What differs between kinds of puzzle page (tutorial, solo, file, motif, hard, party modes) goes into `Logic.pageKind` and its node test, not into new flags combined in `app.js`
 * Keep the principles of [architecture/README.md](architecture/README.md) section 2, e.g. no third-party dependencies and no JS build step
 * Test at behaviour level: prefer a slightly slower but stable integration test to a fast but brittle unit test
 * Measure changes to rules, search or generator (on `testdata/hard`, generated puzzles) and record the numbers in a new decision, see [Adding a decision](architecture/decisions/README.md#adding-a-decision). Elsewhere, benchmark only when a problem is suspected or upon request, no scientific-grade precision needed
