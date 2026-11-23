@@ -984,8 +984,8 @@ function boot() {
     $("legend").textContent =
       m === "play"
         ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt" +
-          (prefs.showProblems ? " · rot: Regelverstoß" : bare || race ? "" : " · rot: falsch laut Prüfen") +
-          (bare || race ? "" : " · orange: Hinweis") +
+          (prefs.showProblems ? " · rot: Regelverstoß" : bare || coop || race ? "" : " · rot: falsch laut Prüfen") +
+          (bare || coop || race ? "" : " · orange: Hinweis") +
           " · lila: Annahme"
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
