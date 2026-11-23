@@ -78,7 +78,7 @@ function Hypothesis(P) {
     P.renderPlay();
   }
   function text() {
-    const who = P.coop ? " Die anderen sehen sie nicht." : P.party ? " Sie zählt nicht für deinen Stand." : "";
+    const who = P.K.kind === "coop" ? " Die anderen sehen sie nicht." : P.K.party ? " Sie zählt nicht für deinen Stand." : "";
     if (hyp.root < 0) return "Annahme: Setze einen Stern und verfolge, wohin er führt." + who;
     const r = Math.floor(hyp.root / n), c = hyp.root % n;
     return `Annahme: Stern auf (${r},${c}). Führt sie zu einem Widerspruch, kommt dort ein Kreuz hin („Widerspruch“).` + who;

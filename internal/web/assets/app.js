@@ -16,9 +16,12 @@ if (typeof document !== "undefined" && document.getElementById("board")) boot();
 function boot() {
   const L = Logic;
   const d = JSON.parse(document.getElementById("data").textContent);
+  // What kind of page this is and what that allows (L.pageKind): the
+  // functions below ask K instead of combining flags.
+  const K = L.pageKind(d);
   // A new visitor of a solo page or library puzzle gets the tutorial first,
   // once, and comes back here afterwards. Not in a party round: it runs.
-  if (d.served && !d.party && !d.tutorial) {
+  if (K.tutorialFirst) {
     let due = false;
     try { due = L.tutorialDue(localStorage); } catch { /* storage blocked */ }
     if (due) {
@@ -26,7 +29,6 @@ function boot() {
       return;
     }
   }
-  const tut = !!d.tutorial; // the tutorial (/anleitung), see tutorial.js
   const n = d.n;
   const $ = (id) => document.getElementById(id);
   const { el } = Dom;
@@ -236,7 +238,7 @@ function boot() {
   // race.js) see the page through P: the data, helpers to draw, and the play
   // state of this function, read and written through accessors.
   const P = {
-    L, d, n, $, el, elr, chip, banner, drawBoard, boardEl, cellEls,
+    L, d, K, n, $, el, elr, chip, banner, drawBoard, boardEl, cellEls,
     get saved() { return saved; },
     get marks() { return marks; },
     set marks(v) { marks = v; },
@@ -257,15 +259,13 @@ function boot() {
     get redoStack() { return redoStack; },
     get lib() { return lib; },
     get hyp() { return H; },
-    get party() { return !!party; },
-    get coop() { return !!coop; },
     locked: () => locked(),
     intro: () => intro.map((x) => x.cloneNode(true)),
     message, renderPlay, setMarks, setMode, clockStop, fmtTime, loadTrace,
   };
   const H = Hypothesis(P);
   const W = Watch(P);
-  const T = tut ? Tutorial(P) : null;
+  const T = K.kind === "tutorial" ? Tutorial(P) : null; // see tutorial.js
 
   // ---------- summary ----------
   function drawSummary() {
@@ -278,11 +278,11 @@ function boot() {
       sum("ohne Hinweise", rating);
       return;
     }
-    if (tut) {
+    if (K.kind === "tutorial") {
       sum("Ein kleines Puzzle zum Ausprobieren");
       return;
     }
-    if (d.party && d.party.mode === "clock") {
+    if (K.kind === "race") {
       sum("Gegen die Uhr · ohne Hinweise");
       return;
     }
@@ -299,16 +299,15 @@ function boot() {
 
   // ---------- storage (per-viewer convenience only) ----------
   // A party round and a library puzzle keep their own progress, apart from
-  // solo play of the puzzle. Library puzzles go by their stable ID.
-  const key = d.library
-    ? "starbattle:library:" + d.library.id
-    : (d.party ? `starbattle:party:${d.party.code}:${d.party.round}:` : "starbattle:") + n + ":" + d.regions.map((row) => row.join(",")).join(";");
+  // solo play of the puzzle. Library puzzles go by their stable ID. The
+  // tutorial starts afresh every time, a coop board lives on the server:
+  // they keep nothing (no key).
+  const key = K.storageKey;
   const load = () => {
-    if (tut) return null; // starts afresh every time and keeps nothing
+    if (!key) return null;
     try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
   };
   const save = (v) => {
-    if (tut) return;
     try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode etc. */ }
   };
 
@@ -319,7 +318,7 @@ function boot() {
   // Options of this device (see L.pref), set on /einstellungen. A page saved
   // as a file cannot reach that page and shows them itself.
   const prefs = { autocross: L.pref("autocross"), straight: L.pref("straight"), showProblems: L.pref("showProblems"), fadeDone: L.pref("fadeDone"), fadeColorsOnly: L.pref("fadeColorsOnly") };
-  if (tut) { // the steps cross by hand, rely on mistakes showing at once and name colors
+  if (K.fixedPrefs) { // the tutorial's steps cross by hand, rely on mistakes showing at once and name colors
     prefs.autocross = false;
     prefs.showProblems = true;
     prefs.fadeDone = false;
@@ -337,7 +336,7 @@ function boot() {
   let mode = "play";
   const clockMs = () => elapsed + (runningSince === null ? 0 : Math.max(0, Date.now() - runningSince));
   function clockRun(on) {
-    if (party) return; // a party round runs on the server's clock (partySnap)
+    if (K.party) return; // a party round runs on the server's clock (partySnap)
     if (on && runningSince === null && !done) runningSince = Date.now();
     if (!on) clockStop();
   }
@@ -351,12 +350,10 @@ function boot() {
   const race = party && party.race;
   // A library puzzle (d.library) is a motif or a hard puzzle. A motif is
   // played like a solo puzzle, with hints and checks. A hard one is solved
-  // without help (bare): no hints, no checks, and the solver's way only once
-  // it is solved. Solved IDs of both are kept on this device for the overview
+  // without help: no hints, no checks, and the solver's way only once it is
+  // solved. Solved IDs of both are kept on this device for the overview
   // (/bibliothek), with the best result.
   const lib = d.library || null;
-  const motif = !!lib && lib.kind === "motive";
-  const bare = !!lib && !motif;
   const libSolvedKey = "starbattle:library:solved";
   function libSolved() {
     try {
@@ -376,22 +373,22 @@ function boot() {
     if (hints) all[lib.id].hints = hints;
     try { localStorage.setItem(libSolvedKey, JSON.stringify(all)); } catch { /* private mode etc. */ }
   }
-  if (bare) {
-    $("hint").hidden = true;
-    $("check").hidden = true;
+  if (!K.help) $("hint").hidden = $("check").hidden = true;
+  if (K.kind === "hard") {
     $("play-msg").append(el("p", "muted", "Besonders schweres Puzzle: ohne Hinweise und Prüfen. Den Lösungsweg gibt es nach dem Lösen."));
   }
   // No input: solved, or in a party round given up, not started or not ours.
   const locked = () => done || (!!party && (party.gaveUp || !party.live()));
   function drawClock() {
     if (race) return race.clock();
-    $("clock").textContent = coop ? `⏱ ${fmtTime(clockMs())} · gemeinsam` : bare ? `⏱ ${fmtTime(clockMs())}` : `⏱ ${fmtTime(clockMs())} · ${hintsText(hintCount)}` + (party ? party.livesText() : "");
+    const t = `⏱ ${fmtTime(clockMs())}`;
+    $("clock").textContent = K.kind === "coop" ? t + " · gemeinsam" : K.help ? `${t} · ${hintsText(hintCount)}` + (party ? party.livesText() : "") : t;
   }
   const undoStack = [], redoStack = [];
   let overlay = null; // {hint?, bad?} shown until the next change
 
   // A hypothesis ("Annahme", see hypothesis.js) saved with the progress.
-  if (!coop) H.restore(saved);
+  H.restore(saved);
   // A page saved as a file has no tutorial: one line of rules to start with,
   // the rest behind ⓘ.
   if (!d.served) $("play-msg").prepend(el("p", "", "Je Zeile, Spalte und Farbe genau ein Stern; Sterne berühren sich nicht, auch nicht diagonal. Mehr unter ⓘ."));
@@ -517,7 +514,7 @@ function boot() {
       done = true;
       if (party) party.solve();
     }
-    if (solved && lib && !tut) libRecord(clockMs(), bare ? 0 : hintCount);
+    if (solved && K.library) libRecord(clockMs(), K.help ? hintCount : 0);
     if (visible) playBanner(solved);
     nextPuzzle();
     drawClock();
@@ -526,7 +523,7 @@ function boot() {
       party.tabs();
       party.report();
     }
-    if (bare) { // the tab is there, greyed out: appearing on the solving tap, its row would push the board down
+    if (K.traceAfterSolve) { // the tab is there, greyed out: appearing on the solving tap, its row would push the board down
       $("tab-watch").disabled = !done;
       $("tab-watch").title = done ? "" : "Den Lösungsweg gibt es, sobald das Puzzle gelöst ist";
       if (done && lib.pending) loadTrace();
@@ -536,18 +533,18 @@ function boot() {
 
   // The banner below the board in the play tab, once renderPlay is done.
   function playBanner(solved) {
-    if (solved && !race && !tut) { // against the clock, the party banner tells how it goes on; in the tutorial its card
-      const with_ = bare ? "ohne Hilfe" : L.withHints(hintCount);
+    if (solved && K.solvedBanner) {
+      const with_ = K.help ? L.withHints(hintCount) : "ohne Hilfe";
       const extra = [];
-      if (!party) {
+      if (K.share) {
         const share = el("button", "share", "Ergebnis kopieren");
-        share.title = bare ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
+        share.title = !K.help ? "Text mit Zeit und Link zu diesem Puzzle in die Zwischenablage" : "Text mit Zeit, Hinweisen und Link in die Zwischenablage";
         share.onclick = () => copyResult(shareText(with_), share);
         extra.push(share);
       }
-      const next = lib && L.nextUnsolved(lib.entries, libSolved(), lib.id);
-      if (lib && !next) extra.unshift(motif ? "Damit hast du alle Motive gelöst." : "Damit hast du alle schweren Puzzles gelöst.");
-      banner(coop ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good", ...extra);
+      const next = K.library && L.nextUnsolved(lib.entries, libSolved(), lib.id);
+      if (K.library && !next) extra.unshift(K.kind === "motif" ? "Damit hast du alle Motive gelöst." : "Damit hast du alle schweren Puzzles gelöst.");
+      banner(K.kind === "coop" ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good", ...extra);
       return;
     }
     const b = party ? party.banner() : null;
@@ -562,12 +559,12 @@ function boot() {
   // round goes on through the party. In both tabs, once solved.
   function nextPuzzle() {
     const box = $("next-puzzle");
-    const next = done && lib && !party && !tut ? L.nextUnsolved(lib.entries, libSolved(), lib.id) : null;
+    const next = done && K.afterSolve === "next" ? L.nextUnsolved(lib.entries, libSolved(), lib.id) : null;
     let b = null;
     if (next) {
       b = el("a", "button", `Als nächstes: ${next.name}`);
       b.href = "/bibliothek?id=" + encodeURIComponent(next.id);
-    } else if (done && !lib && !party && !tut && d.served) {
+    } else if (done && K.afterSolve === "new") {
       b = el("button", "", "Neues Puzzle");
       b.type = "submit";
       b.setAttribute("form", "newgame");
@@ -617,12 +614,12 @@ function boot() {
   // one (served pages: /?n=8&seed=42 or /play?p=...), not for a local file.
   function shareText(with_) {
     const web = d.served && /^https?:$/.test(location.protocol);
-    if (motif) {
+    if (K.kind === "motif") {
       let t = `Star-Battle-Motiv „${lib.name}“ (${n}×${n}) in ${fmtTime(clockMs())} gelöst (${with_})!`;
       if (web) t += " " + location.origin + "/bibliothek?id=" + encodeURIComponent(lib.id);
       return t;
     }
-    if (lib) {
+    if (K.library) {
       const stars = lib.rating ? `, ${L.ratingStars(lib.rating)}` : "";
       let t = `Schweres Star Battle ${lib.name} (${n}×${n}${stars}) aus der Bibliothek in ${fmtTime(clockMs())} gelöst, ${with_}!`;
       if (web) t += " " + location.origin + "/bibliothek?id=" + encodeURIComponent(lib.id);
@@ -641,7 +638,7 @@ function boot() {
   }
 
   function store() {
-    if (coop) return; // the board lives on the server
+    if (!key) return; // nowhere to keep it
     const v = { marks: [...H.committed()], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
     H.save(v);
     if (party) party.save(v);
@@ -652,11 +649,10 @@ function boot() {
   // unsolved solo puzzle: the server reads its URL from this cookie
   // (SoloCookie in server.go). Opened or played, a solo puzzle puts itself
   // there; solved, it takes itself out, unless another one is there by now.
-  const soloPage = d.served && !party && !lib && !tut;
   const SOLO_COOKIE = "starbattle.solo";
   const soloHere = SOLO_COOKIE + "=" + encodeURIComponent(location.pathname + location.search);
   function rememberSolo() {
-    if (!soloPage) return;
+    if (K.kind !== "solo") return;
     try {
       const mine = document.cookie.split("; ").includes(soloHere);
       if (!done && !mine) document.cookie = soloHere + "; path=/; max-age=7776000; samesite=lax"; // 90 days
@@ -778,7 +774,7 @@ function boot() {
   // The switches are at hand under "Mehr"; on a served page they are the
   // same as on /einstellungen, which also has the star symbol. The tutorial's
   // steps rely on its own (see prefs).
-  if (tut) $("play-options").hidden = true;
+  if (K.fixedPrefs) $("play-options").hidden = true;
   for (const [k, id] of OPTION_IDS) {
     $(id).onchange = () => {
       prefs[k] = $(id).checked;
@@ -791,7 +787,7 @@ function boot() {
   // symbol too, by rebuilding the cells' symbol layer.
   window.addEventListener("storage", (ev) => {
     const k = L.prefOfKey(ev.key);
-    if (k && tut) return; // fixed for the tutorial's steps
+    if (k && K.fixedPrefs) return; // fixed for the tutorial's steps
     if (k) {
       prefs[k] = L.pref(k);
       applyPrefs();
@@ -940,7 +936,7 @@ function boot() {
     renderPlay();
   }
   $("reset").onclick = () => {
-    if (party) { // only the marks: time and hints count on
+    if (K.party) { // only the marks: time and hints count on
       if (locked() || !marks.some((v) => v !== L.FREE)) return;
       if (coop && H.committed().some((v) => v !== L.FREE) && !confirm("Das Brett für alle löschen?")) return;
       H.drop();
@@ -984,8 +980,8 @@ function boot() {
     $("legend").textContent =
       m === "play"
         ? "★ Stern · ✕ Kreuz · • automatisch gekreuzt" +
-          (prefs.showProblems ? " · rot: Regelverstoß" : bare || coop || race ? "" : " · rot: falsch laut Prüfen") +
-          (bare || coop || race ? "" : " · orange: Hinweis") +
+          (prefs.showProblems ? " · rot: Regelverstoß" : K.help ? " · rot: falsch laut Prüfen" : "") +
+          (K.help ? " · orange: Hinweis" : "") +
           " · lila: Annahme"
         : "Blauer Rahmen: in diesem Schritt gesetzt · abgedunkelt: nicht in der Erklärung genannt · rot: Widerspruch";
     if (m === "play") renderPlay();
@@ -1023,12 +1019,12 @@ function boot() {
   // ---------- served by `starbattle serve`: new puzzles ----------
   if (d.served) {
     $("site-nav").hidden = false;
-    $(party ? "nav-party" : lib ? "nav-library" : tut ? "nav-help" : "nav-solo").setAttribute("aria-current", "page");
+    $(K.nav).setAttribute("aria-current", "page");
   }
   // A new puzzle on a solo page only: under "Mehr" before it is solved, below
   // the banner after (nextPuzzle). The library and parties have their own
   // next puzzle, other sizes are Solo's (decision 30).
-  if (d.served && !party && !tut && !lib) {
+  if (K.kind === "solo") {
     // One size, or "Mehrere Größen": a pool of sizes like a party's, from
     // which the server picks one at random (/?n=6&n=8). The choice and the
     // pool are a preference of this device.
@@ -1087,5 +1083,5 @@ function boot() {
   }
 
   W.init();
-  setMode(location.hash === "#weg" && !(bare && !done) ? "watch" : "play");
+  setMode(location.hash === "#weg" && !(K.traceAfterSolve && !done) ? "watch" : "play");
 }

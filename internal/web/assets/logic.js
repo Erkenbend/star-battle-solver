@@ -381,6 +381,49 @@ const Logic = (() => {
   // The server's board string ("0120…") as cells.
   const decodeBoard = (str) => Uint8Array.from(str, (ch) => ch.charCodeAt(0) - 48);
 
+  // ---------- kinds of puzzle page ----------
+  // What a puzzle page is and what that allows, decided once from its data
+  // (app.js asks this instead of combining flags). kind is one of
+  // "tutorial" (/anleitung), "solo" (a puzzle of serve), "file" (saved with
+  // `starbattle html`), "motif" and "hard" (library), "versus", "coop" and
+  // "race" (party rounds; race is the mode against the clock).
+  function pageKind(d) {
+    const kind = d.tutorial ? "tutorial"
+      : d.party ? ({ coop: "coop", clock: "race" }[d.party.mode] || "versus")
+      : d.library ? (d.library.kind === "motive" ? "motif" : "hard")
+      : d.served ? "solo" : "file";
+    const party = kind === "versus" || kind === "coop" || kind === "race";
+    const library = kind === "motif" || kind === "hard";
+    const board = d.n + ":" + d.regions.map((row) => row.join(",")).join(";");
+    return {
+      kind,
+      party, // a party round: the server's clock, starting anew keeps time and hints
+      library,
+      // Hints and checks, and so a count of hints. Not for a hard puzzle
+      // (solved without help), nor in a party round together or against the
+      // clock.
+      help: !(kind === "hard" || kind === "coop" || kind === "race"),
+      // Where the progress is kept on this device; null: nowhere (the
+      // tutorial starts afresh, a coop board lives on the server).
+      storageKey: kind === "tutorial" || kind === "coop" ? null
+        : library ? "starbattle:library:" + d.library.id
+        : party ? `starbattle:party:${d.party.code}:${d.party.round}:` + board
+        : "starbattle:" + board,
+      fixedPrefs: kind === "tutorial", // its steps rely on its own play options
+      tutorialFirst: !!d.served && (kind === "solo" || library), // a new visitor's first page is the tutorial
+      // Once solved: the banner says so (against the clock the party's
+      // banner tells how it goes on, in the tutorial its card), with the
+      // result to copy outside a party; the way on is a new puzzle of the
+      // size chosen ("new"), the next unsolved one of the library ("next"),
+      // the party's ("party") or none.
+      solvedBanner: kind !== "race" && kind !== "tutorial",
+      share: !party && kind !== "tutorial",
+      afterSolve: kind === "solo" ? "new" : library ? "next" : party ? "party" : "none",
+      traceAfterSolve: kind === "hard", // the solving path only once solved
+      nav: party ? "nav-party" : library ? "nav-library" : kind === "tutorial" ? "nav-help" : "nav-solo", // the tab of the site's bar
+    };
+  }
+
   // ---------- play options ----------
   // On/off options of this device, set on /einstellungen (or, in a page saved
   // as a file, on the page itself). Unset, they take their default; the
@@ -570,7 +613,7 @@ const Logic = (() => {
     el.classList.add("fresh");
   }
 
-  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refCells, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, fmtTime, hintsText, withHints, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
+  return { FREE, CROSS, STAR, idx, implied, effective, units, problems, mistakes, doneCells, regionStars, starColumns, solved, apply, prefixStates, nextHint, refCells, ruleLabel, line, snapTarget, paint, colorSegments, applyOps, diffOps, overlay, compose, hypRoot, decodeBoard, regionHSL, nextUnsolved, ratingStars, ratingText, pageKind, fmtTime, hintsText, withHints, tutorialStep, tutorialDue, returnPath, pref, setPref, prefOfKey, MARK_KEY, DEFAULT_MARK, RANDOM_MARK, markSpec, isRandomMark, loadMark, saveMark, markSVG, markClasses, markRuns, pickClip, playMark };
 })();
 
 if (typeof module !== "undefined") module.exports = Logic;

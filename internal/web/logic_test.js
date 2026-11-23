@@ -437,3 +437,34 @@ assert.equal(L.withHints(0), "ohne Hinweise");
 assert.equal(L.withHints(1), "mit 1 Hinweis");
 assert.equal(L.withHints(5), "mit 5 Hinweisen");
 console.log("formats ok");
+
+// The kinds of puzzle page and what each allows.
+{
+  const base = { n: 2, regions: [[0, 0], [1, 1]] };
+  const page = (extra) => L.pageKind({ ...base, ...extra });
+  const cols = ["kind", "party", "library", "help", "fixedPrefs", "tutorialFirst", "solvedBanner", "share", "afterSolve", "traceAfterSolve", "nav"];
+  const row = (k) => cols.map((c) => k[c]).join(" ");
+  const want = {
+    tutorial: [page({ served: true, tutorial: {} }), "tutorial false false true true false false false none false nav-help"],
+    solo: [page({ served: true }), "solo false false true false true true true new false nav-solo"],
+    file: [page({}), "file false false true false false true true none false nav-solo"],
+    motif: [page({ served: true, library: { id: "m1", kind: "motive" } }), "motif false true true false true true true next false nav-library"],
+    hard: [page({ served: true, library: { id: "h1", kind: "schwer" } }), "hard false true false false true true true next true nav-library"],
+    versus: [page({ served: true, party: { code: "ABCD", round: 2, mode: "versus" } }), "versus true false true false false true false party false nav-party"],
+    coop: [page({ served: true, party: { code: "ABCD", round: 2, mode: "coop" } }), "coop true false false false false true false party false nav-party"],
+    race: [page({ served: true, party: { code: "ABCD", round: 2, mode: "clock", puzzle: 1 } }), "race true false false false false false false party false nav-party"],
+  };
+  for (const [name, [k, w]] of Object.entries(want)) assert.equal(row(k), w, name);
+  // Progress is kept per puzzle, a library puzzle by its ID, a party
+  // round's apart from solo play of the same puzzle; not in the tutorial
+  // nor in a coop round.
+  assert.equal(want.solo[0].storageKey, "starbattle:2:0,0;1,1");
+  assert.equal(want.file[0].storageKey, "starbattle:2:0,0;1,1");
+  assert.equal(want.motif[0].storageKey, "starbattle:library:m1");
+  assert.equal(want.hard[0].storageKey, "starbattle:library:h1");
+  assert.equal(want.versus[0].storageKey, "starbattle:party:ABCD:2:2:0,0;1,1");
+  assert.equal(want.race[0].storageKey, "starbattle:party:ABCD:2:2:0,0;1,1");
+  assert.equal(want.tutorial[0].storageKey, null);
+  assert.equal(want.coop[0].storageKey, null);
+}
+console.log("page kinds ok");

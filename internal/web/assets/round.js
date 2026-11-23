@@ -249,11 +249,7 @@ function PartyRound(P) {
     $("giveup").onclick = partyGiveUp;
     $("reset").textContent = "Alles löschen";
     $("reset").title = coop ? "Löscht das Brett für alle; die Zeit läuft weiter" : "Löscht deine Markierungen; Zeit und Hinweise zählen weiter";
-    if (coop) { // no hints when playing together
-      $("hint").hidden = $("check").hidden = true;
-    }
-    if (race) { // no hints against the clock; skipping instead of giving up
-      $("hint").hidden = $("check").hidden = true;
+    if (race) { // skipping instead of giving up (no hints: P.K.help)
       $("giveup").onclick = race.skip;
       $("giveup").querySelector("svg").innerHTML = '<path d="M2.5 3.5 7.5 8l-5 4.5zM8.5 3.5l5 4.5-5 4.5z"/>'; // skip ahead instead of the flag
       $("reset").title = "Löscht deine Markierungen; die Zeit läuft weiter";
