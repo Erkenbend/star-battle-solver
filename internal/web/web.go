@@ -44,6 +44,10 @@ var (
 // other parts with the page object P (see there); they are function
 // declarations, so the order only matters for reading.
 var (
+	//go:embed assets/storage.js
+	storageJS string
+	//go:embed assets/help.js
+	helpJS string
 	//go:embed assets/hypothesis.js
 	hypothesisJS string
 	//go:embed assets/watch.js
@@ -59,7 +63,7 @@ var (
 	//go:embed assets/app.js
 	appJS string
 
-	pageJS = strings.Join([]string{hypothesisJS, watchJS, tutorialJS, roundJS, coopJS, raceJS, appJS}, "\n")
+	pageJS = strings.Join([]string{storageJS, helpJS, hypothesisJS, watchJS, tutorialJS, roundJS, coopJS, raceJS, appJS}, "\n")
 )
 
 //go:embed assets/party.html

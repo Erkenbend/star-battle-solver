@@ -258,6 +258,7 @@ function boot() {
     get undoStack() { return undoStack; },
     get redoStack() { return redoStack; },
     get lib() { return lib; },
+    get round() { return party; }, // the party round (round.js), or null
     get hyp() { return H; },
     locked: () => locked(),
     intro: () => intro.map((x) => x.cloneNode(true)),
@@ -297,22 +298,11 @@ function boot() {
   }
   drawSummary();
 
-  // ---------- storage (per-viewer convenience only) ----------
-  // A party round and a library puzzle keep their own progress, apart from
-  // solo play of the puzzle. Library puzzles go by their stable ID. The
-  // tutorial starts afresh every time, a coop board lives on the server:
-  // they keep nothing (no key).
-  const key = K.storageKey;
-  const load = () => {
-    if (!key) return null;
-    try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
-  };
-  const save = (v) => {
-    try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode etc. */ }
-  };
-
   // ---------- play mode ----------
-  const saved = load();
+  // What this device keeps (storage.js): the progress, the library's solved
+  // puzzles, the way back to a solo puzzle.
+  const storage = Storage(P);
+  const saved = storage.load();
   let marks = new Uint8Array(n * n);
   if (saved && Array.isArray(saved.marks) && saved.marks.length === n * n) marks = Uint8Array.from(saved.marks);
   // Options of this device (see L.pref), set on /einstellungen. A page saved
@@ -354,25 +344,6 @@ function boot() {
   // solved. Solved IDs of both are kept on this device for the overview
   // (/bibliothek), with the best result.
   const lib = d.library || null;
-  const libSolvedKey = "starbattle:library:solved";
-  function libSolved() {
-    try {
-      const v = JSON.parse(localStorage.getItem(libSolvedKey) || "{}");
-      return v && typeof v === "object" ? v : {};
-    } catch { return {}; }
-  }
-  // Keeps the result if it is better: fewer hints (a motif's), then less time.
-  function libRecord(ms, hints) {
-    const all = libSolved();
-    const prev = all[lib.id];
-    if (prev && Number.isFinite(prev.time)) {
-      const ph = num(prev.hints);
-      if (ph < hints || (ph === hints && prev.time <= ms)) return;
-    }
-    all[lib.id] = { time: Math.round(ms), at: new Date().toISOString().slice(0, 10) };
-    if (hints) all[lib.id].hints = hints;
-    try { localStorage.setItem(libSolvedKey, JSON.stringify(all)); } catch { /* private mode etc. */ }
-  }
   if (!K.help) $("hint").hidden = $("check").hidden = true;
   if (K.kind === "hard") {
     $("play-msg").append(el("p", "muted", "Besonders schweres Puzzle: ohne Hinweise und Prüfen. Den Lösungsweg gibt es nach dem Lösen."));
@@ -514,7 +485,7 @@ function boot() {
       done = true;
       if (party) party.solve();
     }
-    if (solved && K.library) libRecord(clockMs(), K.help ? hintCount : 0);
+    if (solved && K.library) storage.libRecord(clockMs(), K.help ? hintCount : 0);
     if (visible) playBanner(solved);
     nextPuzzle();
     drawClock();
@@ -542,7 +513,7 @@ function boot() {
         share.onclick = () => copyResult(shareText(with_), share);
         extra.push(share);
       }
-      const next = K.library && L.nextUnsolved(lib.entries, libSolved(), lib.id);
+      const next = K.library && L.nextUnsolved(lib.entries, storage.libSolved(), lib.id);
       if (K.library && !next) extra.unshift(K.kind === "motif" ? "Damit hast du alle Motive gelöst." : "Damit hast du alle schweren Puzzles gelöst.");
       banner(K.kind === "coop" ? `Gemeinsam gelöst in ${fmtTime(clockMs())}! Alle Sterne sitzen richtig.` : `Gelöst in ${fmtTime(clockMs())} ${with_}! Alle Sterne sitzen richtig.`, "good", ...extra);
       return;
@@ -559,7 +530,7 @@ function boot() {
   // round goes on through the party. In both tabs, once solved.
   function nextPuzzle() {
     const box = $("next-puzzle");
-    const next = done && K.afterSolve === "next" ? L.nextUnsolved(lib.entries, libSolved(), lib.id) : null;
+    const next = done && K.afterSolve === "next" ? L.nextUnsolved(lib.entries, storage.libSolved(), lib.id) : null;
     let b = null;
     if (next) {
       b = el("a", "button", `Als nächstes: ${next.name}`);
@@ -638,125 +609,20 @@ function boot() {
   }
 
   function store() {
-    if (!key) return; // nowhere to keep it
-    const v = { marks: [...H.committed()], time: Math.round(clockMs()), hints: hintCount, done, paid: [...paid] };
+    if (!K.storageKey) return; // nowhere to keep it
+    const v = { marks: [...H.committed()], time: Math.round(clockMs()), hints: hintCount, done, paid: help.paid() };
     H.save(v);
     if (party) party.save(v);
-    save(v);
-    rememberSolo();
-  }
-  // "/" (Solo, the start page, the installed app's start) leads back to an
-  // unsolved solo puzzle: the server reads its URL from this cookie
-  // (SoloCookie in server.go). Opened or played, a solo puzzle puts itself
-  // there; solved, it takes itself out, unless another one is there by now.
-  const SOLO_COOKIE = "starbattle.solo";
-  const soloHere = SOLO_COOKIE + "=" + encodeURIComponent(location.pathname + location.search);
-  function rememberSolo() {
-    if (K.kind !== "solo") return;
-    try {
-      const mine = document.cookie.split("; ").includes(soloHere);
-      if (!done && !mine) document.cookie = soloHere + "; path=/; max-age=7776000; samesite=lax"; // 90 days
-      else if (done && mine) document.cookie = SOLO_COOKIE + "=; path=/; max-age=0; samesite=lax";
-    } catch { /* cookies blocked */ }
+    storage.save(v);
+    storage.rememberSolo(done);
   }
 
   function message(...nodes) {
     $("play-msg").replaceChildren(...nodes);
   }
 
-  // The hint button toggles: a second click hides the hint again.
-  function toggleHint() {
-    if (overlay && overlay.hint) {
-      overlay = null;
-      message(...intro.map((x) => x.cloneNode(true)));
-      renderPlay();
-    } else showHint();
-  }
-
-  function showHint() {
-    const eff = L.effective(d, marks, prefs.autocross);
-    const wrong = L.mistakes(d, eff.cells);
-    if (wrong.length) {
-      message(el("p", "", "Etwas passt nicht zur Lösung. Erst das korrigieren, dann gibt es den nächsten Hinweis."), showMistakesButton());
-      return;
-    }
-    const h = L.nextHint(d, eff.cells);
-    if (!h) {
-      message(el("p", "", L.solved(d, eff.cells) ? "Schon gelöst." : "Hier kommt der Solver auch nicht weiter."));
-      return;
-    }
-    const step = d.steps[h.step];
-    const refs = L.refCells(d, step.refs);
-    if (!done) hintCount++;
-    overlay = { hint: new Set(h.marks.map(([r, c]) => L.idx(d, r, c))), ref: refs.units, refcell: refs.cells };
-    const head = el("p", "");
-    head.append(chip(step), " ", el("span", "muted", `Schritt ${h.step + 1} des Lösungswegs`));
-    const reason = elr("p", "", step.reason, step.refs || {});
-    const nodes = [head, reason];
-    if (step.hypothesis) {
-      const det = el("details");
-      det.append(el("summary", "", "Gedankengang anzeigen"));
-      const ol = el("ol");
-      for (const s of step.hypothesis.steps) ol.append(elr("li", "", s.reason, s.refs || {}));
-      det.append(ol, elr("p", "contra", "⇒ Widerspruch: " + step.hypothesis.contradiction, step.hypothesis.refs || {}));
-      nodes.push(det);
-    }
-    const apply = el("button", "primary", "Anwenden");
-    apply.onclick = () => {
-      const next = Uint8Array.from(marks);
-      for (const [r, c, s] of h.marks) next[L.idx(d, r, c)] = s ? L.STAR : L.CROSS;
-      setMarks(next);
-      message(el("p", "muted", "Angewendet. Für den nächsten Schritt wieder „Hinweis“."));
-    };
-    const a = el("div", "actions");
-    a.append(apply);
-    nodes.push(a);
-    message(...nodes);
-    renderPlay();
-  }
-
-  // Checking is free and only says whether the marks so far agree with the
-  // solution. Showing where they don't costs one hint per wrongly set field
-  // (auto-crosses next to a wrong star are shown for free); fields already
-  // paid for in their current state are not charged again.
-  const paid = new Set(saved && Array.isArray(saved.paid) ? saved.paid : []); // "i:mark" of wrong fields already shown
-  function checkMistakes() {
-    if (!d.solution) {
-      message(el("p", "", "Für dieses Puzzle ist keine eindeutige Lösung bekannt."));
-      return;
-    }
-    overlay = null;
-    const eff = L.effective(d, marks, prefs.autocross);
-    if (!L.mistakes(d, eff.cells).length) message(el("p", "", L.solved(d, eff.cells) ? "Gelöst." : "Bisher alles richtig."));
-    else message(el("p", "", "Da stimmt etwas nicht: mindestens ein Feld passt nicht zur Lösung."), showMistakesButton());
-    renderPlay();
-  }
-
-  function showMistakesButton() {
-    const b = el("button", "", "Fehler zeigen");
-    b.title = "Kostet einen Hinweis pro falsch gesetztem Feld";
-    b.onclick = showMistakes;
-    const a = el("div", "actions");
-    a.append(b, " ", el("span", "muted", "kostet 1 Hinweis pro falschem Feld"));
-    return a;
-  }
-
-  function showMistakes() {
-    const eff = L.effective(d, marks, prefs.autocross);
-    const wrong = L.mistakes(d, eff.cells);
-    let cost = 0;
-    const known = party ? party.wrongStars() : new Set(); // shown already, paid with a life
-    for (const i of L.mistakes(d, marks)) {
-      const k = i + ":" + marks[i];
-      if (known.has(i)) continue;
-      if (!paid.has(k)) { paid.add(k); cost++; }
-    }
-    if (!done) hintCount += cost;
-    overlay = { bad: new Set(wrong) };
-    const what = `${wrong.length === 1 ? "Ein Feld ist" : wrong.length + " Felder sind"} falsch (rot markiert).`;
-    message(el("p", "", cost ? `${what} ${hintsText(cost)} angerechnet.` : what));
-    renderPlay();
-  }
+  // Hints and checks (help.js), with the wrong fields already paid for.
+  const help = Help(P);
 
   // Pointer input: a press without moving to another cell is a click (see
   // clickCell: cross, star by double click, free on a symbol). Moving on paints crosses over every cell passed, or
@@ -949,7 +815,7 @@ function boot() {
     rerollMark();
     elapsed = 0;
     hintCount = 0;
-    paid.clear();
+    help.reset();
     done = false;
     runningSince = null;
     clockRun(!document.hidden);
@@ -965,8 +831,8 @@ function boot() {
     if (party) party.tick(); // countdown, start
   }, 1000);
   clockRun(!document.hidden);
-  $("hint").onclick = toggleHint;
-  $("check").onclick = checkMistakes;
+  $("hint").onclick = help.toggleHint;
+  $("check").onclick = help.checkMistakes;
 
   // ---------- tabs and keys ----------
   function setMode(m) {

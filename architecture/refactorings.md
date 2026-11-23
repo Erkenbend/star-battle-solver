@@ -71,31 +71,6 @@ The numbers are the ranking: value for maintainability, robustness and
 speed against cost and risk. 5 to 7 are worth doing soon; 9 and 10 go
 together; 14 only after 5, and only if measurements still call for it.
 
-## 9. Puzzle page: one state object, capabilities instead of flags
-
-`boot()` in `app.js` is one closure of 1,100 lines. The page object `P`
-forwards 13 pieces of play state through getter and setter pairs
-(`marks`, `done`, `hintCount`, `elapsed`, `runningSince`, `overlay`, …),
-and every new piece of state a part needs adds another pair. The kind of
-page is spread over flags (`tut`, `party`, `coop`, `race`, `lib`, `motif`,
-`bare`, `soloPage`, `d.served`) that `renderPlay`, `drawClock`,
-`drawSummary` and `playBanner` combine anew; `renderPlay` alone has about 15
-of these branches.
-
-Proposal, each step a commit of its own, checked with the UI check (all
-groups that use the puzzle page):
-
-1. The play state in one object `S` that `P` hands out (`P.S.marks`); the
-   accessor pairs go.
-2. The kind of page decided once, into an object of capabilities: hints,
-   checks, own clock or the party's, storage key, what comes after solving,
-   which tabs exist. The functions above ask it instead of combining flags.
-3. Storage (keys, saved progress, the library's solved list, the solo
-   cookie) and help (hints, checks, paid mistakes) as parts of their own,
-   like `hypothesis.js`, which brings `app.js` back to about the core.
-
-Still no modules, build step or framework (see 3 under "Done").
-
 ## 11. Split `party.go` like `coop.go` and `clock.go`
 
 `party.go` has 1,023 lines: limits and types, joining and leaving, the
@@ -266,3 +241,23 @@ What the review found that needs no change now, only attention later:
   page with script gets `dom.js` and `logic.js` before its own script
   (`render` adds them; a test checks the order in every template), the
   party page now too: 69 → 96 KB, gzipped 23 → 35 KB.
+- **9. Puzzle page: capabilities instead of flags** (November 2026), in
+  three commits, each checked with the whole UI check. First the check
+  got the cases where the kinds of page differ and it did not look (the
+  text each kind copies as its result, a hard puzzle opened unsolved with
+  `#weg`, a library puzzle reloaded once solved, the overview after
+  solving, the last unsolved motif, a coop round reloaded, the lobby's
+  copied link); listing the capabilities found the legend of a coop round
+  naming hints and checks it does not have (fixed on its own).
+  `Logic.pageKind(d)` decides the kind once (tutorial, solo, file, motif,
+  hard, versus, coop, race) with what it allows: help, storage key, fixed
+  play options, banner and copy text once solved, the way on, the solving
+  path only after solving, the tab of the site's bar. `storage.js`
+  (progress, the library's solved list, the solo cookie) and `help.js`
+  (hints, checks, paid mistakes) are parts of their own; `app.js`
+  1,125 → 953 lines.
+  - Not done: step 1, the play state as one object `S` instead of the
+    accessor pairs of `P`. With the kinds and the two parts out of the
+    core, it would change about 90 lines of it for no change in
+    behaviour, and the accessors cost nothing. Reconsider if a part needs
+    many more pieces of state.
