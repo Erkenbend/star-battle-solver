@@ -1,7 +1,7 @@
 // UI check, group solo: the puzzle page played alone, marks, hints, checks,
 // hypothesis, the solving path, "Neues Puzzle" and a page saved with
 // `starbattle html`.
-import { HTMLFILE, cell, click, data, dblclick, drag, follow, fresh, go, js, key, more, moreClose, obs, once, record, reload, sleep, solveBy, tapDone } from "../lib.mjs";
+import { HTMLFILE, cell, click, copied, data, dblclick, drag, follow, fresh, go, js, key, more, moreClose, obs, once, record, reload, sleep, solveBy, tapDone } from "../lib.mjs";
 
 // Those that run on a phone; the others run on a desktop screen.
 export const PHONE_SCENARIOS = new Set(["solophone"]);
@@ -67,6 +67,7 @@ export const scenarios = {
     await obs("autocross off");
     await solveBy(d.solution, d.n, new Set([0]));
     await obs("solved");
+    await copied("result copied", "#banner .share");
     await click(cell(5));
     await obs("frozen click");
     await click("#tab-watch");
@@ -205,5 +206,10 @@ export const scenarios = {
     await more("#autocross");
     await more("#showproblems");
     await more("#fadedone");
+    // Solved: the result to share has no link, a file has none to give.
+    await more("#reset");
+    await solveBy(d.solution, d.n);
+    await obs("file solved");
+    await copied("file result copied", "#banner .share");
   },
 };

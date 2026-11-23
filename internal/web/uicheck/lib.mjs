@@ -243,6 +243,19 @@ export async function api(p, body) {
 }
 export const data = () => js(`JSON.parse(document.getElementById("data").textContent)`);
 
+// A tap on a copy button (sel): what it puts on the clipboard (replaced by
+// a stub that keeps the text), what the button says then, and once it says
+// its own text again. Times and the server's address normalized.
+export async function copied(label, sel) {
+  await js(`window.copiedText = null; Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t) => { window.copiedText = t; } } })`);
+  const before = await js(`document.querySelector(${JSON.stringify(sel)}).textContent`);
+  await click(sel);
+  await waitFor(`window.copiedText !== null`);
+  const text = (await js(`window.copiedText`)).split(BASE).join("BASE").replace(/\b\d+:\d\d(:\d\d)?\b/g, "T").replace(/\/party\/[A-Z]{4}/g, "/party/CODE");
+  record({ label, text, button: await js(`document.querySelector(${JSON.stringify(sel)}).textContent`) });
+  await waitFor(`document.querySelector(${JSON.stringify(sel)}).textContent === ${JSON.stringify(before)}`);
+}
+
 // ---------- observations ----------
 export const observed = [];
 export function record(o) {
@@ -406,8 +419,9 @@ export async function solveBy(sol, n, skip = new Set()) {
 }
 
 // A party in mode with Alice in the browser and Bob via the API, up to the
-// start of round 1 (5×5 puzzles); options are more fields of the form.
-export async function partyStart(mode, options = {}) {
+// start of round 1 (5×5 puzzles); options are more fields of the form,
+// inLobby runs in the lobby once Alice has joined.
+export async function partyStart(mode, options = {}, { inLobby } = {}) {
   await fresh();
   const r = await fetch(BASE + "/party", { method: "POST", body: new URLSearchParams({ n: "5", mode, ...options }), redirect: "manual" });
   const code = r.headers.get("location").split("/").pop();
@@ -416,6 +430,7 @@ export async function partyStart(mode, options = {}) {
   await go("/party/" + code);
   await click("#join button[type=submit]");
   await waitFor(`[...document.querySelectorAll("#party-panel button")].some((b) => b.textContent === "Bereit") && !document.querySelector("#party-panel .actions .muted")`);
+  if (inLobby) await inLobby();
   await api(`/party/${code}/ready`, { token: bob.token, ready: true });
   const loaded = once("Page.loadEventFired");
   await js(`[...document.querySelectorAll("#party-panel button")].find((b) => b.textContent === "Bereit").click()`);

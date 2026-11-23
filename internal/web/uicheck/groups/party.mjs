@@ -1,6 +1,6 @@
 // UI check, group party: parties against each other (also with lives),
 // together and against the clock, Alice in the browser and Bob via the API.
-import { api, bannerHas, cell, click, data, dblclick, follow, go, hasClass, js, key, more, obs, once, partyStart, record, reload, server, settle, sleep, solveBy, state, tapDone, underFire, visited, waitFor, watchShown } from "../lib.mjs";
+import { api, bannerHas, cell, click, copied, data, dblclick, follow, go, hasClass, js, key, more, obs, once, partyStart, record, reload, server, settle, sleep, solveBy, state, tapDone, underFire, visited, waitFor, watchShown } from "../lib.mjs";
 
 // Those that run on a phone; the others run on a desktop screen.
 export const PHONE_SCENARIOS = new Set(["versus", "lives", "coop", "race"]);
@@ -10,7 +10,7 @@ export const scenarios = {
   // reported), solving, the end of the round; then giving up.
   async versus() {
     state.party = true;
-    const p = await partyStart("versus");
+    const p = await partyStart("versus", {}, { inLobby: () => copied("lobby link copied", "#copy-link") });
     await obs("started");
     // The way to the lobby is the tab bar's "Zusammen spielen", not a link in the page.
     record({ label: "Zusammen spielen in a round", href: (await js(`document.getElementById("nav-party").getAttribute("href")`)).replace(/[A-Z]{4}$/, "CODE") });
@@ -169,6 +169,11 @@ export const scenarios = {
     await api(`/party/${p.code}/vote`, { token: p.token, round: 1, giveUp: true });
     await settle(bannerHas("aufgegeben"));
     await obs("given up together");
+    // Reloaded, the board comes from the server (a coop round keeps nothing
+    // on the device).
+    await reload();
+    await waitFor(`document.querySelector("#board .cell")`);
+    await obs("coop reloaded");
 
     const q = await partyStart("coop");
     await solveBy(q.sol, q.n);
