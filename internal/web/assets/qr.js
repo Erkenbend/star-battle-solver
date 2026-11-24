@@ -1,30 +1,21 @@
 // QR codes (ISO/IEC 18004) for the party's link, so others join with their
 // phone's camera. Only what that needs: byte mode (UTF-8), error correction
-// level M, versions 1 to 40, the mask chosen by the standard's penalty rules.
-// Pure: encode gives the modules, path an SVG path of the dark ones; the
-// party page draws it. Tested by qr_test.js against matrices of another
-// encoder (testdata/qr.json).
+// level M, versions 1 to 6 (up to 106 bytes: the link with a domain name of
+// up to about 85 characters), the mask chosen by the standard's penalty
+// rules. Larger versions would need the version information, more alignment
+// patterns and blocks of two lengths. Pure: encode gives the modules, path an
+// SVG path of the dark ones; the party page draws it. Tested by qr_test.js
+// against matrices of another encoder (testdata/qr.json).
 "use strict";
 
 const QR = (() => {
-  // Level M per version (index 0 unused): error correction codewords per
-  // block and number of blocks (ISO/IEC 18004, table 9).
-  const ECC_PER_BLOCK = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28];
-  const BLOCKS = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49];
+  // Level M of versions 1 to 6 (index 0 unused): data codewords, error
+  // correction codewords per block, number of blocks (ISO/IEC 18004,
+  // table 9). The blocks of a version are all of one length.
+  const DATA = [0, 16, 28, 44, 64, 86, 108];
+  const ECC = [0, 10, 16, 26, 18, 24, 16];
+  const BLOCKS = [0, 1, 1, 1, 2, 2, 4];
   const LEVEL_M = 0; // its two bits in the format information
-
-  // Modules left for data and error correction once the function patterns
-  // are placed.
-  function rawModules(ver) {
-    let n = (16 * ver + 128) * ver + 64;
-    if (ver >= 2) {
-      const align = Math.floor(ver / 7) + 2;
-      n -= (25 * align - 10) * align - 55;
-      if (ver >= 7) n -= 36;
-    }
-    return n;
-  }
-  const dataCodewords = (ver) => Math.floor(rawModules(ver) / 8) - ECC_PER_BLOCK[ver] * BLOCKS[ver];
 
   // ---------- Reed-Solomon over GF(256), polynomial 0x11D ----------
   function mul(x, y) {
@@ -63,9 +54,9 @@ const QR = (() => {
   function codewords(bytes, ver) {
     const bits = [];
     const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
-    const cap = dataCodewords(ver) * 8;
+    const cap = DATA[ver] * 8;
     put(4, 4); // byte mode
-    put(bytes.length, ver <= 9 ? 8 : 16);
+    put(bytes.length, 8);
     bytes.forEach((b) => put(b, 8));
     put(0, Math.min(4, cap - bits.length)); // terminator
     put(0, (8 - (bits.length % 8)) % 8);
@@ -73,34 +64,19 @@ const QR = (() => {
     const data = [];
     for (let i = 0; i < bits.length; i += 8) data.push(bits.slice(i, i + 8).reduce((a, b) => (a << 1) | b, 0));
 
-    // Split into blocks (the short ones first), add each one's error
-    // correction, then interleave.
-    const nb = BLOCKS[ver], ecc = ECC_PER_BLOCK[ver];
-    const raw = Math.floor(rawModules(ver) / 8);
-    const short = nb - (raw % nb), shortLen = Math.floor(raw / nb) - ecc;
-    const div = divisor(ecc);
+    // Split into blocks, add each one's error correction, then interleave.
+    const len = DATA[ver] / BLOCKS[ver], div = divisor(ECC[ver]);
     const blocks = [];
-    for (let i = 0, k = 0; i < nb; i++) {
-      const d = data.slice(k, k + shortLen + (i < short ? 0 : 1));
-      k += d.length;
-      blocks.push({ d, e: remainder(d, div) });
+    for (let k = 0; k < DATA[ver]; k += len) {
+      const d = data.slice(k, k + len);
+      blocks.push(d.concat(remainder(d, div)));
     }
     const out = [];
-    for (let i = 0; i <= shortLen; i++) blocks.forEach((b) => { if (i < b.d.length) out.push(b.d[i]); });
-    for (let i = 0; i < ecc; i++) blocks.forEach((b) => out.push(b.e[i]));
+    for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b) => out.push(b[i]));
     return out;
   }
 
   // ---------- the symbol ----------
-  function alignPositions(ver, size) {
-    if (ver === 1) return [];
-    const n = Math.floor(ver / 7) + 2;
-    const step = Math.floor((ver * 8 + n * 3 + 5) / (n * 4 - 4)) * 2;
-    const res = [6];
-    for (let p = size - 7; res.length < n; p -= step) res.splice(1, 0, p);
-    return res;
-  }
-
   // The 15 bits of the format information for a mask.
   function formatBits(mask) {
     const d = (LEVEL_M << 3) | mask;
@@ -126,21 +102,20 @@ const QR = (() => {
     const m = Array.from({ length: size }, () => new Array(size).fill(0));
     const fixed = Array.from({ length: size }, () => new Array(size).fill(false));
     const set = (x, y, dark) => { m[y][x] = dark ? 1 : 0; fixed[y][x] = true; };
-
-    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); } // timing
-    for (const [cx, cy] of [[3, 3], [size - 4, 3], [3, size - 4]]) { // finders and separators
-      for (let dy = -4; dy <= 4; dy++) {
-        for (let dx = -4; dx <= 4; dx++) {
-          const x = cx + dx, y = cy + dy, dist = Math.max(Math.abs(dx), Math.abs(dy));
-          if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, dist !== 2 && dist !== 4);
+    // A square pattern around (cx, cy): rings at the distances in light are
+    // light, the others dark.
+    const square = (cx, cy, r, light) => {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const x = cx + dx, y = cy + dy;
+          if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, !light.includes(Math.max(Math.abs(dx), Math.abs(dy))));
         }
       }
-    }
-    const al = alignPositions(ver, size);
-    al.forEach((cy, i) => al.forEach((cx, j) => {
-      if ((i === 0 && j === 0) || (i === 0 && j === al.length - 1) || (i === al.length - 1 && j === 0)) return; // the finders' corners
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(cx + dx, cy + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
-    }));
+    };
+
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); } // timing
+    for (const [cx, cy] of [[3, 3], [size - 4, 3], [3, size - 4]]) square(cx, cy, 4, [2, 4]); // finders and separators
+    if (ver >= 2) square(size - 7, size - 7, 2, [1]); // the one alignment pattern
     const f = formatBits(mask), bit = (v, i) => (v >>> i) & 1;
     for (let i = 0; i <= 5; i++) set(8, i, bit(f, i));
     set(8, 7, bit(f, 6));
@@ -150,16 +125,6 @@ const QR = (() => {
     for (let i = 0; i < 8; i++) set(size - 1 - i, 8, bit(f, i));
     for (let i = 8; i < 15; i++) set(8, size - 15 + i, bit(f, i));
     set(8, size - 8, 1); // the dark module
-    if (ver >= 7) {
-      let r = ver;
-      for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1f25);
-      const v = (ver << 12) | r;
-      for (let i = 0; i < 18; i++) {
-        const a = size - 11 + (i % 3), b = Math.floor(i / 3);
-        set(a, b, bit(v, i));
-        set(b, a, bit(v, i));
-      }
-    }
 
     // The codewords in two-module columns, zigzag from the bottom right,
     // skipping the vertical timing pattern; the mask flips data modules only.
@@ -215,8 +180,8 @@ const QR = (() => {
   function encode(text, mask) {
     const bytes = [...new TextEncoder().encode(text)];
     let ver = 1;
-    while (dataCodewords(ver) < bytes.length + (ver <= 9 ? 2 : 3)) {
-      if (++ver > 40) throw new Error("QR: text too long");
+    while (DATA[ver] < bytes.length + 2) { // with mode and length
+      if (++ver >= DATA.length) throw new Error("QR: text too long");
     }
     const words = codewords(bytes, ver);
     if (mask !== undefined) return build(ver, words, mask);
