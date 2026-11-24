@@ -2,12 +2,14 @@
 
 Was in welcher Sitzung entstanden ist, die neueste zuerst: Funktionen und technische Verbesserungen. Eine Sitzung fasst die Commits eines Vormittags, Nachmittags oder Abends zusammen; der Link im Titel zeigt ihren Diff. Gründe und Messungen stehen in [architecture/decisions](architecture/decisions/README.md). Die Bilder in [docs/history](docs/history) zeigen den Stand am Ende der Sitzung.
 
-Stand: 2026-11-24, bis Commit `144fbc2`
+Stand: 2026-11-24, bis Commit `d23c536`
 
-## 2026-11-24 Abend ([`11a600a...144fbc2`](https://github.com/Erkenbend/star-battle-solver/compare/11a600a~1...144fbc2))
+## 2026-11-24 Abend ([`11a600a...d23c536`](https://github.com/Erkenbend/star-battle-solver/compare/11a600a~1...d23c536))
 
 - QR-Code in der Lobby auf dem Handy so groß, dass eine Party zu dritt sichtbar bleibt
 - Jeder zweite Party-Code ist ein Wort aus einer festen Liste (`serve -word-codes`)
+- Verlauf der Entwicklung nach Sitzungen in `HISTORY.md`, mit Bildern
+- Schlankes Binary nur für `serve` auf dem Raspberry Pi geprüft und verworfen: unter 1 MB kleiner ([Entscheidung 37](architecture/decisions/37-no-slim-binary.md))
 
 <img src="docs/history/2026-11-24-wortcode-handy.png" alt="Lobby auf dem Handy mit QR-Code und dem Wort-Code ZWEI" width="300">
 
