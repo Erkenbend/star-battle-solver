@@ -1,21 +1,24 @@
 // QR codes (ISO/IEC 18004) for the party's link, so others join with their
-// phone's camera. Only what that needs: byte mode (UTF-8), error correction
-// level M, versions 1 to 6 (up to 106 bytes: the link with a domain name of
-// up to about 85 characters), the mask chosen by the standard's penalty
-// rules. Larger versions would need the version information, more alignment
-// patterns and blocks of two lengths. Pure: encode gives the modules, path an
+// phone's camera. Only what that needs, in as few modules as it takes:
+// alphanumeric mode (upper case, digits, " $%*+-./:", 5.5 bits a character)
+// when the text has only those, else byte mode (UTF-8); error correction
+// level L (7 %: a screen is not dirty or torn); versions 1 to 6 (up to 195
+// alphanumeric characters or 134 bytes); the mask chosen by the standard's
+// penalty rules. Larger versions would need the version information, more
+// alignment patterns and blocks of two lengths. Pure: encode gives the modules, path an
 // SVG path of the dark ones; the party page draws it. Tested by qr_test.js
 // against matrices of another encoder (testdata/qr.json).
 "use strict";
 
 const QR = (() => {
-  // Level M of versions 1 to 6 (index 0 unused): data codewords, error
+  // Level L of versions 1 to 6 (index 0 unused): data codewords, error
   // correction codewords per block, number of blocks (ISO/IEC 18004,
   // table 9). The blocks of a version are all of one length.
-  const DATA = [0, 16, 28, 44, 64, 86, 108];
-  const ECC = [0, 10, 16, 26, 18, 24, 16];
-  const BLOCKS = [0, 1, 1, 1, 2, 2, 4];
-  const LEVEL_M = 0; // its two bits in the format information
+  const DATA = [0, 19, 34, 55, 80, 108, 136];
+  const ECC = [0, 7, 10, 15, 20, 26, 18];
+  const BLOCKS = [0, 1, 1, 1, 1, 1, 2];
+  const LEVEL_L = 1; // its two bits in the format information
+  const ALNUM = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
 
   // ---------- Reed-Solomon over GF(256), polynomial 0x11D ----------
   function mul(x, y) {
@@ -51,13 +54,31 @@ const QR = (() => {
   }
 
   // ---------- codewords ----------
-  function codewords(bytes, ver) {
+  // The bits of text's one segment: mode, length (for versions up to 9) and
+  // the characters.
+  function segment(text) {
     const bits = [];
     const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+    if ([...text].every((c) => ALNUM.includes(c))) {
+      put(2, 4);
+      put(text.length, 9);
+      for (let i = 0; i < text.length; i += 2) { // pairs in 11 bits, a last one in 6
+        const a = ALNUM.indexOf(text[i]);
+        if (i + 1 < text.length) put(a * 45 + ALNUM.indexOf(text[i + 1]), 11);
+        else put(a, 6);
+      }
+    } else {
+      const bytes = new TextEncoder().encode(text);
+      put(4, 4);
+      put(bytes.length, 8);
+      bytes.forEach((b) => put(b, 8));
+    }
+    return bits;
+  }
+
+  function codewords(bits, ver) {
+    const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
     const cap = DATA[ver] * 8;
-    put(4, 4); // byte mode
-    put(bytes.length, 8);
-    bytes.forEach((b) => put(b, 8));
     put(0, Math.min(4, cap - bits.length)); // terminator
     put(0, (8 - (bits.length % 8)) % 8);
     for (let pad = 0xec; bits.length < cap; pad ^= 0xec ^ 0x11) put(pad, 8);
@@ -79,7 +100,7 @@ const QR = (() => {
   // ---------- the symbol ----------
   // The 15 bits of the format information for a mask.
   function formatBits(mask) {
-    const d = (LEVEL_M << 3) | mask;
+    const d = (LEVEL_L << 3) | mask;
     let r = d;
     for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
     return ((d << 10) | r) ^ 0x5412;
@@ -175,15 +196,15 @@ const QR = (() => {
     return p + Math.floor(Math.abs((dark * 100) / (size * size) - 50) / 5) * 10;
   }
 
-  // The smallest symbol (level M) for text, as rows of 0 and 1. mask picks a
+  // The smallest symbol (level L) for text, as rows of 0 and 1. mask picks a
   // mask instead of the one with the least penalty (for tests).
   function encode(text, mask) {
-    const bytes = [...new TextEncoder().encode(text)];
+    const bits = segment(text);
     let ver = 1;
-    while (DATA[ver] < bytes.length + 2) { // with mode and length
+    while (DATA[ver] * 8 < bits.length) {
       if (++ver >= DATA.length) throw new Error("QR: text too long");
     }
-    const words = codewords(bytes, ver);
+    const words = codewords(bits, ver);
     if (mask !== undefined) return build(ver, words, mask);
     let best = null, bestP = Infinity;
     for (let k = 0; k < 8; k++) {

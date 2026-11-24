@@ -114,6 +114,8 @@ func memberOf(r *http.Request, pm *party.Manager) string {
 //	                               mode=clock minutes=5&skips=2, for mode=versus
 //	                               lives=3), redirects to its lobby
 //	GET  /party/{code}             lobby: players, results, ready
+//	GET  /PARTY/{code}             redirects to it: the link in upper case,
+//	                               as in the lobby's QR code (fewer modules)
 //	GET  /party/{code}/round/{num} the puzzle page of a round
 //	GET  /party/{code}/round/{num}/{k}  against the clock: of its k-th puzzle
 //	POST /party/{code}/{action}    join, ready, progress, solve, giveup, leave,
@@ -164,6 +166,9 @@ func partyRoutes(mux *http.ServeMux, pm *party.Manager) {
 			return
 		}
 		writeParty(w, http.StatusOK, PartyPage{Code: code})
+	})
+	mux.HandleFunc("GET /PARTY/{code}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/party/"+party.NormalizeCode(r.PathValue("code")), http.StatusFound)
 	})
 	round := func(w http.ResponseWriter, r *http.Request) {
 		toParty := []Link{{"/party", "Neue Party"}}

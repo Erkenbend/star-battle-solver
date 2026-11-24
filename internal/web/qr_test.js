@@ -1,9 +1,11 @@
 // Tests for assets/qr.js. Run by TestJSQR (web_test.go): node qr_test.js
 //
-// testdata/qr.json holds symbols of another encoder (python-qrcode, byte
-// mode, level M, the given mask), of versions 1 to 6: every mask, with one,
-// two and four blocks, UTF-8, and the most that fits. When it was made, a scanner (zxing) also read the party's link
-// back from screenshots of the lobby, phone and desktop, light and dark.
+// testdata/qr.json holds symbols of another encoder (python-qrcode, level L,
+// the given mask, alphanumeric mode for texts of its characters, else byte
+// mode), of versions 1 to 6: every mask, both modes, one and two blocks,
+// UTF-8, and the most that fits. When it was made, a scanner (zxing) also
+// read the party's link back from screenshots of the lobby, phone and
+// desktop, light and dark.
 "use strict";
 const assert = require("node:assert/strict");
 const QR = require("./assets/qr.js");
@@ -28,7 +30,10 @@ for (const c of cases) {
   assert.deepEqual(drawn.map((r) => r.join("")), c.rows, name + ": path");
 }
 
-assert.throws(() => QR.encode("x".repeat(107)), /too long/); // 106 bytes fit in version 6
-assert.equal(QR.encode("x".repeat(106)).length, 41);
+// What fits in version 6: 134 bytes, 195 alphanumeric characters.
+assert.equal(QR.encode("x".repeat(134)).length, 41);
+assert.throws(() => QR.encode("x".repeat(135)), /too long/);
+assert.equal(QR.encode("X".repeat(195)).length, 41);
+assert.throws(() => QR.encode("X".repeat(196)), /too long/);
 
 console.log(`qr: ${cases.length} symbols`);
