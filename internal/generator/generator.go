@@ -61,6 +61,23 @@ func DefaultMinRegionSize(n int) int {
 	return 1
 }
 
+// Seeded is the random source of the n×n puzzle with the given seed. It is the
+// one place that ties a seed to a puzzle (principle 5): `starbattle generate
+// -seed`, the pages /?n=…&seed=…, hardsearch and the designer all draw from
+// it, the file names of testdata/hard and the headers of testdata/hard and
+// designs refer to it ("generate -n N -seed S", "rand.NewPCG(S, N)").
+// Changing it changes the puzzle behind every such URL, name and header.
+func Seeded(n int, seed uint64) *rand.Rand {
+	return rand.New(rand.NewPCG(seed, uint64(n)))
+}
+
+// ForSeed returns the n×n puzzle with the given seed and its solution: Generate
+// with Seeded(n, seed) and DefaultMinRegionSize(n). Closing done (may be nil)
+// cancels it.
+func ForSeed(n int, seed uint64, done <-chan struct{}) (*puzzle.Puzzle, []int, error) {
+	return Generate(n, Seeded(n, seed), Options{MinRegionSize: DefaultMinRegionSize(n), Done: done})
+}
+
 // cpuSlots limits the attempts running at once across all Generate calls of
 // the process (e.g. serve's background pool and a request) to one less than
 // the available cores, so generating always leaves a core free when there is

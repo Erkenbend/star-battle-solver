@@ -34,7 +34,7 @@ func poolStory() *Story {
 	newPool.Spawn(fill)
 	newPool.Exit("returned: serve goes on")
 	fill.Range(queue)
-	fill.Calls("pl.make", "generate", "pl.solve")
+	fill.Calls("pl.make", "generator.ForSeed", "pl.solve")
 	fill.Busy("generate and solve 5×5")
 
 	s.Step("The 5×5 puzzle is ready. fill stores it under the mutex, then takes size 6. The generator inside is already parallel, so one fill goroutine is enough.")

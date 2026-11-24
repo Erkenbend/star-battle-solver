@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"starbattle/internal/generator"
 	"starbattle/internal/party"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
@@ -50,7 +51,7 @@ func testPuzzle(t *testing.T, n int) *party.Puzzle {
 		return rp
 	}
 	for seed := uint64(1); ; seed++ {
-		p, sol, err := generate(nil, n, seed)
+		p, sol, err := generator.ForSeed(n, seed, nil)
 		if err != nil || sol == nil {
 			continue
 		}

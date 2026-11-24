@@ -177,7 +177,9 @@ There are **two runners with identical semantics**:
   regions around it, then repair until brute force finds no second solution.
   It can also *complete* a partially drawn pattern (used by the designer for
   picture puzzles). Several attempts run in parallel, but the result depends
-  only on the seed.
+  only on the seed. `generator.ForSeed(n, seed)` is the puzzle of a size
+  and seed (principle 5) for `generate`, the pages and `hardsearch`;
+  `generator.Seeded` is its random source, also used by the designer.
 - `bruteforce` is the independent oracle (see principle 4).
 - `hardsearch` scans seeds for puzzles that defeat the rules and computes the
   1–3 star difficulty rating shown in the library. It powers the developer

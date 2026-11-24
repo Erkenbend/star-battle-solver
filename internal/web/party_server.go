@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"starbattle/internal/generator"
 	"starbattle/internal/party"
 	"starbattle/internal/solver"
 )
@@ -29,7 +30,7 @@ func partyPuzzle(solve SolveFunc, pool *Pool) func(n int) (*party.Puzzle, error)
 			return &party.Puzzle{N: n, Seed: e.seed, P: e.p, Solution: e.sol, Res: e.res}, nil
 		}
 		seed := newSeed()
-		p, sol, err := generate(nil, n, seed)
+		p, sol, err := generator.ForSeed(n, seed, nil)
 		if err != nil {
 			return nil, err
 		}

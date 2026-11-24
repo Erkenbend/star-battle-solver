@@ -321,7 +321,7 @@ func (s *search) work(ctx context.Context, out chan<- *Candidate) {
 	for ctx.Err() == nil {
 		seed := s.newSeed()
 		start := time.Now()
-		p, sol, err := generator.Complete(s.pattern, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{
+		p, sol, err := generator.Complete(s.pattern, generator.Seeded(n, seed), generator.Options{
 			MinRegionSize: generator.DefaultMinRegionSize(n),
 			MaxAttempts:   designAttempts,
 			Workers:       1, // the workers are the parallelism
@@ -507,6 +507,7 @@ func saveDesign(dir string, req designRequest) (string, error) {
 	if req.Strict {
 		mode = ", Strict"
 	}
+	// The seeding of generator.Seeded, spelled out.
 	fmt.Fprintf(&b, "# designer: generator.Complete(pattern, rand.NewPCG(%d, %d)%s), %s\n", req.Seed, n, mode, time.Now().Format("2006-01-02"))
 	b.WriteString("# pattern (. = free):\n")
 	for _, row := range req.Pattern {

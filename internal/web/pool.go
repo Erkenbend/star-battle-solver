@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"starbattle/internal/generator"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
 )
@@ -71,7 +72,7 @@ func (pl *Pool) fill() {
 
 func (pl *Pool) make(n int) (*pooled, error) {
 	seed := newSeed()
-	p, sol, err := generate(nil, n, seed)
+	p, sol, err := generator.ForSeed(n, seed, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -190,7 +190,7 @@ func Handler(solve SolveFunc, pool *Pool, parties *party.Manager, libs []*Librar
 			write(w, title, v.p, v.sol, v.res)
 			return
 		}
-		p, sol, err := generate(r.Context().Done(), n, seed)
+		p, sol, err := generator.ForSeed(n, seed, r.Context().Done())
 		if err != nil {
 			if r.Context().Err() == nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
@@ -283,12 +283,6 @@ func soloURL(r *http.Request) string {
 // newSeed returns a random seed, short enough for the title and never 0 (the
 // CLI's "time based").
 func newSeed() uint64 { return uint64(rand.IntN(999_999) + 1) }
-
-// generate gives the puzzle of /?n=n&seed=seed (same as `starbattle generate`).
-// Closing done (may be nil) cancels it.
-func generate(done <-chan struct{}, n int, seed uint64) (*puzzle.Puzzle, []int, error) {
-	return generator.Generate(n, rand.New(rand.NewPCG(seed, uint64(n))), generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n), Done: done})
-}
 
 // write writes the page for a solved puzzle, marked as served so it shows the forms.
 func write(w http.ResponseWriter, title string, p *puzzle.Puzzle, sol []int, res solver.Result) {

@@ -9,6 +9,7 @@ import (
 
 	"starbattle"
 	"starbattle/internal/collection"
+	"starbattle/internal/generator"
 	"starbattle/internal/puzzle"
 	"starbattle/internal/solver"
 	"starbattle/internal/solver/observers"
@@ -16,13 +17,15 @@ import (
 
 // TestReproducesLibrary: the seed in a library file name gives that puzzle
 // again, with the verdict its header states ("5 lookahead steps" etc.).
+// `starbattle generate` and the page /?n=10&seed=453 are checked against the
+// same file in their packages.
 func TestReproducesLibrary(t *testing.T) {
 	text, err := os.ReadFile(filepath.Join("../..", starbattle.HardDir, "n10_s453.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := puzzle.MustParse(string(text))
-	p, err := Generate(10, 453, nil)
+	p, _, err := generator.ForSeed(10, 453, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

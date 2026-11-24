@@ -6,7 +6,6 @@ package hardsearch
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
 	"runtime"
 	"sync"
 	"time"
@@ -17,15 +16,6 @@ import (
 	"starbattle/internal/solver"
 	"starbattle/internal/solver/observers"
 )
-
-// Generate returns the puzzle `starbattle generate -n n -seed seed` prints:
-// same seeding (rand.NewPCG(seed, n)) and the default minimum region size.
-// done, if not nil, cancels it once closed.
-func Generate(n int, seed uint64, done <-chan struct{}) (*puzzle.Puzzle, error) {
-	rng := rand.New(rand.NewPCG(seed, uint64(n)))
-	p, _, err := generator.Generate(n, rng, generator.Options{MinRegionSize: generator.DefaultMinRegionSize(n), Done: done})
-	return p, err
-}
 
 // Verdict says how hard a puzzle is for the solver.
 type Verdict struct {
@@ -228,7 +218,7 @@ func Search(ctx context.Context, o Options, emit func(Found)) uint64 {
 func check(ctx context.Context, n int, seed uint64) Found {
 	start := time.Now()
 	f := Found{Seed: seed}
-	f.Puzzle, f.Err = Generate(n, seed, ctx.Done())
+	f.Puzzle, _, f.Err = generator.ForSeed(n, seed, ctx.Done())
 	if f.Err == nil {
 		f.Verdict, f.Err = Classify(f.Puzzle)
 	}

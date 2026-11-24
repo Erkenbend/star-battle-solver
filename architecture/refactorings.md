@@ -71,19 +71,6 @@ The numbers are the ranking: value for maintainability, robustness and
 speed against cost and risk. 5 to 7 are worth doing soon; 9 and 10 go
 together; 14 only after 5, and only if measurements still call for it.
 
-## 12. One function for "puzzle of size n, seed s"
-
-Principle 5 (same size and seed, same puzzle) rests on one convention,
-`rand.New(rand.NewPCG(seed, uint64(n)))` plus
-`generator.DefaultMinRegionSize(n)`, which is written out in
-`cmd/starbattle` (`generate`), `web/server.go` (`generate`), `hardsearch`
-and, for the random source, `designer` (whose saved header spells it out
-too). A fifth copy that differs slightly would give the same URL a
-different puzzle. Proposal: `generator.Seeded(n, seed)` for the random
-source and `generator.ForSeed(n, seed)` for the puzzle, used everywhere;
-a test that `generate -seed`, `/?n=&seed=` and `hardsearch` agree on one
-seed.
-
 ## Guidelines
 
 What the review found that needs no change now, only attention later:
@@ -256,3 +243,15 @@ What the review found that needs no change now, only attention later:
   presence, ticks, starting and ending rounds, `Page`, events): 1,023 → 668
   lines. The diagram of [concurrency.md](concurrency.md) section 7 now
   points to `prep.go`.
+- **12. One function for "puzzle of size n, seed s"** (November 2026):
+  `generator.Seeded(n, seed)` is the random source and
+  `generator.ForSeed(n, seed, done)` the puzzle (with
+  `DefaultMinRegionSize`). `generate`, the pages and the pool of `serve`,
+  party rounds and `hardsearch` call `ForSeed`; the designer and
+  `generate -min-region` use `Seeded`. `web.generate` and
+  `hardsearch.Generate` are gone. The designer's header still spells the
+  seeding out as `rand.NewPCG(seed, n)`, as in the saved designs. Seed 453
+  must give `n10_s453.txt` in the tests of `generate`, `/?n=&seed=` and
+  `hardsearch`; all three fail if the seeding changes. Tests of the
+  generator and the rules keep their own `rand.NewPCG`: they use other
+  options and want other puzzles.

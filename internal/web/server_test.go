@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -86,6 +87,17 @@ func TestServer(t *testing.T) {
 	}
 	if d2 := pageData(t, get(h, "/?n=7&seed=42").Body.String()); d2.Text != d.Text {
 		t.Fatalf("same seed, different puzzles:\n%s\n%s", d.Text, d2.Text)
+	}
+
+	// The seed is the one of `starbattle generate` and hardsearch: seed 453
+	// is n10_s453.txt of the library (also checked in cmd/starbattle and
+	// internal/hardsearch).
+	text, err := os.ReadFile("../../testdata/hard/n10_s453.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := pageData(t, get(h, "/?n=10&seed=453").Body.String()).Text, puzzle.MustParse(string(text)).String(); got != want {
+		t.Fatalf("/?n=10&seed=453 is no longer n10_s453.txt:\n%s", got)
 	}
 
 	// The puzzle text pasted back (with '/' as row separator) gives the same puzzle.

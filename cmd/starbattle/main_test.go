@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"starbattle/internal/puzzle"
 	"starbattle/internal/web"
 )
 
@@ -88,6 +89,20 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("stdout = %q", out)
 	}
 	mustContain(t, "stderr", errOut, "★", " A ")
+
+	// Seed 453 gives n10_s453.txt of the library, as on the page /?n=10&seed=453
+	// and in hardsearch (both checked in their packages).
+	out, _, err = run(t, cmdGenerate, "", "-n", "10", "-seed", "453")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(hard10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "# seed 453\n" + puzzle.MustParse(string(text)).String(); out != want {
+		t.Errorf("generate -n 10 -seed 453 is no longer n10_s453.txt:\n%s", out)
+	}
 
 	out, _, err = run(t, cmdGenerate, "", "-n", "10") // time-based seed, default minimum region size
 	if err != nil || strings.Count(out, "\n") != 11 {

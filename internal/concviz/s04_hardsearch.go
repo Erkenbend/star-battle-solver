@@ -48,7 +48,7 @@ func hardsearchStory() *Story {
 	s.Step("Unbuffered means every send is a handoff to a waiting receiver: seed 10 goes to worker 1, seed 11 to worker 2.")
 	prod.Select(SendCase(jobs, "seed 10"), RecvCase(done))
 	prod.Select(SendCase(jobs, "seed 11"), RecvCase(done))
-	w1.Calls("check", "Generate")
+	w1.Calls("check", "generator.ForSeed")
 	w1.Busy("check(seed 10)")
 	w2.Busy("check(seed 11)")
 

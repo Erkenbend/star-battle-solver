@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"os"
@@ -109,12 +108,14 @@ func cmdGenerate(args []string) error {
 	if s == 0 {
 		s = uint64(time.Now().UnixNano())
 	}
-	rng := rand.New(rand.NewPCG(s, uint64(*n))) // same seeding as the tests and testdata/hard
-	mr := *minRegion
-	if mr == 0 {
-		mr = generator.DefaultMinRegionSize(*n)
+	var p *puzzle.Puzzle
+	var sol []int
+	var err error
+	if *minRegion == 0 {
+		p, sol, err = generator.ForSeed(*n, s, nil) // the puzzle of /?n=…&seed=… and testdata/hard
+	} else {
+		p, sol, err = generator.Generate(*n, generator.Seeded(*n, s), generator.Options{MinRegionSize: *minRegion})
 	}
-	p, sol, err := generator.Generate(*n, rng, generator.Options{MinRegionSize: mr})
 	if err != nil {
 		return err
 	}
