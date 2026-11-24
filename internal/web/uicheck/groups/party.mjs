@@ -1,6 +1,6 @@
 // UI check, group party: parties against each other (also with lives),
 // together and against the clock, Alice in the browser and Bob via the API.
-import { api, bannerHas, cell, click, copied, data, dblclick, follow, go, hasClass, js, key, more, obs, once, partyStart, record, reload, server, settle, sleep, solveBy, state, tapDone, underFire, visited, waitFor, watchShown } from "../lib.mjs";
+import { api, bannerHas, cell, click, copied, data, dblclick, follow, go, hasClass, js, key, more, obs, once, partyStart, PHONE, record, reload, send, server, settle, sleep, solveBy, state, tapDone, underFire, visited, waitFor, watchShown } from "../lib.mjs";
 
 // Those that run on a phone; the others run on a desktop screen.
 export const PHONE_SCENARIOS = new Set(["versus", "lives", "coop", "race"]);
@@ -19,6 +19,19 @@ export const scenarios = {
           const m = QR.encode((location.origin + location.pathname.replace("/party/", "/P/")).toUpperCase());
           return (d === QR.path(m) ? "the party's short link in upper case" : "not the party's link") + ", " + m.length + " modules, " + Math.round(r.width) + " px, " + (r.top >= 0 && r.bottom <= innerHeight ? "on screen" : "off screen");
         })()`) });
+        // On a phone with the browser's bars shown (740 of 851 px left), the
+        // QR code shrinks so the whole lobby of a party of three stays above
+        // the tab bar; with two players here, a QR code of full size would
+        // not let it.
+        await send("Emulation.setDeviceMetricsOverride", { ...PHONE, height: 740 });
+        await sleep(200);
+        record({ label: "lobby with the browser's bars", lobby: await js(`(() => {
+          const last = [...document.querySelectorAll(".party-lobby > :not([hidden])")].filter((e) => e.offsetParent && e.getBoundingClientRect().height).at(-1);
+          const qr = Math.round(document.getElementById("qr").getBoundingClientRect().width);
+          return (last.getBoundingClientRect().bottom <= document.querySelector(".site-nav").getBoundingClientRect().top ? "above the tab bar" : "under the tab bar") + ", QR code " + qr + " px";
+        })()`) });
+        await send("Emulation.setDeviceMetricsOverride", PHONE);
+        await sleep(200);
       },
     });
     await obs("started");

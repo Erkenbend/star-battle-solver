@@ -614,6 +614,10 @@ details.opt > p { margin: 8px 0 0; }
    dark on white in the dark theme too, with the standard's light margin. */
 .share { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .share .qr { width: min(100%, 280px); aspect-ratio: 1; border-radius: 8px; shape-rendering: crispEdges; }
+/* On phones, as large as leaves the lobby of a party of three in sight above
+   the tab bar (with the browser's bars shown: svh): about 560 px of the
+   screen's height go to the rest. */
+@media (max-width: 860px) { .share .qr { width: clamp(160px, calc(100svh - 560px), min(100%, 280px)); } }
 .share-code { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; }
 .share-code > div { display: flex; flex-direction: column; gap: 4px; }
 .share .code { font: 700 26px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.18em; }

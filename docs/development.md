@@ -100,9 +100,10 @@ Der Code ist selbst geschrieben (`internal/web/assets/qr.js`, keine Abhängigkei
 - **Fehlerkorrektur nur Stufe L** (7 % dürfen fehlen): genug für einen Bildschirm, nicht für Ausdrucke, die zerknittern.
 - **Nur Versionen 1 bis 6** (21 bis 41 Module): höchstens 195 Zeichen im alphanumerischen Modus, 134 Bytes im Byte-Modus, also eine Adresse bis 188 Zeichen (Byte-Modus: 127). Ist sie länger, bleibt der QR-Code weg; die Lobby geht sonst wie immer.
 - **Die Adresse ist die des zeigenden Browsers:** Wer die Lobby über `localhost` öffnet, zeigt einen Code mit `localhost`, der auf den anderen Handys ins Leere führt. Die Lobby also unter der Adresse öffnen, die die anderen erreichen. `.local`-Namen löst nicht jedes Handy auf; dann die IP-Adresse nehmen.
+- **Größe:** höchstens 280 px breit; auf Handys nur so groß, dass die Lobby einer Party zu dritt über der Tab-Leiste Platz hat, auch mit eingeblendeten Leisten des Browsers (`100svh − 560px`, mindestens 160 px). Erst unter etwa 700 px Höhe muss man dann scrollen.
 - **Vor einem Reverse Proxy** muss auch `/P/` beim Server ankommen; mit Basic Auth fragt das scannende Handy erst nach dem Passwort.
 
-Geprüft wird `qr.js` von `internal/web/qr_test.js` gegen Symbole eines anderen Encoders (`internal/web/testdata/qr.json`, erzeugt mit python-qrcode bei vorgegebener Maske und vorgegebenem Modus); die Auswahl der Maske kann sich von anderen Encodern unterscheiden, jede ist gültig. Die UI-Prüfung (Gruppe `party`) hält fest, dass der Code in der Lobby den Kurzlink enthält, wie viele Module er hat und dass er auf dem Handy ganz zu sehen ist.
+Geprüft wird `qr.js` von `internal/web/qr_test.js` gegen Symbole eines anderen Encoders (`internal/web/testdata/qr.json`, erzeugt mit python-qrcode bei vorgegebener Maske und vorgegebenem Modus); die Auswahl der Maske kann sich von anderen Encodern unterscheiden, jede ist gültig. Die UI-Prüfung (Gruppe `party`) hält fest, dass der Code in der Lobby den Kurzlink enthält, wie viele Module er hat, dass er auf dem Handy ganz zu sehen ist und dass die Lobby bei 393 × 740 (Handy mit den Leisten des Browsers) über der Tab-Leiste endet.
 
 ## `design`: Puzzles entwerfen
 
