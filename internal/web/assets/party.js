@@ -323,6 +323,14 @@ const Party = (() => {
   }
 
   // ---------- party page: create, join, lobby ----------
+  // text as a QR code (qr.js, only on this page) in svg, with a light
+  // margin of four modules.
+  function drawQR(svg, text) {
+    const m = QR.encode(text), w = m.length + 8;
+    svg.setAttribute("viewBox", `-4 -4 ${w} ${w}`);
+    svg.innerHTML = `<rect x="-4" y="-4" width="${w}" height="${w}" fill="#fff"/><path fill="#000" d="${QR.path(m)}"/>`;
+  }
+
   function bootPage() {
     const d = JSON.parse(document.getElementById("data").textContent);
     const $ = (id) => document.getElementById(id);
@@ -397,8 +405,10 @@ const Party = (() => {
     $("lobby").hidden = false;
     $("party-title").textContent = "Party " + code;
     $("code").textContent = code;
+    const link = location.origin + "/party/" + code;
+    drawQR($("qr"), link);
     $("copy-link").onclick = async () => {
-      if (await copyText(location.origin + "/party/" + code)) {
+      if (await copyText(link)) {
         $("copy-link").textContent = "Kopiert ✓";
         setTimeout(() => { $("copy-link").textContent = "Link kopieren"; }, 2000);
       }

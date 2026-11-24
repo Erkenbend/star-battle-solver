@@ -106,6 +106,20 @@ func TestWrite(t *testing.T) {
 	}
 }
 
+// TestJSQR runs qr_test.js with node: the QR codes of the party's link
+// against symbols of another encoder.
+func TestJSQR(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed")
+	}
+	out, err := exec.Command(node, "qr_test.js").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	t.Logf("%s", bytes.TrimSpace(out))
+}
+
 // TestJSLogic runs logic_test.js with node on the data of several puzzles:
 // replaying the trace, following the hints to the solution, rule checks and
 // the parsing of explanations.

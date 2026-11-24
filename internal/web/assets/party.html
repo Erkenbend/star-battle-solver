@@ -31,7 +31,7 @@
   <div class="banner what-if" id="party-error" hidden></div>
   <div class="card info" id="info" hidden>
     <p>Alle lösen gleichzeitig dieselben Puzzles: gegeneinander, miteinander am selben Brett oder gegen die Uhr.</p>
-    <p class="muted">Wer eine Party startet, bekommt einen Code aus vier Buchstaben; mit ihm oder dem Link treten die anderen bei.</p>
+    <p class="muted">Wer eine Party startet, bekommt einen Code aus vier Buchstaben; mit ihm, dem Link oder dem QR-Code (Handykamera) treten die anderen bei.</p>
   </div>
 
   <div class="party-start" id="start" hidden>
@@ -87,9 +87,12 @@
 
   <div class="party-lobby" id="lobby" hidden>
     <div class="card share">
-      <span class="muted">Party-Code</span>
-      <strong class="code" id="code"></strong>
-      <button id="copy-link" title="Link zur Party in die Zwischenablage">Link kopieren</button>
+      <svg id="qr" class="qr" role="img" aria-label="QR-Code mit dem Link zur Party"></svg>
+      <div class="share-code">
+        <span class="muted">Party-Code</span>
+        <strong class="code" id="code"></strong>
+        <button id="copy-link" title="Link zur Party in die Zwischenablage">Link kopieren</button>
+      </div>
     </div>
     <form class="card" id="join" hidden>
       <h2>Mitspielen</h2>

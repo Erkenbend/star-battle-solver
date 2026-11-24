@@ -610,9 +610,13 @@ details.opt > p { margin: 8px 0 0; }
 .mode-options p { margin: 0; font-size: 13px; }
 #create .actions button { flex: 1; max-width: 320px; }
 .code-input { width: 6.5em; text-transform: uppercase; letter-spacing: 0.2em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.share { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+/* The party's code, its link and the link as a QR code for a phone's camera:
+   dark on white in the dark theme too, with the standard's light margin. */
+.share { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.share .qr { flex: none; width: 132px; height: 132px; border-radius: 6px; shape-rendering: crispEdges; }
+@media (max-width: 360px) { .share .qr { width: 108px; height: 108px; } }
+.share-code { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .share .code { font: 700 26px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.18em; }
-.share button { margin-left: auto; }
 
 .party-panel { display: flex; flex-direction: column; gap: 10px; }
 .party-panel .party-mode { margin: 0; font-size: 13px; }

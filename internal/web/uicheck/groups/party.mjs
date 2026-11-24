@@ -10,7 +10,16 @@ export const scenarios = {
   // reported), solving, the end of the round; then giving up.
   async versus() {
     state.party = true;
-    const p = await partyStart("versus", {}, { inLobby: () => copied("lobby link copied", "#copy-link") });
+    const p = await partyStart("versus", {}, {
+      inLobby: async () => {
+        await copied("lobby link copied", "#copy-link");
+        // The QR code for a phone's camera: of the party's link, in sight.
+        record({ label: "lobby QR code", qr: await js(`(() => {
+          const s = document.getElementById("qr"), r = s.getBoundingClientRect(), d = s.querySelector("path") && s.querySelector("path").getAttribute("d");
+          return (d === QR.path(QR.encode(location.origin + location.pathname)) ? "the party's link" : "not the party's link") + ", " + Math.round(r.width) + " px, " + (r.top >= 0 && r.bottom <= innerHeight ? "on screen" : "off screen");
+        })()`) });
+      },
+    });
     await obs("started");
     // The way to the lobby is the tab bar's "Zusammen spielen", not a link in the page.
     record({ label: "Zusammen spielen in a round", href: (await js(`document.getElementById("nav-party").getAttribute("href")`)).replace(/[A-Z]{4}$/, "CODE") });

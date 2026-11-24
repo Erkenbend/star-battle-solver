@@ -53,13 +53,15 @@ Die ID wird aus den Regionen berechnet. Links und gespeicherte Ergebnisse bleibe
 | | |
 |---|---|
 | ![Party anlegen](screenshots/party-anlegen.png) | ![Gegeneinander](screenshots/party-runde.png) |
-| **Party anlegen:** Spielweise wählen (darunter steht, wie sie geht), die Größen zum Aufklappen, Code oder Link weitergeben. | **Gegeneinander:** alle lösen dasselbe Puzzle auf dem eigenen Brett und sehen den Fortschritt der anderen live. |
+| **Party anlegen:** Spielweise wählen (darunter steht, wie sie geht), die Größen zum Aufklappen, Code, Link oder QR-Code weitergeben. | **Gegeneinander:** alle lösen dasselbe Puzzle auf dem eigenen Brett und sehen den Fortschritt der anderen live. |
 
 Unter `/party` spielen mehrere Leute dieselben Runden, wahlweise:
 
 - **gegeneinander:** jede Person auf ihrem eigenen Brett, Wertung nach Hinweisen und Zeit. Wer die Party anlegt, kann die erlaubten Fehler pro Puzzle begrenzen (beliebig viele bis keiner); sie funktionieren wie Leben, ein Leben mehr als erlaubte Fehler. Fehler ist jeder Stern, der nicht zur Lösung passt, und kostet ein Leben, sobald er gesetzt ist; Kreuze zählen nicht. Der Stern ist dann rot markiert, solange er steht, und kostet auf demselben Feld nur einmal. Neben der Zeit stehen die übrigen Leben als ♥; wer das letzte verliert, gibt automatisch auf und landet als „KO“ hinter allen, die lösen. Unter denen, die lösen, gewinnt dann, wer die wenigsten Fehler gemacht hat, danach zählen Hinweise und Zeit. Das Brett bleibt dann mit dem rot markierten Stern stehen, bis man auf „Lösung zeigen“ drückt. Sterne in einer Annahme kosten nichts, erst wenn man sie übernimmt. „Fehler zeigen“ berechnet für schon rot markierte Sterne keinen Hinweis;
 - **miteinander:** alle markieren auf demselben Brett, mit gemeinsamer Zeit und ohne Hinweise. Aufgeben ist hier eine Stimme: Der Knopf bleibt gefüllt, solange sie gilt, ein zweiter Tipp nimmt sie zurück; die Runde endet, wenn alle dafür sind. Gleichzeitige Änderungen derselben Zelle entscheidet der Server: Wer zuerst ankommt, gewinnt.
 - **gegen die Uhr:** so viele Puzzles wie möglich in 2, 5 oder 10 Minuten, ohne Hinweise. Alle bekommen dieselben Puzzles in derselben Reihenfolge; wer eins gelöst hat, ist sofort beim nächsten. Wie oft man ein Puzzle überspringen darf, legt die Person fest, die die Party anlegt (nie bis beliebig oft). Gewertet werden die gelösten Puzzles, bei Gleichstand die Sterne im Puzzle, an dem man beim Abpfiff saß: jeder richtige zählt eins, jeder falsche minus eins. Der Server hält ein paar Puzzles im Voraus bereit; wer trotzdem schneller ist als der Generator, wartet kurz aufs nächste. Wer später dazukommt, spielt noch mit, nur mit weniger Zeit.
+
+In der Lobby steht der Link zur Party auch als QR-Code: Wer ihn mit der Kamera des Handys scannt, ist gleich in der Lobby.
 
 „Zusammen“ (wie auch `/party`) führt zurück zur Party, in der man mitspielt, und in eine laufende Runde gleich zu ihrem Puzzle. Eine neue Party anlegen oder einer anderen beitreten kann man, nachdem man die alte mit „Party verlassen“ verlassen hat: in der Lobby unten, in einer Runde unter „Mehr“. Dasselbe gilt, wenn die Party nicht mehr existiert.
 

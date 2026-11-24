@@ -236,7 +236,10 @@ versus, coop, race) and what that allows is decided once by
 combining flags. `boot()` in `app.js` creates each part with the page
 object `P`, through which the parts read and change the play state; the
 core calls back into them (`H.change`, `party.controls`, …). The library, settings, party and designer pages have
-their own small scripts instead.
+their own small scripts instead; the party page also gets `qr.js` (`QR`,
+the QR code of the party's link for a phone's camera, written here as there
+are no dependencies, checked by `qr_test.js` against another encoder's
+symbols).
 
 The puzzle page is laid out for phones and tablets first (see
 [decision 25](decisions/25-mobile-first-page.md)): below the board only the

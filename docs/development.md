@@ -47,7 +47,7 @@ Spielt die Seiten in einem Chromium ohne Fenster durch. Die Szenarien sind nach 
 | `tutorial` | Anleitung mit Rundgang für einen neuen Besucher |
 | `solo` | allein lösen mit Hinweisen und Prüfen, Annahme, Lösungsweg, „Ergebnis kopieren“, „Neues Puzzle“ mit einer oder mehreren Größen, eine mit `html` gespeicherte Seite (bis zum Lösen) |
 | `library` | Bibliothek: ein schweres Puzzle (Lösungsweg erst nach dem Lösen, auch mit `#weg`) und ein Motiv, „Ergebnis kopieren“, das Gelöste nach dem Neuladen und in der Übersicht, das letzte ungelöste Motiv |
-| `party` | Partys gegeneinander (auch mit Leben), miteinander (auch neu geladen) und gegen die Uhr (Alice im Browser, Bob über die API), „Link kopieren“ |
+| `party` | Partys gegeneinander (auch mit Leben), miteinander (auch neu geladen) und gegen die Uhr (Alice im Browser, Bob über die API), „Link kopieren“, QR-Code der Lobby |
 | `site` | der Weg zurück zum ungelösten Solo-Puzzle über „Solo“, das Ende von Bibliothek, Einstellungen und Party-Seite, GitHub-Link und Version in den Einstellungen, Installieren als App |
 | `designer` | `starbattle design`: zeichnen und radieren, Prüfen beim Zeichnen, strenger Modus, Suche und Anhalten, Vorschläge ansehen, Farben neu verteilen, speichern und ausprobieren, Größe ändern und leeren |
 

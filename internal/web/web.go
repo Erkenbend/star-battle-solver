@@ -72,6 +72,9 @@ var partyHTML string
 //go:embed assets/party.js
 var partyJS string
 
+//go:embed assets/qr.js
+var qrJS string // only the party page draws QR codes
+
 //go:embed assets/library.html
 var libraryHTML string
 
@@ -256,7 +259,7 @@ func WriteParty(w io.Writer, d PartyPage) error {
 	if d.Code != "" {
 		title = "Star Battle · Party " + d.Code
 	}
-	return render(w, partyHTML, title, d, partyJS, appHead)
+	return render(w, partyHTML, title, d, qrJS+"\n"+partyJS, appHead)
 }
 
 // Link is a further way out of an error page, next to the start page.
