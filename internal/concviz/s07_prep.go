@@ -6,7 +6,7 @@ package concviz
 // party harmless.
 func prepStory() *Story {
 	s := newStory("07-party-prep.svg", "7. Preparing the next party puzzles: a mutex and a generation number, no channel",
-		"internal/party/party.go", 1280, 600)
+		"internal/party/prep.go", 1280, 600)
 
 	create := s.Go("request: create party", Pt{140, 140}, "party.Manager.Create", "party.Manager.startPrep")
 	tick := s.Go("Tick", Pt{140, 420}, "party.Manager.Tick")

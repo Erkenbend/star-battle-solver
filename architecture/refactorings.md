@@ -71,18 +71,6 @@ The numbers are the ranking: value for maintainability, robustness and
 speed against cost and risk. 5 to 7 are worth doing soon; 9 and 10 go
 together; 14 only after 5, and only if measurements still call for it.
 
-## 11. Split `party.go` like `coop.go` and `clock.go`
-
-`party.go` has 1,023 lines: limits and types, joining and leaving, the
-actions of the mode against each other (progress, solve, lives, giving
-up), the round's page, presence and ticks, preparing puzzles, and the
-snapshot with the ranking (~170 lines). The other two modes already have
-files of their own. Proposal, moving code only: `versus.go` (its actions
-and lives), `prep.go` (`startPrep`, `prepTarget`), `snapshot.go`
-(`Snapshot`, ranking); `party.go` keeps the types and the shared lifecycle.
-`go test ./internal/concviz` names the claims about `startPrep` that move
-(the story points to files).
-
 ## 12. One function for "puzzle of size n, seed s"
 
 Principle 5 (same size and seed, same puzzle) rests on one convention,
@@ -261,3 +249,10 @@ What the review found that needs no change now, only attention later:
     core, it would change about 90 lines of it for no change in
     behaviour, and the accessors cost nothing. Reconsider if a part needs
     many more pieces of state.
+- **11. Split `party.go` like `coop.go` and `clock.go`** (November 2026),
+  moving code only: `versus.go` (progress, solving, lives, giving up),
+  `prep.go` (`startPrep`, `prepTarget`) and `snapshot.go` (`Snapshot`, the
+  ranking) left `party.go` with the types and the shared lifecycle (joining,
+  presence, ticks, starting and ending rounds, `Page`, events): 1,023 → 668
+  lines. The diagram of [concurrency.md](concurrency.md) section 7 now
+  points to `prep.go`.
