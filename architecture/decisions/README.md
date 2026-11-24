@@ -46,6 +46,7 @@ and open ideas.
 | [34](34-gzip.md) | gzip for pages and JSON in `serve` (`-gzip=false` turns it off) | done |
 | [35](35-refs-in-the-trace.md) | Structured references in the trace: `words` names units and cells and records them, the page highlights without parsing the text; explanations are built only when read | done |
 | [36](36-lookahead-stops-trials.md) | Lookahead stops trials whose chain is longer than the shortest refutation so far; same choice, about 1.5× faster | done |
+| [37](37-no-slim-binary.md) | No separate serve-only binary for the Pi: under 1 MB smaller, not worth a second build | rejected |
 
 ## Adding a decision
 
