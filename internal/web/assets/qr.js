@@ -7,7 +7,8 @@
 // penalty rules. Larger versions would need the version information, more
 // alignment patterns and blocks of two lengths. Pure: encode gives the modules, path an
 // SVG path of the dark ones; the party page draws it. Tested by qr_test.js
-// against matrices of another encoder (testdata/qr.json).
+// against matrices of another encoder (testdata/qr.json). Its limits for
+// the party: docs/development.md, "QR-Code der Party".
 "use strict";
 
 const QR = (() => {

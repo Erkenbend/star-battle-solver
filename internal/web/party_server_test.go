@@ -204,9 +204,9 @@ func TestPartyServer(t *testing.T) {
 	if rec := get(h, "/party/"+strings.ToLower(code)); rec.Code != http.StatusFound || rec.Header().Get("Location") != loc {
 		t.Fatalf("lower-case code: %d %q", rec.Code, rec.Header().Get("Location"))
 	}
-	// The link in upper case, as the lobby's QR code has it.
-	if rec := get(h, "/PARTY/"+code); rec.Code != http.StatusFound || rec.Header().Get("Location") != loc {
-		t.Fatalf("upper-case link: %d %q", rec.Code, rec.Header().Get("Location"))
+	// The short link of the lobby's QR code.
+	if rec := get(h, "/P/"+code); rec.Code != http.StatusFound || rec.Header().Get("Location") != loc {
+		t.Fatalf("short link: %d %q", rec.Code, rec.Header().Get("Location"))
 	}
 	if rec := get(h, "/party/QQQQ"); rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown party: %d", rec.Code)

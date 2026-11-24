@@ -323,12 +323,20 @@ const Party = (() => {
   }
 
   // ---------- party page: create, join, lobby ----------
-  // text as a QR code (qr.js, only on this page) in svg, with a light
-  // margin of four modules. The link goes in upper case, which takes fewer
-  // modules (QR's alphanumeric mode); scheme and host don't mind, and the
-  // server sends /PARTY/{code} on to /party/{code}.
-  function drawQR(svg, text) {
-    const m = QR.encode(text), w = m.length + 8;
+  // The party's link as a QR code (qr.js, only on this page) in svg, with
+  // a light margin of four modules. The short link /P/{code} (the server
+  // sends it on to /party/{code}) in upper case, which takes fewer modules
+  // (QR's alphanumeric mode); scheme and host don't mind. Hidden if the link
+  // is too long for qr.js (see docs/development.md).
+  function drawQR(svg, code) {
+    let m;
+    try {
+      m = QR.encode((location.origin + "/P/" + code).toUpperCase());
+    } catch {
+      svg.setAttribute("hidden", ""); // an svg has no .hidden
+      return;
+    }
+    const w = m.length + 8;
     svg.setAttribute("viewBox", `-4 -4 ${w} ${w}`);
     svg.innerHTML = `<rect x="-4" y="-4" width="${w}" height="${w}" fill="#fff"/><path fill="#000" d="${QR.path(m)}"/>`;
   }
@@ -408,7 +416,7 @@ const Party = (() => {
     $("party-title").textContent = "Party " + code;
     $("code").textContent = code;
     const link = location.origin + "/party/" + code;
-    drawQR($("qr"), link.toUpperCase());
+    drawQR($("qr"), code);
     $("copy-link").onclick = async () => {
       if (await copyText(link)) {
         $("copy-link").textContent = "Kopiert ✓";

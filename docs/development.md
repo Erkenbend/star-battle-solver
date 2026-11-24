@@ -82,6 +82,28 @@ Partys, Anleitung, das Lösen allein (ein zweites Mal), die Bibliothek (ein zwei
 | `architecture` | Architektur für Entwickelnde (englisch), mit Vorschlägen zum Umbau |
 | `.github/workflows` | Tests und Builds auf GitHub Actions (`ci.yml`), Abspieler auf GitHub Pages (`pages.yml`) |
 
+## QR-Code der Party
+
+Die Lobby zeigt den Link zur Party als QR-Code, zum Scannen mit der Kamera eines Handys (im Browser selbst scannt nichts). Er enthält den Kurzlink `/P/{code}` mit der Adresse, unter der der Browser die Seite geöffnet hat (`location.origin`), ganz in Großbuchstaben, etwa `HTTP://RASPBERRYPI.LOCAL:6369/P/ABCD`; der Server leitet `/P/{code}` auf `/party/{code}` um. „Link kopieren“ gibt weiter den langen Link in Kleinbuchstaben.
+
+Der Code ist selbst geschrieben (`internal/web/assets/qr.js`, keine Abhängigkeiten) und kann nur, was dieser Link braucht:
+
+- **Großbuchstaben:** Nur Großbuchstaben, Ziffern und ` $%*+-./:` passen in den alphanumerischen Modus (5,5 Bit je Zeichen). Schema und Host sind gleich, ob groß oder klein geschrieben, der Pfad nicht, deshalb die Umleitung. In Kleinbuchstaben (8 Bit je Zeichen) wäre der Code fast immer eine Größe größer:
+
+  | Adresse | Module, `/P/` groß | klein |
+  |---|---|---|
+  | `https://sb.xy.de` | 21 × 21 | 25 × 25 |
+  | `http://raspberrypi.local:6369`, `http://192.168.178.20:6369` | 25 × 25 | 29 × 29 |
+  | `https://star-battle.my-home-server.example.de` | 29 × 29 | 29 × 29 |
+
+- **Sonst Byte-Modus:** Hat die Adresse ein anderes Zeichen (etwa `_` oder eine IPv6-Adresse in `[…]`), geht der ganze Link im Byte-Modus (UTF-8) hinein, ohne Mischen der Modi, und der Code wird eine Größe größer.
+- **Fehlerkorrektur nur Stufe L** (7 % dürfen fehlen): genug für einen Bildschirm, nicht für Ausdrucke, die zerknittern.
+- **Nur Versionen 1 bis 6** (21 bis 41 Module): höchstens 195 Zeichen im alphanumerischen Modus, 134 Bytes im Byte-Modus, also eine Adresse bis 188 Zeichen (Byte-Modus: 127). Ist sie länger, bleibt der QR-Code weg; die Lobby geht sonst wie immer.
+- **Die Adresse ist die des zeigenden Browsers:** Wer die Lobby über `localhost` öffnet, zeigt einen Code mit `localhost`, der auf den anderen Handys ins Leere führt. Die Lobby also unter der Adresse öffnen, die die anderen erreichen. `.local`-Namen löst nicht jedes Handy auf; dann die IP-Adresse nehmen.
+- **Vor einem Reverse Proxy** muss auch `/P/` beim Server ankommen; mit Basic Auth fragt das scannende Handy erst nach dem Passwort.
+
+Geprüft wird `qr.js` von `internal/web/qr_test.js` gegen Symbole eines anderen Encoders (`internal/web/testdata/qr.json`, erzeugt mit python-qrcode bei vorgegebener Maske und vorgegebenem Modus); die Auswahl der Maske kann sich von anderen Encodern unterscheiden, jede ist gültig. Die UI-Prüfung (Gruppe `party`) hält fest, dass der Code in der Lobby den Kurzlink enthält, wie viele Module er hat und dass er auf dem Handy ganz zu sehen ist.
+
 ## `design`: Puzzles entwerfen
 
 ```sh

@@ -16,8 +16,8 @@ export const scenarios = {
         // The QR code for a phone's camera: of the party's link, in sight.
         record({ label: "lobby QR code", qr: await js(`(() => {
           const s = document.getElementById("qr"), r = s.getBoundingClientRect(), d = s.querySelector("path") && s.querySelector("path").getAttribute("d");
-          const m = QR.encode((location.origin + location.pathname).toUpperCase());
-          return (d === QR.path(m) ? "the party's link in upper case" : "not the party's link") + ", " + m.length + " modules, " + Math.round(r.width) + " px, " + (r.top >= 0 && r.bottom <= innerHeight ? "on screen" : "off screen");
+          const m = QR.encode((location.origin + location.pathname.replace("/party/", "/P/")).toUpperCase());
+          return (d === QR.path(m) ? "the party's short link in upper case" : "not the party's link") + ", " + m.length + " modules, " + Math.round(r.width) + " px, " + (r.top >= 0 && r.bottom <= innerHeight ? "on screen" : "off screen");
         })()`) });
       },
     });
