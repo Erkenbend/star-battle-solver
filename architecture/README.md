@@ -20,6 +20,7 @@ Related documents:
 - [`README.md`](../README.md): what the project is, for players (German).
 - [`docs/development.md`](../docs/development.md): build, test, and the developer tools `design`, `hardsearch` and `stress` (German).
 - [`PLAN.md`](../PLAN.md): the rules, their priority levels and measurements, the current state and open ideas (German). Read it, and the matching entries in [`decisions/`](decisions/README.md), before changing a rule, the generator or the search: most "why not …?" questions are answered there.
+- [`HISTORY.md`](../HISTORY.md): what each development session achieved, newest first (German).
 - [`grober_plan.md`](../grober_plan.md): the original idea, the only human-written text. Keep it unchanged.
 
 ## 1. What the system is

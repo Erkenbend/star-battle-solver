@@ -104,6 +104,7 @@ Eine Instanz läuft unter **[meow.ninasworkshop.de](https://meow.ninasworkshop.d
 | [Symbole](symbols/README.md) | eigene Symbole statt ★ hinzufügen |
 | [Raspberry Pi](deploy/README.md) | Installation als Dienst |
 | [PLAN.md](PLAN.md) | Regeln, Messungen, Stand und offene Ideen |
+| [HISTORY.md](HISTORY.md) | Verlauf der Entwicklung, Sitzung für Sitzung |
 | [architecture/decisions](architecture/decisions/README.md) | Entscheidungen und verworfene Ideen mit Messungen (englisch) |
 | [Architektur](architecture/README.md) | Aufbau und Zweck der Teile, für Entwickelnde (englisch) |
 | [Goroutines und Channels](architecture/concurrency.md) | alle zehn nebenläufigen Stellen mit Sequenzdiagrammen und [Abspieler](https://erkenbend.github.io/star-battle-solver/) (englisch) |
