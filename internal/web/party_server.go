@@ -18,9 +18,14 @@ import (
 
 // NewParties returns the manager of the party mode for serve: sizes MinN to
 // MaxN, puzzles taken from pool (may be nil) if it has one ready, else
-// generated (with a new seed) and solved with solve.
-func NewParties(solve SolveFunc, pool *Pool) *party.Manager {
-	return party.New(party.Config{MinN: MinN, MaxN: MaxN, Prepare: partyPuzzle(solve, pool)})
+// generated (with a new seed) and solved with solve. With wordCodes, every
+// second party's code is a word of party.CodeWords (serve -word-codes).
+func NewParties(solve SolveFunc, pool *Pool, wordCodes bool) *party.Manager {
+	c := party.Config{MinN: MinN, MaxN: MaxN, Prepare: partyPuzzle(solve, pool)}
+	if wordCodes {
+		c.Words = party.CodeWords
+	}
+	return party.New(c)
 }
 
 // partyPuzzle returns the Prepare function of NewParties.

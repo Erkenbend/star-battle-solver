@@ -3,6 +3,7 @@ package party
 import (
 	"errors"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -507,6 +508,88 @@ func TestPartyExpiry(t *testing.T) {
 	_, err = pm.Snapshot(code, "")
 	wantKind(t, err, NotFound)
 	<-ch // the stream was told
+}
+
+// TestPartyWordCodes: with Config.Words every second party gets the next
+// word of a shuffled order, and a random code when that word is taken;
+// without, only random codes of codeLetters.
+func TestPartyWordCodes(t *testing.T) {
+	newManager := func(seed uint64, words []string) *Manager {
+		var mu sync.Mutex // the preparations pick sizes in the background
+		r := rand.New(rand.NewPCG(seed, 1))
+		return New(Config{
+			MinN:    4,
+			MaxN:    14,
+			Prepare: func(n int) (*Puzzle, error) { return testPuzzle(t, n), nil },
+			Pick: func(k int) int {
+				mu.Lock()
+				defer mu.Unlock()
+				return r.IntN(k)
+			},
+			Words: words,
+		})
+	}
+	create := func(pm *Manager) string {
+		t.Helper()
+		code, err := pm.Create(Options{Sizes: []int{5}})
+		must(t, err)
+		if _, err := pm.Snapshot(NormalizeCode(strings.ToLower(code)), ""); err != nil {
+			t.Fatalf("party %s not found by its code typed in lower case: %v", code, err)
+		}
+		return code
+	}
+	random := func(code string) bool {
+		return len(code) == 4 && strings.Trim(code, codeLetters) == ""
+	}
+	isWord := func(code string) bool { return slices.Contains(CodeWords, code) }
+
+	for _, w := range CodeWords {
+		if len(w) != 4 || strings.Trim(w, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != "" {
+			t.Errorf("word %q is not four capital letters", w)
+		}
+	}
+	order := func(seed uint64) []string {
+		pm := newManager(seed, CodeWords)
+		var words []string
+		for range CodeWords {
+			code := create(pm)
+			if !isWord(code) {
+				t.Fatalf("seed %d: code %s on a word's turn", seed, code)
+			}
+			words = append(words, code)
+			if code := create(pm); !random(code) {
+				t.Fatalf("seed %d: code %s on a random code's turn", seed, code)
+			}
+		}
+		if got, want := slices.Sorted(slices.Values(words)), slices.Sorted(slices.Values(CodeWords)); !slices.Equal(got, want) {
+			t.Fatalf("seed %d: words %v, want each of %v once", seed, words, CodeWords)
+		}
+		// All words are taken now: the next word's turn falls back to a
+		// random code, and once that party is gone the word comes again.
+		if code := create(pm); !random(code) || isWord(code) {
+			t.Fatalf("seed %d: code %s, want a random one while all words are taken", seed, code)
+		}
+		pm.mu.Lock()
+		delete(pm.parties, words[2])
+		pm.mu.Unlock()
+		create(pm) // random
+		create(pm) // words[1], taken: random
+		create(pm) // random
+		if code := create(pm); code != words[2] {
+			t.Fatalf("seed %d: code %s, want the freed word %s", seed, code, words[2])
+		}
+		return words
+	}
+	if a, b := order(1), order(2); slices.Equal(a, b) || slices.Equal(a, CodeWords) {
+		t.Errorf("words not shuffled: %v and %v", a, b)
+	}
+
+	pm := newManager(3, nil)
+	for range 10 {
+		if code := create(pm); !random(code) {
+			t.Fatalf("code %s without words", code)
+		}
+	}
 }
 
 func TestPartyPrepareAfterReady(t *testing.T) {

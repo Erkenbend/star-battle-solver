@@ -298,6 +298,7 @@ func cmdServe(args []string) error {
 	addr := fs.String("addr", "localhost:6369", "listen address")
 	noPregen := fs.Bool("no-pregen", false, "do not keep a generated puzzle of every size ready")
 	gz := fs.Bool("gzip", true, "send pages and JSON gzipped to browsers that accept it")
+	wordCodes := fs.Bool("word-codes", true, "every second new party gets a word of party.CodeWords as its code instead of random letters")
 	solve := solverFlags(fs, "sync") // sync: reproducible explanations, as for html
 	fs.Parse(args)
 	// One budget for every solve of the server (suggestion 6 of
@@ -330,7 +331,7 @@ func cmdServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	parties := web.NewParties(background, pool)
+	parties := web.NewParties(background, pool, *wordCodes)
 	go parties.Run(5*time.Second, ctx.Done())
 	h := web.Handler(solve, pool, parties, []*web.Library{motifs, hard}, syms)
 	if *gz {

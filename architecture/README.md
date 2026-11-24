@@ -218,7 +218,9 @@ presence, ranking. It is a state machine in memory behind one mutex and knows
 neither HTTP nor pages: `web` gives it puzzles (`Config.Prepare`, from the pool
 or the generator), carries actions and snapshots over HTTP and server-sent
 events, maps its error kinds to status codes, and builds a round's page from
-`Manager.Page`. Tests drive it with a fake clock.
+`Manager.Page`. A party's code is four random letters or, every second
+party, a word of `CodeWords` (`Config.Words`, off with `serve
+-word-codes=false`). Tests drive it with a fake clock.
 
 The browser code is plain JavaScript without a build step, inlined into
 each page by the template's two script slots: the shared scripts first, then

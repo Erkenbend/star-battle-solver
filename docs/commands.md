@@ -107,6 +107,7 @@ Der Server löst höchstens so viele Puzzles gleichzeitig, wie er Kerne hat, ein
 | `-addr` | Adresse (Standard `localhost:6369`) |
 | `-no-pregen` | kein vorbereitetes Puzzle je Größe im Hintergrund bereithalten (betrifft die Bibliothek nicht, dort wird ohnehin nichts vorgerechnet) |
 | `-gzip=false` | Seiten und JSON unkomprimiert schicken, z. B. auf einem schwachen Rechner im schnellen Heimnetz (Standard: komprimiert). Ein Reverse-Proxy davor braucht es nicht: Caddy mit `encode` reicht schon komprimierte Antworten durch |
+| `-word-codes=false` | Party-Codes nur aus zufälligen Buchstaben. Standard: jede zweite neue Party bekommt stattdessen ein Wort aus einer festen Liste (`party.CodeWords` in `internal/party/party.go`, etwa `STAR` oder `ZWEI`), in einer beim Start gemischten Reihenfolge, nach dem letzten wieder von vorn; hat eine laufende Party das Wort schon, gibt es einen zufälligen Code |
 
 Dazu die [Solver-Optionen](#solver-optionen). Für den Betrieb auf einem Raspberry Pi siehe [deploy/README.md](../deploy/README.md).
 

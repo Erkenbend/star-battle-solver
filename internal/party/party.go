@@ -71,6 +71,15 @@ const (
 // like 1 and 0.
 const codeLetters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 
+// CodeWords are the words a party code can be besides random letters (see
+// Config.Words). Each is four capital letters A to Z; I and O are fine here,
+// a word is read as a word.
+var CodeWords = []string{
+	"NINA", "BABY", "ADRI", "MEOW", "NDIN", "YUMI", "MAMA", "PAPA", "KAKI",
+	"PUPS", "NULL", "EINS", "ZWEI", "DREI", "VIER", "ACHT", "NEUN", "ZEHN",
+	"PRTY", "RIPI", "STAR",
+}
+
 // Kind classifies an Error, so the caller can choose its reply.
 type Kind int
 
@@ -116,6 +125,9 @@ type Manager struct {
 	now        func() time.Time
 	pick       func(k int) int // random index below k
 	retryDelay time.Duration
+	words      []string                        // Config.Words, shuffled
+	nextWord   int                             // index into words of the next word code
+	wordTurn   bool                            // the last code was (meant to be) a word
 	after      func(d time.Duration, f func()) // runs f once d has passed
 }
 
@@ -127,6 +139,11 @@ type Config struct {
 	// Prepare returns a generated and solved n×n puzzle with a unique
 	// solution. It runs in the background while a round is played.
 	Prepare func(n int) (*Puzzle, error)
+	// Words are codes to hand out besides random ones: every second new
+	// party gets the next of them, in an order New shuffles once, and
+	// starting over after the last; a random code when a party has that
+	// word already. Nil: only random codes. serve passes CodeWords.
+	Words []string
 
 	Now        func() time.Time                // the clock
 	Pick       func(k int) int                 // a random index below k
@@ -217,12 +234,17 @@ func New(c Config) *Manager {
 		pick:       c.Pick,
 		retryDelay: cmp.Or(c.RetryDelay, 5*time.Second),
 		after:      c.After,
+		words:      slices.Clone(c.Words),
 	}
 	if m.now == nil {
 		m.now = time.Now
 	}
 	if m.pick == nil {
 		m.pick = mrand.IntN
+	}
+	for i := len(m.words) - 1; i > 0; i-- {
+		j := m.pick(i + 1)
+		m.words[i], m.words[j] = m.words[j], m.words[i]
 	}
 	if m.after == nil {
 		m.after = func(d time.Duration, f func()) { time.AfterFunc(d, f) }
@@ -269,14 +291,7 @@ func (pm *Manager) Create(o Options) (string, error) {
 	if len(pm.parties) >= MaxParties {
 		return "", errorf(Busy, "Gerade laufen zu viele Partys, bitte später noch einmal.")
 	}
-	code := ""
-	for code == "" || pm.parties[code] != nil {
-		var b [4]byte
-		for i := range b {
-			b[i] = codeLetters[pm.pick(len(codeLetters))]
-		}
-		code = string(b[:])
-	}
+	code := pm.newCode()
 	p := &Party{
 		Code:    code,
 		Sizes:   ok,
@@ -291,6 +306,30 @@ func (pm *Manager) Create(o Options) (string, error) {
 	pm.parties[code] = p
 	pm.startPrep(p)
 	return code, nil
+}
+
+// newCode returns a code that no party has: in turn the next word of
+// pm.words (see Config.Words) and a random one. pm.mu must be held.
+func (pm *Manager) newCode() string {
+	if len(pm.words) > 0 {
+		pm.wordTurn = !pm.wordTurn
+		if pm.wordTurn {
+			w := pm.words[pm.nextWord]
+			pm.nextWord = (pm.nextWord + 1) % len(pm.words)
+			if pm.parties[w] == nil {
+				return w
+			}
+		}
+	}
+	for {
+		var b [4]byte
+		for i := range b {
+			b[i] = codeLetters[pm.pick(len(codeLetters))]
+		}
+		if code := string(b[:]); pm.parties[code] == nil {
+			return code
+		}
+	}
 }
 
 // NormalizeCode upper-cases a code as typed by a player.
